@@ -1,0 +1,450 @@
+import os, sys
+import warnings
+import numpy as np
+from pyscf import scf, tdscf, gto, lib
+
+#import qed
+from utils import print_matrix
+
+
+section_names = ['molecule', 'rem', 'polariton']
+
+
+def read_molecule(data):
+    charge, spin = [], []
+    coords, atmsym, xyz = [], [], []
+
+    for line in data:
+        info = line.split()
+        if len(info) == 2:
+            charge.append(int(info[0]))
+            spin.append(int((int(info[1]) - 1) / 2))
+            atmsym.append([])
+            xyz.append([])
+            coords.append('')
+        elif len(info) == 4:
+            coords[-1] += line + '\n'
+            atmsym[-1].append(info[0])
+            for x in range(3):
+                xyz[-1].append(float(info[x+1]))
+
+    nfrag = len(charge) - 1 if len(charge) > 1 else 1
+    if len(charge) == 1:
+        charge = charge[0]
+        spin = spin[0]
+        atmsym = atmsym[0]
+        xyz = xyz[0]
+        coords = coords[0]
+    elif len(charge) > 1:
+        # move the complex info to the end
+        charge.append(charge.pop(0))
+        spin.append(spin.pop(0))
+        atmsym.append(atmsym.pop(0))
+        xyz.append(xyz.pop(0))
+        coords.append(coords.pop(0))
+        # add complex coords
+        for n in range(len(charge)-1):
+            coords[-1] += coords[n]
+            for i in range(len(atmsym[n])):
+                atmsym[-1].append(atmsym[n][i])
+                for x in range(3):
+                    xyz[-1].append(xyz[n][i*3+x])
+
+    #for n in range(len(charge)):
+    #    print('charge and spin: ', charge[n], spin[n])
+    #    print('coords:\n', coords[n])
+    return nfrag, charge, spin, coords, atmsym, xyz
+
+
+def read_keyword_block(data):
+    rem_keys = {}
+    for line in data:
+        if '!' not in line:
+            info = line.split()
+        elif len(line.split('!')[0]) > 0:
+            info = line.split('!')[0].split()
+        else:
+            info = []
+
+        if len(info) == 2:
+            rem_keys[info[0].lower()] = convert_string(info[1])
+        elif len(info) > 2:
+            rem_keys[info[0].lower()] = [convert_string(x) for x in info[1:]]
+
+    #print('rem_keys: ', rem_keys)
+    return rem_keys
+
+
+def convert_string(string):
+    if string.isdigit():
+        return int(string)
+    elif string.lstrip('-').replace('.','',1).isdigit():
+        return float(string)
+    else: return string
+
+
+def parser(file_name):
+    infile = open(file_name, 'r')
+    lines = infile.read().split('$')
+    #print('lines:\n', lines)
+
+    parameters = {}
+    for section in lines:
+        data = section.split('\n')
+        name = data[0].lower()
+        #function = 'read_' + name
+        #if function in globals():
+        #    parameters[name] = eval('read_'+name)(data)
+        if name == 'molecule':
+            parameters[name] = read_molecule(data)
+        else:
+            parameters[name] = read_keyword_block(data)
+
+    print('parameters:\n', parameters)
+    return parameters
+
+
+def build_single_molecule(charge, spin, atom, basis, verbose=0):
+    mol = gto.M(
+        atom    = atom,
+        basis   = basis,
+        spin    = spin,
+        charge  = charge,
+        verbose = verbose
+    )
+
+    return mol
+
+
+def get_jobtype(parameters):
+    jobtype = 'scf'
+    if 'cis_n_roots' in parameters.get(section_names[1]):
+        jobtype = 'td'
+    if section_names[2] in parameters:
+        jobtype = 'qed_td'
+
+    return jobtype
+
+
+def _get_center_of_mass(mol):
+    mass = mol.atom_mass_list(isotope_avg=True)
+    atom_coords = mol.atom_coords()
+    mass_center = numpy.einsum('z,zx->x', mass, atom_coords) / mass.sum()
+    return mass_center
+
+
+def get_center_of_mass(mol, nfrag=1):
+    if isinstance(mol, list):
+        mass_center = [None]*nfrag
+        for n in range(nfrag):
+            mass_center[n] = _get_center_of_mass(mol[n])
+        return np.array(mass_center)
+    else:
+        return _get_center_of_mass(mol)
+
+
+def _run_pyscf_dft(charge, spin, atom, basis, functional, verbose=0):
+    mol = build_single_molecule(charge, spin, atom, basis, verbose)
+    mf = scf.RKS(mol)
+    mf.xc = functional
+    mf.grids.prune = True
+    mf.kernel()
+
+    return mol, mf
+
+
+def run_pyscf_dft(charge, spin, atom, basis, functional, nfrag=1, verbose=0):
+    if isinstance(charge, list):
+        mol, mf = [None]*nfrag, [None]*nfrag
+        for n in range(nfrag):
+            mol[n], mf[n] = _run_pyscf_dft(charge[n], spin[n], atom[n],
+                                           basis, functional, verbose)
+
+        return mol, mf
+    else:
+        return _run_pyscf_dft(charge, spin, atom, basis, functional, verbose)
+
+
+
+def _run_pyscf_tddft(mf, td_model, nroots, verbose=0):
+    td = getattr(tdscf, td_model)(mf)
+    td.max_cycle = 600
+    td.max_space = 200
+
+    if nroots > 0:
+        td.kernel(nstates=nroots)
+        try:
+            td.converged.all()
+            #print('TDDFT converged: ', td.converged)
+            #print_matrix('Excited state energies (eV):\n', td.e * 27.2116, 6)
+        except Warning:
+            #print('the %d-th job for TDDFT is not converged.' % (n+1))
+            print('the job for TDDFT is not converged.')
+
+    if verbose >= 5:
+        td.analyze()
+
+    return td
+
+
+def run_pyscf_tddft(mf, td_model, nroots, nfrag=1, verbose=0):
+    if isinstance(mf, list):
+        td = [None]*nfrag
+        for n in range(nfrag):
+            td[n] = _run_pyscf_tddft(mf[n], td_model, nroots, verbose=verbose)
+
+        return td
+    else:
+        return _run_pyscf_tddft(mf, td_model, nroots, verbose)
+
+
+def _run_pyscf_dft_tddft(charge, spin, atom, basis, functional, td_model, nroots,
+                         verbose=0, debug=0):
+    mol, mf = run_pyscf_dft(charge, spin, atom, basis, functional, verbose=verbose)
+    td = run_pyscf_tddft(mf, td_model, nroots, verbose=verbose)
+    return mol, mf, td
+
+
+# mainly for parallel execute
+def run_pyscf_dft_tddft(charge, spin, atom, basis, functional, td_model, nroots,
+                        nfrag=1, verbose=0, debug=0):
+    if isinstance(charge, list):
+        mol, mf, td = [None]*nfrag, [None]*nfrag, [None]*nfrag
+        for n in range(nfrag):
+            mol[n], mf[n] = run_pyscf_dft(charge[n], spin[n], atom[n],
+                                          basis, functional, verbose)
+            td[n] = run_pyscf_tddft(mf[n], td_model, nroots, verbose=verbose)
+
+        if debug > 0:
+            final_print_energy(td, nwidth=10, iprint=7)
+            trans_dipole, argmax = find_transition_dipole(td, nroots, nfrag)
+
+        return mol, mf, td
+    else:
+        return _run_pyscf_dft_tddft(charge, spin, atom, basis, functional,
+                                    td_model, nroots, verbose, debug)
+
+
+def _run_pyscf_qed(mf, td, qed_model, cavity_model, key):
+    cav_obj = getattr(qed, cavity_model)(mf, key)
+    qed_td = getattr(qed, qed_model)(mf, td, cav_obj, key)
+    qed_td.kernel()
+    try:
+        qed_td.converged.all()
+        #e_lp, e_up = qed_td.e[:2]
+        #print('e_lp:', e_lp, '  e_up:', e_up)
+        #print_matrix('qed state energies(H):\n', qed_td.e)
+    except Warning:
+        print('the job for qed-TDDFT is not converged.')
+
+    return qed_td, cav_obj
+
+
+def run_pyscf_qed(mf, td, qed_model, cavity_model, key, nfrag=1):
+    if isinstance(mf, list):
+        qed_td, cav_obj = [None]*nfrag, [None]*nfrag
+        for n in range(nfrag):
+            qed_td[n], cav_obj[n] = _run_pyscf_qed(mf[n], td[n], qed_model,
+                                                   cavity_model, key)
+
+        return qed_td, cav_obj
+    else:
+        return _run_pyscf_qed(mf, td, qed_model, cavity_model, key)
+
+
+def _find_transition_dipole(td, nroots):
+    trans_dipole = td.transition_dipole()
+    argmax = np.unravel_index(np.argmax(np.abs(trans_dipole), axis=None),
+                              trans_dipole.shape)[0]
+    print_matrix('trans_dipole:', trans_dipole, 10)
+    return trans_dipole, argmax
+
+
+def find_transition_dipole(td, nroots, nfrag=1):
+    if isinstance(td, list):
+        trans_dipole, argmax = [None]*nfrag, [None]*nfrag
+        for n in range(nfrag):
+            trans_dipole[n], argmax[n] = _find_transition_dipole(td[n], nroots)
+
+        trans_dipole = np.reshape(trans_dipole, (nfrag, -1, 3))
+        return trans_dipole, argmax
+    else:
+        return _find_transition_dipole(td, nroots)
+
+
+def find_oscillator_strength(td, nroots, nfrag=1):
+    if isinstance(td, list):
+        f_oscillator = [None]*nfrag
+        for n in range(nfrag):
+            f_oscillator[n] = td[n].oscillator_strength()
+        return np.array(f_oscillator)
+    else:
+        return td.oscillator_strength()
+
+
+def final_print_energy(td, title='tddft', nwidth=6, iprint=0):
+    if not isinstance(td, list): td = [td]
+
+    if not isinstance(td[0].e, np.ndarray): return
+
+    energy = []
+    for n in range(len(td)):
+        energy.append(td[n].e)
+    energy = np.reshape(energy, (len(td), -1))
+
+    if iprint > 0:
+        print_matrix(title+' energy:', energy, nwidth)
+
+    return energy
+
+
+def get_basis_info(mol):
+    nbas = mol.nao_nr()
+    nocc = mol.nelectron // 2 # assume closed-shell even electrons
+    nvir = nbas - nocc
+    nov  = nocc * nvir
+
+    return [nbas, nocc, nvir, nov]
+
+
+def get_rem_info(rem_keys):
+    for key in rem_keys:
+        print(key + ' = ', end=' ')
+        key = rem_keys.get(key)
+        print(key)
+
+    functional = rem_keys.get('method')
+    basis = rem_keys.get('basis')
+    nroots = rem_keys.get('cis_n_roots', 0)
+    # 0 for rpa if it is ungiven. But it's working! Still None
+    rpa = rem_keys.get('rpa', 0)
+    td_model = 'TDDFT' if rpa == 2 else 'TDA'
+
+    verbose = rem_keys.get('verbose', 1)
+    debug   = rem_keys.get('debug', 0)
+
+    return functional, basis, nroots, td_model, verbose, debug
+
+
+def get_photon_info(photon_key):
+    key = photon_key.copy()
+
+    if isinstance(key.get('cavity_model', 'JC'), list): # support many models
+        key['cavity_model'] = [x.capitalize() if x.upper()=='RABI' else x.upper() for x in key['cavity_model']]
+    else:
+        x = key.get('cavity_model')
+        key['cavity_model'] = x.capitalize() if x.upper()=='RABI' else x.upper()
+    if key.get('cavity_freq', None):
+        key['cavity_freq'] = np.array([key.get('cavity_freq')])
+    else:
+        raise TypeError('need cavity frequency')
+    key['uniform_field'] = bool(key.get('uniform_field', True))
+    key.setdefault('efield_file', 'efield')
+    if key.get('cavity_mode', None):
+        key['cavity_mode'] = np.array(key['cavity_mode']).reshape(3, -1)
+    else:
+        if key['uniform_field']:
+            raise TypeError('need cavity mode with uniform field')
+        else:
+            key['cavity_mode'] = np.ones((3, 1)) # artificial array
+
+    key.setdefault('freq_window', [-0.05, 0.05])
+    key['solver_algorithm'] = key.get('solver_algorithm', 'davidson_qr').lower()
+    key['solver_conv_prop'] = key.get('solver_conv_prop', 'norm').lower()
+    key['target_states'] = key.get('target_states', 'polariton').lower()
+    key.setdefault('nstates', 4)
+    #key.setdefault('solver_nvecs', 4)
+    key['solver_conv_thresh'] = pow(10, -key.get('solver_conv_thresh', 8))
+    key.setdefault('rpa', 0)
+    key['qed_model'] = 'RPA' if key['rpa'] == 2 else 'TDA'
+    key.setdefault('resonance_state', None)
+    key.setdefault('verbose', 0)
+    key.setdefault('debug', 0)
+
+    key.setdefault('save_data', 0)
+    key.setdefault('max_cycle', 50)
+    key.setdefault('tolerance', 1e-9)
+    key.setdefault('level_shift', 1e-2)
+
+    print('qed_cavity_model: %s/%s' % (key['qed_model'], key['cavity_model']))
+    print('cavity_mode: ', key['cavity_mode'])
+    print('cavity_freq: ', key['cavity_freq'])
+
+    return key
+
+
+def justify_photon_info(td, nroots, nstate='max_dipole', func='average', nwidth=10):
+    energy = final_print_energy(td, nwidth=nwidth)
+    if nstate == 'max_dipole':
+        trans_dipole, argmax = find_transition_dipole(td, nroots)
+        argmax0 = argmax[0] if isinstance(argmax, np.ndarray) else argmax
+        print_matrix('max tddft energy:', energy[:, argmax0].T, nwidth=nwidth)
+    elif isinstance(nstate, int):
+        argmax0 = nstate - 1
+
+    if func == 'average':
+        freq = getattr(np, func)(energy[:, argmax0])
+        print('change applied photon energy to a more suitable one as:', freq)
+    elif 'fwhm' in func: # full width at half maximum
+        std = np.std(energy[:, argmax0])
+        ave = np.average(energy[:, argmax0])
+        if func[-2:] == '_m' or func[-2:] == '_l':
+            freq = ave - 2. * np.sqrt(2.*np.log(2.)) * std
+        else:
+            freq = ave + 2. * np.sqrt(2.*np.log(2.)) * std
+        print('change applied photon energy to a more suitable one as:', freq)
+
+
+    return argmax0, np.asarray([freq])
+
+
+def run_pyscf_final(parameters):
+    nfrag, charge, spin, atom = parameters.get(section_names[0])[:4]
+    functional, basis, nroots, td_model, verbose, debug = \
+                get_rem_info(parameters.get(section_names[1]))
+
+    mol, mf, td = run_pyscf_dft_tddft(charge, spin, atom, basis, functional,
+                                      td_model, nroots, nfrag, verbose, debug)
+
+    jobtype = get_jobtype(parameters)
+    if jobtype == 'scf':
+        return run_pyscf_dft(charge, spin, atom, basis, functional, nfrag, verbose)
+    elif 'td' in jobtype:
+        mol, mf, td = run_pyscf_dft_tddft(charge, spin, atom, basis, functional,
+                                          td_model, nroots, nfrag, verbose, debug)
+        final_print_energy(td, nwidth=10)
+
+    if jobtype == 'td':
+        return mol, mf, td
+    elif 'qed' in jobtype:
+        #qed_td, cav_obj, qed_model, cavity_model = None, None, None, None
+
+        mol0 = mol[0] if isinstance(mol, list) else mol
+        nov = get_basis_info(mol0)[-1] # assume identical molecules
+        if nroots > nov: # fix the nroots if necessary
+            nroots = nov
+            if isinstance(td, list):
+                for n in range(len(td)): td[n].nroots = nov
+            else: td.nroots = nov
+
+        key = get_photon_info(parameters.get(section_names[2]))
+
+        cavity_model = key['cavity_model']
+        if not isinstance(cavity_model, list): cavity_model = [cavity_model]
+        n_model = len(cavity_model)
+        qed_td, cav_obj = [None]*n_model, [None]*n_model
+        for i in range(len(cavity_model)):
+            qed_td[i], cav_obj[i] = run_pyscf_qed(mf, td, key['qed_model'],
+                                                  cavity_model[i], key, nfrag)
+
+        for i in range(n_model):
+            final_print_energy(qed_td[i], cavity_model[i]+' qed-tddft', 10, iprint=1)
+
+        return mol, mf, td, qed_td, cav_obj#, qed_model, cavity_model
+
+
+if __name__ == '__main__':
+    infile = 'water.in'
+    if len(sys.argv) >= 2: infile = sys.argv[1]
+    parameters = parser(infile)
+    mol, mf, td, qed_td, cav_obj, qed_model, cavity_model = run_pyscf_final(parameters)
