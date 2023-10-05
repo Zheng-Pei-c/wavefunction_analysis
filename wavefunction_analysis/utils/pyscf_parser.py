@@ -447,4 +447,4 @@ if __name__ == '__main__':
     infile = 'water.in'
     if len(sys.argv) >= 2: infile = sys.argv[1]
     parameters = parser(infile)
-    mol, mf, td, qed_td, cav_obj, qed_model, cavity_model = run_pyscf_final(parameters)
+    mol, mf, td, qed_td, cav_obj = run_pyscf_final(parameters)

@@ -5,6 +5,8 @@ def print_matrix(keyword, matrix, nwidth=0):
     if '\n' in keyword[-3:]: keyword = keyword[:-2]
     print(keyword)
 
+    if isinstance(matrix, list): matrix = np.array(matrix)
+
     if len(matrix.shape)==1: # 1d array
         if nwidth==0: nwidth = 6
         for n in range(len(matrix)):
