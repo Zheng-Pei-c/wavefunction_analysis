@@ -11,10 +11,11 @@ PI2    = 2.*np.pi
 FS     = 41.341374575751   # fs to atomic unit time
 BOHR   = 0.529177249       # bohr to angstrom AA
 H2EV   = 27.21140795       # hartree to ev
-EV2J   = 1.602176634*1e-19 # ev to J=C*V
+EV2J   = 1.602176634*1e-19 # ev=C*V to J= kg (m/s)^2
 Mole   = 6.022*1e23
 Cal2J  = 4.184             # cal to J
 EV2kJM = EV2J*Mole*1e-3    # ev to kcal/mol
+EMass  = 9.1093837*1e-31   # kg
 
 C         = 299792458        # speed of light m/s
 Boltzmann = 1.380649*1e-23   # J/K

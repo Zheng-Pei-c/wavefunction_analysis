@@ -1,6 +1,7 @@
 import os, sys
 import numpy as np
 np.set_printoptions(precision=4, linewidth=200, suppress=True,)
+from scipy.linalg import expm
 
 import pyscf
 from pyscf import lib, gto, scf
@@ -16,40 +17,53 @@ def get_orthogonal_basis(S):
     return Z, L, inv
 
 
+def geodesic_exp(T, full=True, scale=1.):
+    from scipy.linalg import expm
+
+    if scale != 1.: T = scale * T # never short-handed!
+
+    if full:
+        return expm(T)
+    else:
+        v, o = T.shape # lower triangle
+        exp = np.zeros((o+v, o+v))
+        exp[o:, :o] = np.copy(T)
+        exp[:o, o:] = -np.copy(T.T)
+        return expm(exp)
+
+
 def cs_decompose(T, full=True, scale=1.):
     U, s, Vt = np.linalg.svd(T, full_matrices=full)
-    print('singular values:', s, np.cos(s), np.sin(s))
-    #print('Ut*U:\n', np.einsum('ji,jk->ik', U, U))
-    #print('Vt*V:\n', np.einsum('ij,kj->ik', Vt, Vt))
+    #print('singular values:', s, np.cos(s), np.sin(s))
+    #print_matrix('Ut*U:', np.einsum('ji,jk->ik', U, U))
+    #print_matrix('Vt*V:', np.einsum('ij,kj->ik', Vt, Vt))
 
-    #s *= scale
+    if scale != 1.: s = scale * s
     c, s = np.cos(s), np.sin(s)
     return U, c, s, Vt
 
 
-def geodesic_svd(B):
+def geodesic_svd(B, scale=1.):
     v, o = B.shape
-    U, c, s, Vt = cs_decompose(B, scale=.5)
+    U, c, s, Vt = cs_decompose(B, scale=scale)
 
-    print('u vt:', U.shape, Vt.shape)
     z = np.zeros((v, o))
     bas = np.block([[Vt.T, z.T],
                     [z, U]])
 
-    k, l = np.min([o, v]), np.abs(v-o)
+    k, l = np.min([v,o]), np.abs(v-o)
     z = np.zeros((l, k))
     c, s = np.diag(c), np.diag(s)
-    cs = np.block([[c, -s, z.T],
-                   [s, c, z.T],
-                   [z, z, np.eye(l)]])
 
-    U, s, Vt = np.linalg.svd(B, full_matrices=True)
-    cs = np.block([[np.zeros((k,k)), -np.diag(s), z.T],
-                   [np.diag(s), np.zeros((k,k)), z.T],
-                   [z, z, np.zeros((l,l))]])
+    if v > o:
+        cs = np.block([[c, -s, z.T],
+                       [s, c, z.T],
+                       [z, z, np.eye(l)]])
+    else:
+        cs = np.block([[c, z.T, -s],
+                       [z, np.eye(l), z],
+                       [s, z.T, c]])
 
-    print_matrix('bas:\n', bas)
-    print_matrix('cs:\n', cs)
     return np.einsum('ij,jk,lk->il', bas, cs, bas)
 
 
@@ -75,6 +89,7 @@ class Grassmann(object):
 
         self.nocc = nocc
         self.nvir = Q.shape[0] - nocc
+        print('nocc:', self.nocc, 'nvir:', self.nvir)
 
         self.S = S
         self._Q = Q
@@ -86,6 +101,21 @@ class Grassmann(object):
 
         self.energy_tot = mf.energy_tot
         self.get_fock = mf.get_fock
+
+        self.max_cycle = 50 # default
+        self.debug = 1
+
+
+    def barzilai_borwein_step(self, G0, G1, T0):
+        dG = G1 - G0
+        alpha = np.einsum('ij,ij->', dG, T0) / np.einsum('ij,ij->', dG, dG)
+        return -alpha*G1
+
+
+    def polak_ribiere_step(self, G0, G1, T0):
+        dG = G1 - G0
+        beta = np.einsum('ij,ij->', dG, G1) / np.einsum('ij,ij->', G0, G0)
+        return (beta*T0) - G1
 
 
     def kernel(self):
@@ -102,14 +132,14 @@ class Grassmann(object):
         T = -np.copy(G)
         C, P = self.update(C, T)
 
-        for i in range(1):
+        for i in range(self.max_cycle):
             C_old = np.copy(C)
             G_old = np.copy(G)
             energy_old = np.copy(energy)
 
             gradient = self.get_fock(dm=P*2) *0.5
             G = self.gradient_on_tangent_space(gradient, C)
-            print_matrix('tangent:\n', G[self.nocc:, :self.nocc])
+            print_matrix('tangent:\n', G)
 
             if self.method == 'barzilai_borwein':
                 T = self.barzilai_borwein_step(G_old, G, T)
@@ -121,7 +151,7 @@ class Grassmann(object):
             error = np.linalg.norm(C-C_old)
             print('i:', i+1, 'error:', error, 'energy:', energy, energy-energy_old)
 
-            if error < 1e-5:
+            if error < 1e-8:
                 break
 
 
@@ -180,12 +210,6 @@ class Quotient_Grassmann(Grassmann):
         return (gamma*dT) - G1
 
 
-    def barzilai_borwein_step(self, G0, G1, T0):
-        dG = G1 - G0
-        alpha = np.einsum('ij,ij->', dG, T0) / np.einsum('ij,ij->', dG, dG)
-        return -alpha*G1
-
-
     def update(self, Y, T):
         Y = geodesic_svd_compact(Y, T)
 
@@ -207,14 +231,7 @@ class Involution_Grassmann(Grassmann):
 
     def gradient_on_tangent_space(self, gradient, V):
         gradient = np.einsum('ij,jk,lk->il', self.Z, gradient, self.Z)
-        return np.einsum('ji,jk,kl->il', V, gradient, V)
-
-
-    def barzilai_borwein_step(self, G0, G1, T0):
-        dG = G1[self.nocc:, :self.nocc] - G0[self.nocc:, :self.nocc]
-        alpha = np.einsum('ij,ij->', dG, T0[self.nocc:, :self.nocc]) / np.einsum('ij,ij->', dG, dG)
-        print('alpha:', alpha)
-        return -alpha*G1
+        return np.einsum('ji,jk,kl->il', V, gradient, V)[self.nocc:, :self.nocc]
 
 
     def update(self, C, T):
@@ -229,17 +246,17 @@ class Involution_Grassmann(Grassmann):
         #print('V:\n', V)
         ##print('R:\n', R)
 
-        exp = geodesic_svd(T[self.nocc:, :self.nocc])
-        print_matrix('exp:\n', exp)
-        exp = np.zeros(T.shape)
-        exp[self.nocc:, :self.nocc] = np.copy(T[self.nocc:, :self.nocc])
-        exp[:self.nocc, self.nocc:] = -np.copy(T[:self.nocc, self.nocc:])
-        print_matrix('exp2 tmp:\n', exp)
-        exp = np.exp(exp)
-        print('exp2:\n', exp)
+        #T = T[self.nocc:, :self.nocc]
+        exp = geodesic_svd(T)
+        if self.debug:
+            diff = exp - geodesic_exp(T, False)
+            if np.linalg.norm(diff) > 1e-8:
+                raise ValueError('exponential svd is wrong.')
+        #print_matrix('exp:', exp)
+
         C = np.einsum('ij,jk->ik', C, exp) # orthogonal
-        #print_matrix('C:\n', C)
-        print_matrix('C:\n', np.einsum('ji,jk->ik', self.Z, C))
+        #print_matrix('C:', C)
+        print_matrix('C:', np.einsum('ji,jk->ik', self.Z, C))
 
         #P = np.einsum('ij,jk,lk->il', C, self.I, C)
         P = np.einsum('ij,kj->ik', C[:, :self.nocc], C[:, :self.nocc])
@@ -258,7 +275,8 @@ if __name__ == '__main__':
 
     mol = gto.Mole(
             atom = atom,
-            basis = 'sto-3g'
+            charge = 0,
+            basis = 'sto-3g',
             )
     mol.build()
 
@@ -278,13 +296,14 @@ if __name__ == '__main__':
     elif model == 'involution':
         grass = Involution_Grassmann(mf=mf, method=method)
 
+#    grass.max_cycle = 1
     grass.kernel()
 
 
     #mf.verbose = 5
     mf.max_cycle = 50
     mf.kernel()
-    print('C:\n', mf.mo_coeff)
+    print_matrix('C reference:', mf.mo_coeff)
     #mo = mf.mo_coeff
     #gradient = mf.get_fock(dm=mf.make_rdm1()) *0.5
     #print('Fock:', np.einsum('ji,jk,kl->il', mo, gradient, mo))

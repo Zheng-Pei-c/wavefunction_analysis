@@ -6,6 +6,7 @@ from pyscf import scf, tdscf, gto, lib
 
 from utils import convert_units
 from utils.pyscf_parser import *
+from utils.unit_conversion import EV2J, EMass
 
 def cal_orbital_properties(mol, mf):
     orbital_properties = {}
@@ -26,11 +27,11 @@ def cal_orbital_properties(mol, mf):
     orbital_properties['time'] = time
     units['time'] = 'fs'
 
-    length = mol.intor('int1e_r')
+    length = mol.intor('int1e_r', comp=3)
     length = np.einsum('mi,xmn,ni->ix', coeff, length, coeff)
     print_matrix('length:', length)
     length = convert_units(length, 'bohr', 'aa')
-    length = np.abs(length[:,2])
+    length = np.linalg.norm(length, axis=1)
     orbital_properties['length'] = length
     units['length'] = 'aa'
 
@@ -45,6 +46,21 @@ def cal_orbital_properties(mol, mf):
     units['velocity'] = 'm/s'
     print_matrix('velocity:', velocity)
 
+    kinetic = mol.intor('int1e_kin')
+    kinetic = np.einsum('mi,mn,ni->i', coeff, kinetic, coeff)
+    kinetic = convert_units(kinetic, 'hartree', 'ev')
+    orbital_properties['kinetic'] = kinetic
+    units['kinetic'] = 'ev'
+
+    velocity = np.sqrt(2.*kinetic/EV2J/EMass)
+    orbital_properties['velocity2'] = velocity
+    units['velocity2'] = 'm/s'
+
+    momentum = -mol.intor('int1e_ipovlp', comp=3)
+    momentum = np.einsum('mi,xmn,ni->ix', coeff, momentum, coeff)
+    #print('momentum:', momentum)
+    orbital_properties['velocity3'] = np.linalg.norm(momentum/convert_units(EMass, 'kg', 'dalton'), axis=1)
+    units['velocity3'] = 'm/s'
 
     energy = convert_units(energy, 'hartree', 'ev')
     orbital_properties['energy'] = energy
