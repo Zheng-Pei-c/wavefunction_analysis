@@ -92,6 +92,17 @@ if __name__ == '__main__':
         coeff = mf[n].mo_coeff
         xys = td[n].xy
         dip_mat = mol[n].intor('int1e_r', comp=3)
-        dipole = cal_dipoles(dip_mat, xys, coeff, scale=2., itype='trans_diff')
-        dipoles.append(dipole)
+        dipole = cal_dipoles(dip_mat, xys, coeff, scale=2., itype='diff')
+        #dipoles.append(dipole)
         #print_matrix('dipole:', dipole)
+
+        nstate = len(xys)
+        dipole2 = np.zeros((nstate, nstate, 3))
+        icount = 0
+        for i in range(len(xys)):
+            for j in range(i, len(xys)):
+                dipole2[i,j] = dipole2[j,i] = dipole[icount]
+                icount += 1
+
+        print_matrix('dipole:', dipole2.reshape(nstate, -1))
+    #dipoles = np.array(dipoles)
