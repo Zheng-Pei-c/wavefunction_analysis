@@ -4,9 +4,9 @@ import numpy as np
 import pyscf
 from pyscf import scf, tdscf, gto, lib
 
-from utils import convert_units
-from utils.pyscf_parser import *
-from utils.unit_conversion import EV2J, EMass
+from wavefunction_analysis.utils import convert_units
+from wavefunction_analysis.utils.pyscf_parser import *
+from wavefunction_analysis.utils.unit_conversion import EV2J, EMass
 
 def cal_orbital_properties(mol, mf):
     orbital_properties = {}

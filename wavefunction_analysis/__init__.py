@@ -3,4 +3,5 @@ import numpy as np
 
 import pyscf
 
-import utils
+import wavefunction_analysis
+#from wavefunction_analysis import utils

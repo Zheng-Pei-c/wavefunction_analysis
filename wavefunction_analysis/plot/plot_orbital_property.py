@@ -1,10 +1,10 @@
 import os, sys
 import numpy as np
 
-from properties.orbital_properties import cal_properties_from_scratch
+from wavefunction_analysis.properties.orbital_properties import cal_properties_from_scratch
 
-from plot import plt, colors, ticker, mcolors
-from plot import brokenaxes
+from wavefunction_analysis.plot import plt, colors, ticker, mcolors
+from wavefunction_analysis.plot import brokenaxes
 
 def plot_orbital_properties(fig_name, orbital_properties):
     fig = plt.figure(figsize=(12, 3), dpi=300, layout='constrained')

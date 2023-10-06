@@ -4,7 +4,7 @@ import numpy as np
 from pyscf import scf, tdscf, gto, lib
 
 #import qed
-from utils import print_matrix
+from . import print_matrix
 
 
 section_names = ['molecule', 'rem', 'polariton']
@@ -406,17 +406,21 @@ def run_pyscf_final(parameters):
     mol, mf, td = run_pyscf_dft_tddft(charge, spin, atom, basis, functional,
                                       td_model, nroots, nfrag, verbose, debug)
 
+    results = {}
     jobtype = get_jobtype(parameters)
     if jobtype == 'scf':
-        return run_pyscf_dft(charge, spin, atom, basis, functional, nfrag, verbose)
+        mol, mf = run_pyscf_dft(charge, spin, atom, basis, functional, nfrag, verbose)
+        results['mol'] = mol
+        results['mf']  = mf
     elif 'td' in jobtype:
         mol, mf, td = run_pyscf_dft_tddft(charge, spin, atom, basis, functional,
                                           td_model, nroots, nfrag, verbose, debug)
+        results['mol'] = mol
+        results['mf']  = mf
+        results['td']  = td
         final_print_energy(td, nwidth=10)
 
-    if jobtype == 'td':
-        return mol, mf, td
-    elif 'qed' in jobtype:
+    if 'qed' in jobtype:
         #qed_td, cav_obj, qed_model, cavity_model = None, None, None, None
 
         mol0 = mol[0] if isinstance(mol, list) else mol
@@ -440,11 +444,15 @@ def run_pyscf_final(parameters):
         for i in range(n_model):
             final_print_energy(qed_td[i], cavity_model[i]+' qed-tddft', 10, iprint=1)
 
-        return mol, mf, td, qed_td, cav_obj#, qed_model, cavity_model
+        results['qed_td'] = qed_td
+        results['cav_obj'] = cav_obj
+
+    return results
+
 
 
 if __name__ == '__main__':
     infile = 'water.in'
     if len(sys.argv) >= 2: infile = sys.argv[1]
     parameters = parser(infile)
-    mol, mf, td, qed_td, cav_obj = run_pyscf_final(parameters)
+    results = run_pyscf_final(parameters)

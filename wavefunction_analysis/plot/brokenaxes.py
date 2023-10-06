@@ -1,7 +1,7 @@
 import os, sys
 import numpy as np
 
-from plot import plt, colors, ticker, mcolors
+from wavefunction_analysis.plot import plt, colors, ticker, mcolors
 
 def get_kwargs(marker):
     return dict(marker=marker, markersize=10,

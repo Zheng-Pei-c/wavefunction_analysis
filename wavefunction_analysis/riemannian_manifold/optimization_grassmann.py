@@ -6,7 +6,7 @@ from scipy.linalg import expm
 import pyscf
 from pyscf import lib, gto, scf
 
-from utils import print_matrix
+from wavefunction_analysis.utils import print_matrix
 
 def get_orthogonal_basis(S):
     e, v = np.linalg.eigh(S)

@@ -2,7 +2,8 @@ import os, sys
 import numpy as np
 
 from pyscf import scf, tdscf, gto, lib
-from utils.pyscf_parser import *
+
+from wavefunction_analysis.utils.pyscf_parser import *
 
 def get_transition_dm(xy, coeff1, coeff2=None, scale=2.):
     """xy is a tuple (x, y)"""
@@ -19,6 +20,7 @@ def get_attach_dm(xy1, xy2, orbv1, orbv2=None, scale=2.):
     rdm1 = np.einsum('ia,ib->ab', xy1[0], xy2[0])
     if isinstance(xy1[1], np.ndarray):
         rdm1 += np.einsum('ia,ib->ba', xy1[1], xy2[1])
+    #print('attach: %8.4f' % np.trace(rdm1))
     return scale * np.einsum('pa,ab,qb->pq', orbv1, rdm1, orbv1.conj())
 
 
@@ -27,6 +29,7 @@ def get_detach_dm(xy1, xy2, orbo1, orbo2=None, scale=2.):
     rdm1 = np.einsum('ia,ja->ij', xy1[0], xy2[0])
     if isinstance(xy1[1], np.ndarray):
         rdm1 += np.einsum('ia,ja->ji', xy1[1], xy2[1])
+    #print('detach: %8.4f' % np.trace(rdm1))
     return -scale * np.einsum('pi,ij,qj->pq', orbo1, rdm1, orbo1.conj())
 
 
@@ -82,7 +85,8 @@ def cal_dipoles(dip_mat, xys, coeff, scale=2., itype='trans'):
 if __name__ == '__main__':
     infile = sys.argv[1]
     parameters = parser(infile)
-    mol, mf, td = run_pyscf_final(parameters)
+    results = run_pyscf_final(parameters)
+    mol, mf, td = results['mol'], results['mf'], results['td']
     if not isinstance(mol, list):
         mol, mf, td = [mol], [mf], [td]
 
