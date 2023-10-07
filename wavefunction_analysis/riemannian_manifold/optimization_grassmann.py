@@ -179,17 +179,6 @@ class Quotient_Grassmann(Grassmann):
         return np.einsum('ij,jk->ik', (np.eye(P.shape[0]) - P), gradient)
 
 
-    #def tangent_retraction(self, tangent, method='svd'):
-    #    if method == 'svd':
-    #        U = exp_decompose_cs(tangent)
-    #    elif method == 'multiply':
-    #        U = exp_decompose_cs2(tangent)
-    #    elif method == 'qr':
-    #        U = exp_decompose_qr(tangent)
-    #    elif method == 'direct':
-    #        U = np.exp(tangent)
-
-
     def tangent_parallel_transport(self, Y, G, T):
         U, s, Vt = np.linalg.svd(T, full_matrices=False)
         sVt = np.einsum('i,ik->ik', s, Vt)
@@ -232,6 +221,9 @@ class Involution_Grassmann(Grassmann):
     def gradient_on_tangent_space(self, gradient, V):
         gradient = np.einsum('ij,jk,lk->il', self.Z, gradient, self.Z)
         return np.einsum('ji,jk,kl->il', V, gradient, V)[self.nocc:, :self.nocc]
+
+
+    #def armijo_linesearch(self, G, Q):
 
 
     def update(self, C, T):

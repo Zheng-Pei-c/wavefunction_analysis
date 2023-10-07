@@ -29,5 +29,5 @@ method      hf
 basis       sto-3g !6-31++G*
 thresh      14
 sym_ignore  1
-impurity    1-4
+impurity    1-4 !5-7 8-10
 $end

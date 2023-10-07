@@ -126,6 +126,25 @@ def get_jobtype(parameters):
     return jobtype
 
 
+def get_frgm_idx(parameters):
+    frgm_idx = parameters.get(section_names[1])['impurity']
+    if isinstance(frgm_idx, list):
+        for i in range(len(frgm_idx)):
+            at = frgm_idx[i].split('-')
+            frgm_idx[i] = list(range(int(at[0])-1, int(at[1])))
+    else:
+        at = frgm_idx.split('-')
+        frgm_idx = [list(range(int(at[0])-1, int(at[1])))] # need the outer bracket
+
+    natm = len(np.ravel(parameters.get(section_names[0])[4]))
+    assigned = np.concatenate(frgm_idx).tolist()
+    if len(assigned) < natm:
+        frgm_idx.append(list(set(range(natm)) - set(assigned)))
+
+    #print('frgm_idx:', frgm_idx)
+    return frgm_idx
+
+
 def _get_center_of_mass(mol):
     mass = mol.atom_mass_list(isotope_avg=True)
     atom_coords = mol.atom_coords()
