@@ -8,6 +8,7 @@ from pyscf.scf.hf import dot_eri_dm
 
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.entanglement.mol_lo_tools import partition_lo_to_imps
+from wavefunction_analysis.riemannian_manifold.optimization_grassmann import get_orthogonal_basis
 
 def get_localized_orbital(mol, coeff, method='pipek_mezey'):
     if method == 'pipek_mezey':
@@ -58,27 +59,43 @@ def get_embedding_energy(mol, mf, coeff_eo_in_ao, dm_eo_in_ao, neo_imp):
     hcore_ao = mf.get_hcore()
     fock_ao  = mf.get_fock()
 
+    #ovlp_ao = mf.get_ovlp()
+    #Z, L, _ = get_orthogonal_basis(ovlp_ao)
+    #fock_orth = np.einsum('pq,qr,sr->ps', Z, fock_ao, Z)
+    #e, v = np.linalg.eigh(fock_orth)
+    #print_matrix('mo energy:', e)
+
     h1e_eo = np.einsum('pi,pq,qj->ij', coeff_eo_in_ao, hcore_ao, coeff_eo_in_ao)
     f1e_eo = np.einsum('pi,pq,qj->ij', coeff_eo_in_ao, fock_ao, coeff_eo_in_ao)
 
     energy = np.einsum('pq,pq->', (h1e_eo+f1e_eo)[:neo_imp], dm_eo_in_ao[:neo_imp])
-    return energy*.5, nocc_eo, f1e_eo
+
+    # do we need to use the ``core'' electrons at all?
+    #eri_eo = ao2mo.kernel(mol, coeff_eo_in_ao, 4, 'eri')
+    #eri_eo = ao2mo.restore(1, eri_eo, neo)
+    #j1e_eo, k1e_eo = dot_eri_dm(eri_eo, dm_eo_in_ao, hermi=1, with_j=True, with_k=True)
+
+    #f1e_eo -= (j1e_eo - k1e_eo * .5)
+    # end of ``core'' electron contribution
+
+    return energy*.5, nocc_eo
 
 
-def get_embedding_orbital_energy(mol, f1e_eo, coeff_eo_in_ao, dm_eo_in_ao, neo_imp):
+def get_embedding_orbital_energy(mf, coeff_eo_in_ao):
     """
     embedding orbital energy for excited state calculations
     """
-    neo = dm_eo_in_ao.shape[1]
-    eri_eo = ao2mo.kernel(mol, coeff_eo_in_ao, 4, 'eri')
-    eri_eo = ao2mo.restore(1, eri_eo, neo)
-    j1e_eo, k1e_eo = dot_eri_dm(eri_eo, dm_eo_in_ao, hermi=1, with_j=True, with_k=True)
+    mo_energy = mf.mo_energy
+    ovlp_ao = mf.get_ovlp()
+    Z, L, _ = get_orthogonal_basis(ovlp_ao)
+    #fock_orth = np.einsum('pq,qr,sr->ps', Z, fock_ao, Z)
+    #e, v = np.linalg.eigh(fock_orth)
+    #print_matrix('mo energy:', e)
 
-    f1e_eo -= (j1e_eo - k1e_eo * .5)
-
-    eo_energy, vector = np.linalg.eigh(f1e_eo)
-    print_matrix('eo_energy:', eo_energy)
-    return eo_energy, np.einsum('pi,ij->pj', coeff_eo_in_ao, vector)
+    coeff_eo_canon = np.einsum('pq,qi->pi', L, coeff_eo_in_ao)
+    eo_energy = np.einsum('pi,p,pi->i', coeff_eo_canon, mo_energy, coeff_eo_canon)
+    idx = np.argsort(eo_energy)
+    return eo_energy[idx], coeff_eo_in_ao[:, idx]
 
     #ao_slice_by_atom = mol.aoslice_by_atom()[:,2:4]
     #print('ao_slice_by_atom:\n', ao_slice_by_atom)
@@ -103,16 +120,16 @@ def get_embedding_system(mol, mf, frgm_idx, ifrgm=0):
         print('env_lo_idx:', env_lo_idx)
 
         coeff_eo_in_ao, dm_eo_in_ao = get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao, ovlp_ao, imp_lo_idx, env_lo_idx)
-        e, nocc_eo, f1e_eo = get_embedding_energy(mol, mf, coeff_eo_in_ao, dm_eo_in_ao, neo_imp)
-        eo_energy, coeff_eo_canon = get_embedding_orbital_energy(mol, f1e_eo, coeff_eo_in_ao, dm_eo_in_ao, neo_imp)
-        return e, nocc_eo, eo_energy, coeff_eo_canon
+        e, nocc_eo = get_embedding_energy(mol, mf, coeff_eo_in_ao, dm_eo_in_ao, neo_imp)
+        eo_energy, coeff_eo_in_ao = get_embedding_orbital_energy(mf, coeff_eo_in_ao)
+        return e, nocc_eo, eo_energy, coeff_eo_in_ao
 
     if ifrgm >=0:
         return embedding(ifrgm)
 
     energy = 0
     for f in range(len(frgm_idx)):
-        e, _, _, _ = embedding(f)
+        e = embedding(f)[0]
         energy += e
 
     energy_ref = mf.energy_elec()[0]
@@ -158,5 +175,6 @@ if __name__ == '__main__':
     mf.conv_tol  = 1e-8
     mf.conv_tol_grad = 1e-8
     mf.kernel()
+    print_matrix('mo_energy:', mf.mo_energy)
 
     get_embedding_system(mol, mf, frgm_idx, -1)
