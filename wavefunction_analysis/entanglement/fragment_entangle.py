@@ -23,21 +23,30 @@ def get_localized_orbital_rdm(coeff_lo_in_ao, coeff_mo_in_ao, ovlp_ao, nocc, sca
     """
     total density matrix alpha+beta
     """
-    coeff_lo_in_mo = np.einsum('pi,pq,qj->ij', coeff_lo_in_ao, ovlp_ao, coeff_mo_in_ao)
-    dm_lo_in_ao = np.einsum('ik,jk->ij', coeff_lo_in_mo[:,:nocc], coeff_lo_in_mo[:,:nocc])
+    coeff_lo_in_mo = np.einsum('...pi,pq,...qj->...ij', coeff_lo_in_ao, ovlp_ao, coeff_mo_in_ao)
+    dm_lo_in_ao = np.einsum('...ik,...jk->...ij', coeff_lo_in_mo[:,:nocc], coeff_lo_in_mo[:,:nocc])
 
     return scale * dm_lo_in_ao
 
 
-def get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao, ovlp_ao, imp_lo_idx, env_lo_idx):
-    dm_imp_env_lo = dm_lo_in_ao[np.ix_(imp_lo_idx, env_lo_idx)] # get environmental orbitals
-    _, s, Vt = np.linalg.svd(dm_imp_env_lo, full_matrices=False)
-    Vt = Vt[s>1e-12]
-    print_matrix('singular values:', s)
-    #print_matrix('Vt:', Vt, 10)
+def get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao, ovlp_ao,
+        imp_lo_idx, env_lo_idx, method=0):
+    threshold = 1e-12
+    if method == 0: # singular value vectors of off-diagonal block of the dm in lo
+        dm_imp_env_lo = dm_lo_in_ao[np.ix_(imp_lo_idx, env_lo_idx)] # get environmental orbitals
+        _, s, Vt = np.linalg.svd(dm_imp_env_lo, full_matrices=False)
+        print_matrix('singular values:', s)
+        V = Vt[s>threshold].T
+    elif method == 1: # eigenvectors of environment diagonal block of the dm in lo
+        dm_env_env_lo = dm_lo_in_ao[np.ix_(env_lo_idx, env_lo_idx)]
+        s, V = np.linalg.eigh(dm_env_env_lo)
+        print_matrix('eigen-values:', s)
+        V = V[:, (s>threshold)&(s<2.-threshold)]
+    print(V.shape)
+    #print_matrix('V:', V, 10)
 
     coeff_imp = np.copy(coeff_lo_in_ao[:, imp_lo_idx]) # idensity transformation
-    coeff_env = np.einsum('pi,ji->pj', coeff_lo_in_ao[:, env_lo_idx], Vt)
+    coeff_env = np.einsum('pi,ij->pj', coeff_lo_in_ao[:, env_lo_idx], V)
     coeff_eo_in_ao = np.concatenate((coeff_imp, coeff_env), axis=1)
     #print_matrix('coeff_eo_in_ao:', coeff_eo_in_ao, 10)
 
@@ -112,14 +121,15 @@ def get_embedding_system(mol, mf, frgm_idx, ifrgm=0):
 
     frgm_lo_idx = partition_lo_to_imps(frgm_idx, mol, coeff_lo_in_ao, min_weight=0.8)
 
-    def embedding(ifrgm=0):
+    def embedding(ifrgm=0, embed_method=0):
         imp_lo_idx = frgm_lo_idx.copy()
         imp_lo_idx, env_lo_idx = np.array(imp_lo_idx.pop(ifrgm)), np.sort(np.concatenate(imp_lo_idx))
         neo_imp = len(imp_lo_idx)
         print('imp_lo_idx:', imp_lo_idx)
         print('env_lo_idx:', env_lo_idx)
 
-        coeff_eo_in_ao, dm_eo_in_ao = get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao, ovlp_ao, imp_lo_idx, env_lo_idx)
+        coeff_eo_in_ao, dm_eo_in_ao = get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao,
+                ovlp_ao, imp_lo_idx, env_lo_idx, embed_method)
         e, nocc_eo = get_embedding_energy(mol, mf, coeff_eo_in_ao, dm_eo_in_ao, neo_imp)
         eo_energy, coeff_eo_in_ao = get_embedding_orbital_energy(mf, coeff_eo_in_ao)
         return e, nocc_eo, eo_energy, coeff_eo_in_ao
