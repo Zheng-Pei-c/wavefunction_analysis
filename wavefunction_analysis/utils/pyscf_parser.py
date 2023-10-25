@@ -162,9 +162,12 @@ def get_center_of_mass(mol, nfrag=1):
         return _get_center_of_mass(mol)
 
 
-def _run_pyscf_dft(charge, spin, atom, basis, functional, verbose=0):
+def _run_pyscf_dft(charge, spin, atom, basis, functional, verbose=0, h=None):
     mol = build_single_molecule(charge, spin, atom, basis, verbose)
     mf = scf.RKS(mol)
+    if h:
+        h = h + mol.intor('cint1e_kin_sph') + mol.intor('cint1e_nuc_sph')
+        mf.get_hcore = lambda *args: h
     mf.xc = functional
     mf.grids.prune = True
     mf.kernel()

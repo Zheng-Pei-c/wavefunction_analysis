@@ -47,7 +47,7 @@ units_long = {
 units_short = {
         'time':        ['d', 'h', 'm', 's', 'ms', 'us', 'ns', 'ps', 'fs', 'au', 'as'],
         'length':      ['m', 'dm', 'cm', 'mm', 'um', 'nm', 'aa', 'b', 'pm', 'fm', 'am'],
-        'energy':      ['h', 'ev', 'mev', 'kcal', 'kj'],
+        'energy':      ['eh', 'ev', 'mev', 'kcal', 'kj'],
         'frequency':   ['thz', 'cm-1', 'ghz', 'mhz', 'khz', 'hz'],
         'temperature': ['k'],
         'mass':        ['kg', 'g', 'u'],
