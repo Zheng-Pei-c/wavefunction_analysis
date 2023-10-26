@@ -82,11 +82,22 @@ class polariton(RKS):
         return h
 
 
-    def get_veff(self, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
+    #def get_veff(self, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
+    #    if dm is None: dm = self.make_rdm1()
+    #    vhf = super().get_veff(dm=dm)
+    #    dse_2e = get_dse_2e(self.dipole, dm)
+    #    vhf.vk += dse_2e
+    #    #vhf.vxc -= .5* dse_2e
+    #    return vhf
+
+
+    def get_jk(self, mol=None, dm=None, hermi=1, with_j=True, with_k=True,
+               omega=None):
         if dm is None: dm = self.make_rdm1()
-        vhf = super().get_veff(dm=dm)
-        vhf.vk -= .5* get_dse_2e(self.dipole, dm)
-        return vhf
+        vj, vk = super().get_jk(mol, dm, hermi, with_j, with_k, omega)
+        vk += get_dse_2e(self.dipole, dm)
+        return vj, vk
+
 
 
 if __name__ == '__main__':
@@ -106,7 +117,7 @@ if __name__ == '__main__':
     dipole, quadrupole = get_multipole_matrix(mol, 'dipole_quadrupole')
 
     dse = []
-    for i in list(range(-10, 0)) + list(range(1, 11)):
+    for i in np.linspace(1, 10, 21):
         for x in range(3):
             coupling = np.zeros(3)
             coupling[x] = i*1e-3

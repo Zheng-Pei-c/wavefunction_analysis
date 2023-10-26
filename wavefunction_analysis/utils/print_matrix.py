@@ -46,6 +46,6 @@ def print_matrix(keyword, matrix, nwidth=0, nind=0):
 
     elif len(matrix.shape)==3: # 3d array
         for i in range(matrix.shape[0]):
-            print_matrix(keyword+str(i+1), matrix[i], nwidth)
+            print_matrix(keyword+str(i+1), matrix[i], nwidth, nind)
     else:
         warnings.warn('the matrix has higher dimension than this funciton can handle.')

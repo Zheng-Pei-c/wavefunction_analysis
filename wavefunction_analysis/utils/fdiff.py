@@ -62,38 +62,65 @@ if __name__ == '__main__':
     nbas = 13
     norder, step_size = 3, 1e-5
     symbols, coords = read_symbols_coords(infile)
+    natoms = len(symbols)
+
+    a = 1.34
+    print('{}'.format(f'{a:{digit}.{precision}f}'))
+    den = read_matrix(infile[:-3]+'.out', nbas, nbas, 'scf density matrix', 6, 1)
 
     #jb = 'write'
     jb = 'cal'
+    suffixes = ['P ', 'angular '] # momentum, angular_momentum
+    loop = 1 if jb == 'write' else len(suffix)
+    contract = True # contract hessian with density
 
-    momentum_fd = []
-    for n in range(len(symbols)):
-        for x in range(3):
-            fd = fdiff(norder, step_size)
-
-            if jb == 'write':
-                coords_new = fd.get_x(coords, [n, x])
-
-                for d in range(len(coords_new)):
-                    newfile = infile[:-3]+'_'+str(n+1)+'_'+str(x+1)+'_'+str(d+1)+ '.in'
-                    write_mol_info_geometry(newfile, symbols=symbols, coords=coords_new[d])
-                    write_rem_info(newfile, 'hf', '3-21g')
-
-            elif jb == 'cal':
-                momentum = []
-                for d in range(norder*2):
-                    newfile = infile[:-3]+'_'+str(n+1)+'_'+str(x+1)+'_'+str(d+1)+ '.out'
-                    m = read_matrix(newfile, nbas, nbas, 'P momentum 3N', 4, 1)
-                    momentum.append(m)
-                momentum = fd.compute_fdiff(np.array(momentum), 1./BOHR)
-                momentum_fd.append(momentum)
-
-
-    if jb == 'cal':
-        momentum_fd = np.reshape(momentum_fd, (len(symbols), 3, len(symbols), 3, nbas, nbas))
-        for m in range(len(symbols)):
+    for il in range(loop):
+        suffix = suffixes[il]
+        momentum_fd, momentum_fd2 = [], []
+        for n in range(natoms):
             for x in range(3):
-                for n in range(len(symbols)):
-                    for y in range(3):
-                        print('m:', m+1, 'x:', x+1, 'n:', n+1, 'y:', y+1, end=' ')
-                        print_matrix('fd:', momentum_fd[n,y,m,x], 6, 1)
+                fd = fdiff(norder, step_size)
+
+                if jb == 'write':
+                    coords_new = fd.get_x(coords, [n, x])
+
+                    for d in range(len(coords_new)):
+                        newfile = infile[:-3]+'_'+str(n+1)+'_'+str(x+1)+'_'+str(d+1)+ '.in'
+                        write_mol_info_geometry(newfile, symbols=symbols, coords=coords_new[d])
+                        write_rem_info(newfile, 'hf', '3-21g')
+
+                elif jb == 'cal':
+                    momentum, momentum2 = [], []
+                    for d in range(norder*2):
+                        newfile = infile[:-3]+'_'+str(n+1)+'_'+str(x+1)+'_'+str(d+1)+ '.out'
+                        m = read_matrix(newfile, nbas, nbas, suffix+'momentum 3N', 6, 1)
+                        m2 = read_matrix(newfile, nbas, nbas, suffix+'momentum derivative 3N', 6, 1)
+                        momentum.append(m)
+                        momentum2.append(m2)
+                    momentum = fd.compute_fdiff(np.array(momentum), 1./BOHR)
+                    momentum2 = fd.compute_fdiff(np.array(momentum2), 1./BOHR)
+                    momentum_fd.append(momentum)
+                    momentum_fd2.append(momentum2)
+
+
+        if jb == 'cal':
+            momentum_fd = np.reshape(momentum_fd, (natoms, 3, natoms, 3, nbas, nbas))
+            for m in range(natoms):
+                for x in range(3):
+                    for n in range(natoms):
+                        for y in range(3):
+                            print('m:', m+1, 'x:', x+1, 'n:', n+1, 'y:', y+1, end=' ')
+                            print_matrix(suffix+'fd:', momentum_fd[n,y,m,x], 6, 1)
+
+            if contract:
+                momentum_fd2 = np.reshape(momentum_fd2, (natoms*3, natoms*3, natoms*3, nbas, nbas))
+                momentum_fd2 = np.einsum('ijkpq,pq->jki', momentum_fd2, den)
+                print_matrix(suffix+'fd2:', momentum_fd2, 6, 1)
+            else:
+                momentum_fd2 = np.reshape(momentum_fd2, (natoms*3, natoms*3, natoms*3, nbas, nbas))
+                momentum_fd2 = np.einsum('ijkpq->jkipq', momentum_fd2)
+                for i in range(natoms*3):
+                    for j in range(natoms*3):
+                        for k in range(natoms*3):
+                            print('i:', i+1, 'j:', j+1, 'k:', k+1, end=' ')
+                            print_matrix(suffix+'momentum derivative 2 3N:', momentum_fd2[i,j,k], 6, 1)
