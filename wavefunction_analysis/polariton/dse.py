@@ -59,7 +59,7 @@ def cal_dse_gs(mol, den, coupling, dipole=None, quadrupole=None):
         quadrupole = multipoles.get('quadrupole', quadrupole)
 
     quadrupole -= .5* get_dse_2e(dipole, den)
-    dse = np.einsum('...pq,pq->', quadrupole, den)
+    dse = .5* np.einsum('...pq,pq->', quadrupole, den) # need 1/2 for dse here
     return dse
 
 
@@ -78,7 +78,7 @@ class polariton(RKS):
 
         h = mol.intor_symmetric('int1e_kin')
         h += mol.intor_symmetric('int1e_nuc')
-        h += self.quadrupole
+        h += .5* self.quadrupole
         return h
 
 
@@ -95,18 +95,24 @@ class polariton(RKS):
                omega=None):
         if dm is None: dm = self.make_rdm1()
         vj, vk = super().get_jk(mol, dm, hermi, with_j, with_k, omega)
-        vk += get_dse_2e(self.dipole, dm)
+        vk += .5* get_dse_2e(self.dipole, dm) # need 1/2 for dse
         return vj, vk
 
 
 
 if __name__ == '__main__':
-    infile = 'h2o.in'
-    parameters = parser(infile)
+    #infile = 'h2o.in'
+    #parameters = parser(infile)
 
-    charge, spin, atom = parameters.get(section_names[0])[1:4]
-    functional, basis = get_rem_info(parameters.get(section_names[1]))[:2]
-    mol = build_single_molecule(charge, spin, atom, basis, verbose=0)
+    #charge, spin, atom = parameters.get(section_names[0])[1:4]
+    #functional, basis = get_rem_info(parameters.get(section_names[1]))[:2]
+    #mol = build_single_molecule(charge, spin, atom, basis, verbose=0)
+    atom = """
+            H    0 0 -1.4
+            H    0 0 1.4
+    """
+    functional = 'hf'
+    mol = build_single_molecule(0, 0, atom, '3-21g')
     mf = scf.RKS(mol)
 
     mf.xc = functional
@@ -117,7 +123,7 @@ if __name__ == '__main__':
     dipole, quadrupole = get_multipole_matrix(mol, 'dipole_quadrupole')
 
     dse = []
-    for i in np.linspace(1, 10, 21):
+    for i in np.linspace(1, 20, 21):
         for x in range(3):
             coupling = np.zeros(3)
             coupling[x] = i*1e-3

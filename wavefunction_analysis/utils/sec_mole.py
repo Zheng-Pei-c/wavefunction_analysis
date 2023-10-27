@@ -127,5 +127,6 @@ def write_rem_info(infile, method='pbe0', basis='6-31g', open_file_method='a+'):
         f.write('method         %s\n' % method)
         f.write('basis          %s\n' % basis)
         f.write('sym_ignore     true\n')
+        f.write('thresh         14\n')
         f.write('$end\n')
 

@@ -43,7 +43,7 @@ class fdiff():
         if self.norder == 1:
             coeff = [-.5, .5]
         elif self.norder == 2:
-            coeff = [-1./12., -2./3., 2./3., 1./12.]
+            coeff = [-1./12., 2./3., -2./3., 1./12.]
         elif self.norder == 3:
             coeff = [-1./60., 3./20., -3./4., 3./4., -3./20., 1./60.]
         elif self.norder == 4:
@@ -59,20 +59,22 @@ if __name__ == '__main__':
     from wavefunction_analysis.utils.read_files import read_matrix
 
     infile = 'h2o.in'
+    functional = 'hf'
+    basis = '3-21g'
     nbas = 13
-    norder, step_size = 3, 1e-5
+
+    norder, step_size = 2, 1e-4
     symbols, coords = read_symbols_coords(infile)
     natoms = len(symbols)
 
-    a = 1.34
-    print('{}'.format(f'{a:{digit}.{precision}f}'))
-    den = read_matrix(infile[:-3]+'.out', nbas, nbas, 'scf density matrix', 6, 1)
-
-    #jb = 'write'
-    jb = 'cal'
+    jb = 'write'
+    #jb = 'cal'
     suffixes = ['P ', 'angular '] # momentum, angular_momentum
     loop = 1 if jb == 'write' else len(suffix)
     contract = True # contract hessian with density
+
+    if jb == 'cal':
+        den = read_matrix(infile[:-3]+'.out', nbas, nbas, 'scf density matrix', 6, 1)
 
     for il in range(loop):
         suffix = suffixes[il]
@@ -87,7 +89,7 @@ if __name__ == '__main__':
                     for d in range(len(coords_new)):
                         newfile = infile[:-3]+'_'+str(n+1)+'_'+str(x+1)+'_'+str(d+1)+ '.in'
                         write_mol_info_geometry(newfile, symbols=symbols, coords=coords_new[d])
-                        write_rem_info(newfile, 'hf', '3-21g')
+                        write_rem_info(newfile, functional, basis)
 
                 elif jb == 'cal':
                     momentum, momentum2 = [], []
