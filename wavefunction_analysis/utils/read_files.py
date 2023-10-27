@@ -12,28 +12,36 @@ def read_time(filename):
                 return time
 
 
-def read_number(filename, keyword, n=-1):
+def read_number(filename, keyword, n=-1, itype='i'):
     numbers = []
     with open(filename, 'r') as infile:
         for line in infile:
             if line.find(keyword) >= 0:
-                if n==-1:
+                if n == -1:
                     return float(line.split()[2][1:-1])
-                numbers.append(int(line.split()[n]))
+                else:
+                    numbers.append(int(line.split()[n]))
+
+    if len(numbers) == 1: numbers = numbers[0]
     return numbers
 
 
-def read_matrix(filename, nrow, ncol, keyword, nwidth=10, nind=0):
+def read_matrix(filename, nrow, ncol, keyword, nwidth=10, nind=0, nskip=0):
+    if nwidth == -1: nwidth = ncol
+
     nbatch = ncol // nwidth
     if nbatch * nwidth < ncol: nbatch += 1
 
     if nrow > 1:
-        #matrix = np.zeros((nrow, ncol))
         matrices = []
 
         with open(filename, 'r') as infile:
             for line in infile:
                 if line.find(keyword) >= 0:
+
+                    for n in range(nskip): # skip rows
+                        line = next(infile)
+
                     matrix = np.zeros((nrow, ncol))
                     for k in range(nbatch):
                         if k > 0: line = next(infile)
@@ -50,12 +58,12 @@ def read_matrix(filename, nrow, ncol, keyword, nwidth=10, nind=0):
 
         return matrix
     elif nrow == 1:
-        #matrix = np.zeros(ncol)
         matrices = []
 
         with open(filename, 'r') as infile:
             for line in infile:
                 if line.find(keyword) >= 0:
+
                     matrix = np.zeros(ncol)
                     for k in range(nbatch):
                         if nind > 0: line = next(infile) # skip the top index
@@ -64,6 +72,7 @@ def read_matrix(filename, nrow, ncol, keyword, nwidth=10, nind=0):
                             if k*nwidth+d < ncol:
                                 matrix[k*nwidth+d] = float(data[d+nind])
                     matrices.append(matrix)
+
         if len(matrices) == 1: matrix = matrices[0]
         else: matrix = np.array(matrices)
 

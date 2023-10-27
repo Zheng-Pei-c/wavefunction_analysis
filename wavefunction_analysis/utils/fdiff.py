@@ -56,28 +56,37 @@ class fdiff():
 if __name__ == '__main__':
     from wavefunction_analysis.utils.unit_conversion import BOHR
     from wavefunction_analysis.utils.sec_mole import read_symbols_coords, write_mol_info_geometry, write_rem_info
-    from wavefunction_analysis.utils.read_files import read_matrix
+    from wavefunction_analysis.utils.read_files import read_matrix, read_number
 
     infile = 'h2o.in'
     functional = 'hf'
     basis = '3-21g'
-    nbas = 13
 
     norder, step_size = 2, 1e-4
     symbols, coords = read_symbols_coords(infile)
     natoms = len(symbols)
 
-    jb = 'write'
-    #jb = 'cal'
+    #jb = 'write'
+    jb = 'cal'
     suffixes = ['P ', 'angular '] # momentum, angular_momentum
-    loop = 1 if jb == 'write' else len(suffix)
+    loop = 1 if jb == 'write' else len(suffixes)
     contract = True # contract hessian with density
-
-    if jb == 'cal':
-        den = read_matrix(infile[:-3]+'.out', nbas, nbas, 'scf density matrix', 6, 1)
+    nwidth = 5
 
     for il in range(loop):
         suffix = suffixes[il]
+
+        if jb == 'cal':
+            out0 = infile[:-3] + '.out'
+            nbas = read_number(out0, 'NBas: ', n=1)
+            den = read_matrix(out0, nbas, nbas, 'scf density matrix', nskip=2)
+            nbas = den.shape[0]
+
+            momentum_d1 = read_matrix(out0, nbas*nbas, natoms*3*natoms*3, suffix+'momentum derivative 3N arma', nwidth=-1, nskip=2)
+            momentum_d1 = np.reshape(momentum_d1.T, (natoms, 3, natoms, 3, nbas, nbas))
+            print_matrix(suffix+'d1:', momentum_d1, nwidth, 1, trans=True)
+
+
         momentum_fd, momentum_fd2 = [], []
         for n in range(natoms):
             for x in range(3):
@@ -95,10 +104,10 @@ if __name__ == '__main__':
                     momentum, momentum2 = [], []
                     for d in range(norder*2):
                         newfile = infile[:-3]+'_'+str(n+1)+'_'+str(x+1)+'_'+str(d+1)+ '.out'
-                        m = read_matrix(newfile, nbas, nbas, suffix+'momentum 3N', 6, 1)
-                        m2 = read_matrix(newfile, nbas, nbas, suffix+'momentum derivative 3N', 6, 1)
-                        momentum.append(m)
-                        momentum2.append(m2)
+                        m = read_matrix(newfile, nbas*nbas, natoms*3, suffix+'momentum 3N arma', nwidth=-1, nskip=2)
+                        m2 = read_matrix(newfile, nbas*nbas, natoms*3*natoms*3, suffix+'momentum derivative 3N arma', nwidth=-1, nskip=2)
+                        momentum.append(m.T)
+                        momentum2.append(m2.T)
                     momentum = fd.compute_fdiff(np.array(momentum), 1./BOHR)
                     momentum2 = fd.compute_fdiff(np.array(momentum2), 1./BOHR)
                     momentum_fd.append(momentum)
@@ -107,17 +116,12 @@ if __name__ == '__main__':
 
         if jb == 'cal':
             momentum_fd = np.reshape(momentum_fd, (natoms, 3, natoms, 3, nbas, nbas))
-            for m in range(natoms):
-                for x in range(3):
-                    for n in range(natoms):
-                        for y in range(3):
-                            print('m:', m+1, 'x:', x+1, 'n:', n+1, 'y:', y+1, end=' ')
-                            print_matrix(suffix+'fd:', momentum_fd[n,y,m,x], 6, 1)
+            print_matrix(suffix+'fd:', momentum_fd, nwidth, 1, trans=True)
 
             if contract:
                 momentum_fd2 = np.reshape(momentum_fd2, (natoms*3, natoms*3, natoms*3, nbas, nbas))
                 momentum_fd2 = np.einsum('ijkpq,pq->jki', momentum_fd2, den)
-                print_matrix(suffix+'fd2:', momentum_fd2, 6, 1)
+                print_matrix(suffix+'fd2:', momentum_fd2, nwidth, 1)
             else:
                 momentum_fd2 = np.reshape(momentum_fd2, (natoms*3, natoms*3, natoms*3, nbas, nbas))
                 momentum_fd2 = np.einsum('ijkpq->jkipq', momentum_fd2)
@@ -125,4 +129,4 @@ if __name__ == '__main__':
                     for j in range(natoms*3):
                         for k in range(natoms*3):
                             print('i:', i+1, 'j:', j+1, 'k:', k+1, end=' ')
-                            print_matrix(suffix+'momentum derivative 2 3N:', momentum_fd2[i,j,k], 6, 1)
+                            print_matrix(suffix+'momentum derivative 2 3N:', momentum_fd2[i,j,k].T, nwidth, 1)
