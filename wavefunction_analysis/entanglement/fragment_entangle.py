@@ -42,7 +42,7 @@ def get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao, ovlp_ao,
         s, V = np.linalg.eigh(dm_env_env_lo)
         print_matrix('eigen-values:', s)
         V = V[:, (s>threshold)&(s<2.-threshold)]
-    print(V.shape)
+    print('V shape:', V.shape)
     #print_matrix('V:', V, 10)
 
     coeff_imp = np.copy(coeff_lo_in_ao[:, imp_lo_idx]) # idensity transformation
