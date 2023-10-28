@@ -43,7 +43,7 @@ class fdiff():
         if self.norder == 1:
             coeff = [-.5, .5]
         elif self.norder == 2:
-            coeff = [-1./12., 2./3., -2./3., 1./12.]
+            coeff = [1./12., -2./3., 2./3., -1./12.]
         elif self.norder == 3:
             coeff = [-1./60., 3./20., -3./4., 3./4., -3./20., 1./60.]
         elif self.norder == 4:
