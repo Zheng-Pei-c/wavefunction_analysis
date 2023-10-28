@@ -79,11 +79,12 @@ if __name__ == '__main__':
         if jb == 'cal':
             out0 = infile[:-3] + '.out'
             nbas = read_number(out0, 'NBas: ', n=1)
-            den = read_matrix(out0, nbas, nbas, 'scf density matrix', nskip=2)
-            nbas = den.shape[0]
+            den = read_matrix(out0, nbas, nbas, 'scf density matrix arma', nwidth=-1, nskip=2)
 
             momentum_d1 = read_matrix(out0, nbas*nbas, natoms*3*natoms*3, suffix+'momentum derivative 3N arma', nwidth=-1, nskip=2)
             momentum_d1 = np.reshape(momentum_d1.T, (natoms, 3, natoms, 3, nbas, nbas))
+            if suffix == 'angular':
+                momentum_fd = np.einsum('ixjy...->xjy...', momentum_fd)
             print_matrix(suffix+'d1:', momentum_d1, nwidth, 1, trans=True)
 
 
@@ -116,7 +117,11 @@ if __name__ == '__main__':
 
         if jb == 'cal':
             momentum_fd = np.reshape(momentum_fd, (natoms, 3, natoms, 3, nbas, nbas))
+            momentum_fd = np.einsum('ixjy...->jyix...', momentum_fd)
+            if suffix == 'angular':
+                momentum_fd = np.einsum('ixjy...->xjy...', momentum_fd)
             print_matrix(suffix+'fd:', momentum_fd, nwidth, 1, trans=True)
+            print(suffix+'difference:', np.linalg.norm(momentum_fd+momentum_d1))
 
             if contract:
                 momentum_fd2 = np.reshape(momentum_fd2, (natoms*3, natoms*3, natoms*3, nbas, nbas))
@@ -129,4 +134,4 @@ if __name__ == '__main__':
                     for j in range(natoms*3):
                         for k in range(natoms*3):
                             print('i:', i+1, 'j:', j+1, 'k:', k+1, end=' ')
-                            print_matrix(suffix+'momentum derivative 2 3N:', momentum_fd2[i,j,k].T, nwidth, 1)
+                            print_matrix(suffix+'momentum derivative 2 3N:', momentum_fd2[i,j,k].T, nwidth, 1, trans=True)

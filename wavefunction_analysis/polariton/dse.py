@@ -4,7 +4,7 @@ import numpy as np
 import pyscf
 
 from wavefunction_analysis.utils.pyscf_parser import *
-from wavefunction_analysis.utils.unit_conversion import convert_units
+from wavefunction_analysis.utils import convert_units
 
 
 def get_multipole_matrix(mol, itype='dipole', coupling=None, origin=None):
