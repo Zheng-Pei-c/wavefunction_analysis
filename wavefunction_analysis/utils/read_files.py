@@ -12,15 +12,18 @@ def read_time(filename):
                 return time
 
 
-def read_number(filename, keyword, n=-1, itype='i'):
+def read_number(filename, keyword, n=-1, ftype=int):
+    """
+    ftype can be int, float, or simply string
+    """
     numbers = []
     with open(filename, 'r') as infile:
         for line in infile:
             if line.find(keyword) >= 0:
                 if n == -1:
-                    return float(line.split()[2][1:-1])
+                    return ftype(line.split()[2][1:-1])
                 else:
-                    numbers.append(int(line.split()[n]))
+                    numbers.append(ftype(line.split()[n]))
 
     if len(numbers) == 1: numbers = numbers[0]
     return numbers
