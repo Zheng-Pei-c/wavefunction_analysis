@@ -49,18 +49,18 @@ def print_matrix(keyword, matrix, nwidth=0, nind=0, trans=False):
 
     elif len(matrix.shape) == 3: # 3d array
         for i in range(matrix.shape[0]):
-            print_matrix(str(i+1)+' '+keyword, matrix[i], nwidth, nind)
+            print_matrix(keyword+' '+str(i+1)+' ', matrix[i], nwidth, nind)
 
     elif len(matrix.shape) == 4: # 4d array
         for i in range(matrix.shape[0]):
-            print_matrix(str(i+1)+' '+keyword, matrix[i], nwidth, nind)
+            print_matrix(keyword+' '+str(i+1)+' ', matrix[i], nwidth, nind)
 
     elif len(matrix.shape) == 5: # 5d array
         n1, n2, n3 = matrix.shape[:3]
         for i in range(n1):
             for j in range(n2):
                 for k in range(n3):
-                    print_matrix('i: '+str(i+1)+'  j: '+str(j+1)+'  k: '+str(k+1)+'  '+keyword, matrix[i, j, k], nwidth, nind)
+                    print_matrix(keyword+' i: '+str(i+1)+'  j: '+str(j+1)+'  k: '+str(k+1)+'  ', matrix[i, j, k], nwidth, nind)
 
     elif len(matrix.shape) == 6: # 6d array
         n1, n2, n3, n4 = matrix.shape[:4]
@@ -68,7 +68,7 @@ def print_matrix(keyword, matrix, nwidth=0, nind=0, trans=False):
             for j in range(n2):
                 for k in range(n3):
                     for l in range(n4):
-                        print_matrix('i: '+str(i+1)+'  j: '+str(j+1)+'  k: '+str(k+1)+'  l: '+str(l+1)+'  '+keyword, matrix[i, j, k, l], nwidth, nind)
+                        print_matrix(keyword+' i: '+str(i+1)+'  j: '+str(j+1)+'  k: '+str(k+1)+'  l: '+str(l+1)+'  ', matrix[i, j, k, l], nwidth, nind)
 
     else:
         warnings.warn('the matrix has higher dimension than this funciton can handle.')
