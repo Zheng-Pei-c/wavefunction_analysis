@@ -33,28 +33,40 @@ def get_localized_orbital_rdm(coeff_lo_in_ao, coeff_mo_in_ao, ovlp_ao, nocc, sca
 def get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao, ovlp_ao,
         imp_lo_idx, env_lo_idx, method=0):
     threshold = 1e-12
-    if method == 0: # singular value vectors of off-diagonal block of the dm in lo
-        dm_imp_env_lo = dm_lo_in_ao[np.ix_(imp_lo_idx, env_lo_idx)] # get environmental orbitals
-        _, s, Vt = np.linalg.svd(dm_imp_env_lo, full_matrices=False)
-        print_matrix('singular values:', s)
-        V = Vt[s>threshold].T
-    elif method == 1: # eigenvectors of environment diagonal block of the dm in lo
-        dm_env_env_lo = dm_lo_in_ao[np.ix_(env_lo_idx, env_lo_idx)]
-        s, V = np.linalg.eigh(dm_env_env_lo)
-        print_matrix('eigen-values:', s)
-        V = V[:, (s>threshold)&(s<2.-threshold)]
+
+    def embed_spin_orbital(dm_lo_in_ao, iprint=0):
+        if method == 0: # singular value vectors of off-diagonal block of the dm in lo
+            dm_imp_env_lo = dm_lo_in_ao[np.ix_(imp_lo_idx, env_lo_idx)] # get environmental orbitals
+            _, s, Vt = np.linalg.svd(dm_imp_env_lo, full_matrices=False)
+            if iprint > 0: print_matrix('singular values:', s)
+            V = Vt[s>threshold].T
+        elif method == 1: # eigenvectors of environment diagonal block of the dm in lo
+            dm_env_env_lo = dm_lo_in_ao[np.ix_(env_lo_idx, env_lo_idx)]
+            s, V = np.linalg.eigh(dm_env_env_lo)
+            if iprint > 0: print_matrix('eigen-values:', s)
+            V = V[:, (s>threshold)&(s<2.-threshold)]
+        return V
+
+    nspin = dm_lo_in_ao.shape[0] if len(dm_lo_in_ao.shape) > 2 else 0
+    V = []
+    if nspin > 0:
+        for i in range(nspin):
+            V.append(embed_spin_orbital(dm_lo_in_ao[i], iprint=1))
+        V = np.array(V)
+    else:
+        V = embed_spin_orbital(dm_lo_in_ao, iprint=1)
     print('V shape:', V.shape)
     #print_matrix('V:', V, 10)
 
-    coeff_imp = np.copy(coeff_lo_in_ao[:, imp_lo_idx]) # idensity transformation
-    coeff_env = np.einsum('pi,ij->pj', coeff_lo_in_ao[:, env_lo_idx], V)
-    coeff_eo_in_ao = np.concatenate((coeff_imp, coeff_env), axis=1)
+    coeff_imp = coeff_lo_in_ao[..., imp_lo_idx] # idensity transformation
+    coeff_env = np.einsum('...pi,...ij->...pj', coeff_lo_in_ao[..., env_lo_idx], V)
+    coeff_eo_in_ao = np.concatenate((coeff_imp, coeff_env), axis=-1)
     #print_matrix('coeff_eo_in_ao:', coeff_eo_in_ao, 10)
-    # identity = np.einsum('pi,pq,qj->ij', coeff_eo_in_ao, ovlp_ao, coeff_eo_in_ao)
+    # identity = np.einsum('...pi,pq,...qj->...ij', coeff_eo_in_ao, ovlp_ao, coeff_eo_in_ao)
 
-    coeff_eo_in_lo = np.einsum('pi,pq,qj->ij', coeff_lo_in_ao, ovlp_ao, coeff_eo_in_ao)
-    # identity = np.einsum('ij,ik->jk', coeff_eo_in_lo, coeff_eo_in_lo)
-    dm_eo_in_ao = np.einsum('pi,pq,qj->ij', coeff_eo_in_lo, dm_lo_in_ao, coeff_eo_in_lo)
+    coeff_eo_in_lo = np.einsum('...pi,pq,...qj->...ij', coeff_lo_in_ao, ovlp_ao, coeff_eo_in_ao)
+    # identity = np.einsum('...ij,...ik->...jk', coeff_eo_in_lo, coeff_eo_in_lo)
+    dm_eo_in_ao = np.einsum('...pi,...pq,...qj->...ij', coeff_eo_in_lo, dm_lo_in_ao, coeff_eo_in_lo)
 
     return coeff_eo_in_ao, dm_eo_in_ao
 
