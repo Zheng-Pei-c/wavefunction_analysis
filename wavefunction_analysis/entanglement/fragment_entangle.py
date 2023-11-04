@@ -23,6 +23,7 @@ def get_localized_orbital_rdm(coeff_lo_in_ao, coeff_mo_in_ao, ovlp_ao, nocc, sca
     """
     total density matrix alpha+beta
     """
+    # identity = np.einsum('...pi,pq,...qj->...ij', coeff_lo_in_ao, ovlp_ao, coeff_lo_in_ao)
     coeff_lo_in_mo = np.einsum('...pi,pq,...qj->...ij', coeff_lo_in_ao, ovlp_ao, coeff_mo_in_ao)
     dm_lo_in_ao = np.einsum('...ik,...jk->...ij', coeff_lo_in_mo[:,:nocc], coeff_lo_in_mo[:,:nocc])
 
@@ -49,8 +50,10 @@ def get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao, ovlp_ao,
     coeff_env = np.einsum('pi,ij->pj', coeff_lo_in_ao[:, env_lo_idx], V)
     coeff_eo_in_ao = np.concatenate((coeff_imp, coeff_env), axis=1)
     #print_matrix('coeff_eo_in_ao:', coeff_eo_in_ao, 10)
+    # identity = np.einsum('pi,pq,qj->ij', coeff_eo_in_ao, ovlp_ao, coeff_eo_in_ao)
 
     coeff_eo_in_lo = np.einsum('pi,pq,qj->ij', coeff_lo_in_ao, ovlp_ao, coeff_eo_in_ao)
+    # identity = np.einsum('ij,ik->jk', coeff_eo_in_lo, coeff_eo_in_lo)
     dm_eo_in_ao = np.einsum('pi,pq,qj->ij', coeff_eo_in_lo, dm_lo_in_ao, coeff_eo_in_lo)
 
     return coeff_eo_in_ao, dm_eo_in_ao
@@ -87,27 +90,11 @@ def get_embedding_energy(mol, mf, coeff_eo_in_ao, dm_eo_in_ao, neo_imp):
     #f1e_eo -= (j1e_eo - k1e_eo * .5)
     # end of ``core'' electron contribution
 
-    return energy*.5, nocc_eo
+    # embedding orbital and its orbital energy
+    e_eo, v_eo = np.linalg.eigh(f1e_eo)
+    coeff_eo_in_ao = np.einsum('pi,ij->pj', coeff_eo_in_ao, v_eo)
 
-
-def get_embedding_orbital_energy(mf, coeff_eo_in_ao):
-    """
-    embedding orbital energy for excited state calculations
-    """
-    mo_energy = mf.mo_energy
-    ovlp_ao = mf.get_ovlp()
-    Z, L, _ = get_orthogonal_basis(ovlp_ao)
-    #fock_orth = np.einsum('pq,qr,sr->ps', Z, fock_ao, Z)
-    #e, v = np.linalg.eigh(fock_orth)
-    #print_matrix('mo energy:', e)
-
-    coeff_eo_canon = np.einsum('pq,qi->pi', L, coeff_eo_in_ao)
-    eo_energy = np.einsum('pi,p,pi->i', coeff_eo_canon, mo_energy, coeff_eo_canon)
-    idx = np.argsort(eo_energy)
-    return eo_energy[idx], coeff_eo_in_ao[:, idx]
-
-    #ao_slice_by_atom = mol.aoslice_by_atom()[:,2:4]
-    #print('ao_slice_by_atom:\n', ao_slice_by_atom)
+    return energy*.5, nocc_eo, e_eo, coeff_eo_in_ao
 
 
 def get_embedding_system(mol, mf, frgm_idx, ifrgm=0):
@@ -129,12 +116,10 @@ def get_embedding_system(mol, mf, frgm_idx, ifrgm=0):
         print('env_lo_idx:', env_lo_idx)
 
         coeff_eo_in_ao, dm_eo_in_ao = get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao,
-                ovlp_ao, imp_lo_idx, env_lo_idx, embed_method)
-        e, nocc_eo = get_embedding_energy(mol, mf, coeff_eo_in_ao, dm_eo_in_ao, neo_imp)
-        eo_energy, coeff_eo_in_ao = get_embedding_orbital_energy(mf, coeff_eo_in_ao)
-        return e, nocc_eo, eo_energy, coeff_eo_in_ao
+                            ovlp_ao, imp_lo_idx, env_lo_idx, embed_method)
+        return get_embedding_energy(mol, mf, coeff_eo_in_ao, dm_eo_in_ao, neo_imp)
 
-    if ifrgm >=0:
+    if ifrgm >= 0:
         return embedding(ifrgm)
 
     energy = 0

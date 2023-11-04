@@ -8,7 +8,7 @@ def lo_weight_on_ao(mol : pyscf.gto.Mole = None, coeff_ao_lo : numpy.ndarray = N
         mol : pyscf.gto.Mole
             The molecule object.
         coeff_ao_lo : numpy.ndarray
-            The coefficient matrix to transform atomic orbitals 
+            The coefficient matrix to transform atomic orbitals
             to local orbitals.
         ovlp_ao : numpy.ndarray
             The overlap matrix of atomic orbitals.
@@ -41,7 +41,7 @@ def lo_weight_on_atom(mol : pyscf.gto.Mole, coeff_ao_lo : numpy.ndarray = None, 
         mol : pyscf.gto.Mole
             The molecule object.
         coeff_ao_lo : numpy.ndarray
-            The coefficient matrix to transform atomic orbitals 
+            The coefficient matrix to transform atomic orbitals
             to local orbitals.
         ovlp_ao : numpy.ndarray
             The overlap matrix of atomic orbitals.
@@ -72,7 +72,7 @@ def lo_weight_on_atom(mol : pyscf.gto.Mole, coeff_ao_lo : numpy.ndarray = None, 
     return w2_atm_lo
 
 def lo_weight_on_frag(frag_atms_list : list, mol : pyscf.gto.Mole,
-                      coeff_ao_lo : numpy.ndarray = None, 
+                      coeff_ao_lo : numpy.ndarray = None,
                       ovlp_ao : numpy.ndarray = None):
     """A function to calculate the weight of local orbitals on fragments.
 
@@ -82,7 +82,7 @@ def lo_weight_on_frag(frag_atms_list : list, mol : pyscf.gto.Mole,
         mol : pyscf.gto.Mole
             The molecule object.
         coeff_ao_lo : numpy.ndarray
-            The coefficient matrix to transform atomic orbitals 
+            The coefficient matrix to transform atomic orbitals
             to local orbitals.
         ovlp_ao : numpy.ndarray
             The overlap matrix of atomic orbitals.
@@ -112,9 +112,9 @@ def lo_weight_on_frag(frag_atms_list : list, mol : pyscf.gto.Mole,
         w2_frag_lo[ifrag] = numpy.sum(w2_atm_lo[frag_atms], axis=0)
 
     return w2_frag_lo
-    
 
-def partition_lo_to_atms(mol : pyscf.gto.Mole = None, 
+
+def partition_lo_to_atms(mol : pyscf.gto.Mole = None,
                          coeff_ao_lo : numpy.ndarray = None,
                          w2_atm_lo : numpy.ndarray = None,
                          min_weight : float = 0.9,):
@@ -152,15 +152,15 @@ def partition_lo_to_atms(mol : pyscf.gto.Mole = None,
 
         if w2_atm_lo[iatm, lo] > min_weight:
             lo_idx_on_atm_list[iatm].append(lo)
-            print("LO %3d is assigned to atom %3d with weight % 6.4f" % (lo, iatm, w2_atm_lo[iatm, lo]))
+            #print("LO %3d is assigned to atom %3d with weight % 6.4f" % (lo, iatm, w2_atm_lo[iatm, lo]))
         else:
             print('Warning: The weight of local orbital %d on atom %d is % 6.4f, which is smaller than the tolerance % 6.4f!' % (lo, iatm, w2_atm_lo[iatm, lo], tol))
 
     return lo_idx_on_atm_list
 
 def partition_lo_to_frags(frag_atms_list : list,
-                          mol : pyscf.gto.Mole = None, 
-                          coeff_ao_lo : numpy.ndarray = None, 
+                          mol : pyscf.gto.Mole = None,
+                          coeff_ao_lo : numpy.ndarray = None,
                           w2_frag_lo : numpy.ndarray = None,
                           min_weight : float = 0.9,):
     """A function to partition local orbitals to fragments.
@@ -199,7 +199,7 @@ def partition_lo_to_frags(frag_atms_list : list,
 
         if w2_frag_lo[ifrag, lo] > min_weight:
             lo_idx_on_frag_list[ifrag].append(lo)
-            print("LO %3d is assigned to fragment %3d, weight = %6.4f" % (lo, ifrag, w2_frag_lo[ifrag, lo]))
+            #print("LO %3d is assigned to fragment %3d, weight = %6.4f" % (lo, ifrag, w2_frag_lo[ifrag, lo]))
         else:
             print('Warning: The weight of local orbital %d on fragment %d is % 6.4f, which is smaller than the tolerance % 6.4f!' % (lo, ifrag, w2_frag_lo[ifrag, lo], min_weight))
 
