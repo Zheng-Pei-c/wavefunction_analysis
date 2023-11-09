@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
-import matplotlib.colors as colors
-from matplotlib import ticker
 import matplotlib.colors as mcolors
+from matplotlib import ticker
+from matplotlib.collections import LineCollection
 
-from .plot_utils import brokenaxes, add_colorbar_map
+from .plot_utils import brokenaxes, add_colorbar_map, gradient_color_line

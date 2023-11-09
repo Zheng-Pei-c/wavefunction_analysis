@@ -2,7 +2,7 @@ import os, sys
 import numpy as np
 
 from wavefunction_analysis.utils import convert_units
-from wavefunction_analysis.plot import plt, colors, ticker, mcolors
+from wavefunction_analysis.plot import plt, mcolors, ticker
 
 def plot_wave_energy_frequency():
     # 1nm to 1mm (1e6nm)

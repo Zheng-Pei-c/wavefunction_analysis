@@ -1,7 +1,7 @@
 import os, sys
 import numpy as np
 
-from wavefunction_analysis.plot import plt, colors, ticker, mcolors
+from wavefunction_analysis.plot import plt, mcolors, ticker, LineCollection
 
 def get_kwargs(marker):
     return dict(marker=marker, markersize=10,
@@ -82,8 +82,24 @@ def brokenaxes(fig, gs, xlims, ylims, ratio=[1.,1.], pad=.1):
 
 def add_colorbar_map(plt, ax, color1='royalblue', color2='red', nslice=20,
                      vmin=.0, vmax=1., posx=.0, posy=.0, loc='right'):
-    cm = colors.LinearSegmentedColormap.from_list('Custom', [color1, color2], nslice)
-    cNorm = colors.Normalize(vmin=vmin, vmax=vmax)
+    cm = mcolors.LinearSegmentedColormap.from_list('Custom', [color1, color2], nslice)
+    cNorm = mcolors.Normalize(vmin=vmin, vmax=vmax)
     scalarMap = plt.cm.ScalarMappable(norm=cNorm, cmap=cm)
     plt.colorbar(scalarMap, ax=ax, location=loc, anchor=(posx,posy))
     return cm
+
+
+def make_line_segments(x, y):
+    points = np.column_stack((x, y))
+    segments = np.concatenate([points[:-1, np.newaxis], points[1:, np.newaxis]], axis=1)
+    return segments
+
+
+def gradient_color_line(ax, x, y, weights, cmap, vmin=.0, vmax=1., label=''):
+    segments = make_line_segments(x, y)
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+    line_segments = LineCollection(segments, cmap=cmap, norm=norm, color=cmap(norm(weights)),
+                                   label=label)
+    ax.add_collection(line_segments)
+    return line_segments
+

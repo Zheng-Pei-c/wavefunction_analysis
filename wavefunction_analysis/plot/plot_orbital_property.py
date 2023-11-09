@@ -3,7 +3,7 @@ import numpy as np
 
 from wavefunction_analysis.properties.orbital_properties import cal_properties_from_scratch
 
-from wavefunction_analysis.plot import plt, colors, ticker, mcolors
+from wavefunction_analysis.plot import plt, mcolors, ticker
 from wavefunction_analysis.plot import brokenaxes
 
 def plot_orbital_properties(fig_name, orbital_properties):

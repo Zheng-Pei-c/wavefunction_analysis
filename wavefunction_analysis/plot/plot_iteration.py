@@ -3,7 +3,7 @@ import numpy as np
 
 from wavefunction_analysis.utils.read_files import read_matrix, read_number
 from wavefunction_analysis.utils.print_matrix import print_matrix
-from wavefunction_analysis.plot import plt, colors, ticker, mcolors
+from wavefunction_analysis.plot import plt, mcolors, ticker
 
 
 if __name__ == '__main__':
