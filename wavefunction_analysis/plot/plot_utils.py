@@ -10,7 +10,8 @@ def get_kwargs(marker):
 
 def brokenaxes(fig, gs, xlims, ylims, ratio=[1.,1.], pad=.1):
     func = fig.add_gridspec if gs==None else gs.subgridspec
-    nr, nc = len(ylims), len(xlims)
+    nr = len(ylims) if isinstance(ylims, list) else 1
+    nc = len(xlims) if isinstance(xlims, list) else 1
 
     if nr == 1:
         gs = func(nr, nc, width_ratios=ratio, wspace=pad)
@@ -22,17 +23,17 @@ def brokenaxes(fig, gs, xlims, ylims, ratio=[1.,1.], pad=.1):
 
     axs = gs.subplots()
 
-    if nr == 1:
+    if nr == 1: # split xaxis
         for i in range(nc):
             axs[i].set_xlim(xlims[i])
             if i>0: axs[i].set_yticks([])
             #axs[i].tick_params(labelright=False)
         #axs[-1].yaxis.tick_right()
-    elif nc == 1:
+    elif nc == 1: # split yaxis
         for i in range(nr):
             axs[i].set_ylim(ylims[i])
             if i<nr-1: axs[i].set_xticks([])
-    else:
+    else: # split both axes
         for i in range(nr):     # y
             for j in range(nc): # x
                 axs[i,j].set_xlim(xlims[j])
@@ -59,8 +60,8 @@ def brokenaxes(fig, gs, xlims, ylims, ratio=[1.,1.], pad=.1):
     elif nc == 1:
         marker=[(-1, -d), (1, d)]
         kwargs = get_kwargs(marker)
-        axs[0].plot([0, 1], [0, 0], transform=ax1.transAxes, **kwargs)
-        axs[1].plot([0, 1], [1, 1], transform=ax2.transAxes, **kwargs)
+        axs[0].plot([0, 1], [0, 0], transform=axs[0].transAxes, **kwargs)
+        axs[1].plot([0, 1], [1, 1], transform=axs[1].transAxes, **kwargs)
     else:
         marker = [(-d, -1), (d, 1)]
         kwargs = get_kwargs(marker)
@@ -79,3 +80,10 @@ def brokenaxes(fig, gs, xlims, ylims, ratio=[1.,1.], pad=.1):
     return axs.flat
 
 
+def add_colorbar_map(plt, ax, color1='royalblue', color2='red', nslice=20,
+                     vmin=.0, vmax=1., posx=.0, posy=.0, loc='right'):
+    cm = colors.LinearSegmentedColormap.from_list('Custom', [color1, color2], nslice)
+    cNorm = colors.Normalize(vmin=vmin, vmax=vmax)
+    scalarMap = plt.cm.ScalarMappable(norm=cNorm, cmap=cm)
+    plt.colorbar(scalarMap, ax=ax, location=loc, anchor=(posx,posy))
+    return cm
