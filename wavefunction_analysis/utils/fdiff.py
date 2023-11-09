@@ -62,8 +62,8 @@ if __name__ == '__main__':
     jb = 'write'
     if len(sys.argv) > 2: jb = sys.argv[2] # 'write' # cal
 
-    functional = read_number(infile, 'method ', n=1, ftype=str)
-    basis      = read_number(infile, 'basis ', n=1, ftype=str)
+    functional = read_number(infile, 'method ', n=1, dtype=str)
+    basis      = read_number(infile, 'basis ', n=1, dtype=str)
 
     norder, step_size = 2, 1e-4
     symbols, coords = read_symbols_coords(infile)
@@ -183,7 +183,7 @@ if __name__ == '__main__':
                 momentum_3_fd2 = np.einsum('ijkpq->jkipq', momentum_3_fd2)
                 momentum_3n_fd2 = np.einsum('ijkpq->jkipq', momentum_3n_fd2)
                 momentum_3n_d2 = np.reshape(momentum_3n_d2, (natoms*3, natoms*3, natoms*3, nbas, nbas))
-        
+
             m_diff = momentum_3_fd2 - momentum_3_d2
             print(suffix+'3 derivative 2 difference:', np.linalg.norm(m_diff))
             if suffix == 'P ':
@@ -206,7 +206,7 @@ if __name__ == '__main__':
 
                 #    momentum_3_d2[x,:,y,:,z] += p_momentum_3n_d1[:,z,:,z]
                 #    momentum_3_d2[x,:,y,:,z] -= p_momentum_3n_d1[:,y,:,y]
-                #    
+                #
                 #    momentum_3_d2[x,:,z,:,y] += p_momentum_3n_d1[:,z,:,z]
                 #    momentum_3_d2[x,:,z,:,y] -= p_momentum_3n_d1[:,y,:,y]
                 #momentum_3_d2 = np.reshape(momentum_3_d2, (3, natoms*3, natoms*3, nbas, nbas))

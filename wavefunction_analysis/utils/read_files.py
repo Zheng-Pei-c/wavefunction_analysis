@@ -12,7 +12,7 @@ def read_time(filename):
                 return time
 
 
-def read_number(filename, keyword, n=-1, o=1, ftype=int):
+def read_number(filename, keyword, n=-1, o=1, dtype=int):
     """
     o takes 1 or -1 for the reading order when n>=0
     when n == -1: o takes the begin and end indices
@@ -23,9 +23,9 @@ def read_number(filename, keyword, n=-1, o=1, ftype=int):
         for line in infile:
             if line.find(keyword) >= 0:
                 if n == -1:
-                    numbers.append(ftype(line[o[0]:(o[0]+o[1])]))
+                    numbers.append(dtype(line[o[0]:(o[0]+o[1])]))
                 else:
-                    numbers.append(ftype(line.split()[n*o]))
+                    numbers.append(dtype(line.split()[n*o]))
 
     if len(numbers) == 1: numbers = numbers[0]
     return numbers
