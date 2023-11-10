@@ -25,6 +25,8 @@ if __name__ == '__main__':
     ex_e = read_number(file_name, 'ex   ', 3, dtype=float)
     ex_e2 = read_number(file_name, 'ex   ', 4, dtype=float)
     ex_p = read_number(file_name, 'ex   ', 5, dtype=float)
+    dse2 = read_number(file_name, 'polariton:', 3, dtype=float) # pyscf correc
+    dse3 = read_number(file_name, 'polariton:', 2, -1, float) # pyscf scf
 
     n = len(dse)
     dse = np.array(dse)
@@ -64,7 +66,10 @@ if __name__ == '__main__':
     axs[1].set_xlabel('coupling $\lambda$ (au)')
     axs[1].set_ylabel('total energy (eV)')
 
-    axs[2].plot(coupling, dse, color='black')
+    axs[2].plot(coupling, dse, color='black', label='psi4')
+    axs[2].plot(coupling, dse2, color='blue', label='pyscf-0')
+    axs[2].plot(coupling, dse3, color='red', label='pyscf-1')
+    axs[2].legend()
     axs[2].set_ylabel('gs dse (eV)')
 
     #plt.tight_layout()

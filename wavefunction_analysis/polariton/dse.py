@@ -7,34 +7,34 @@ from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units
 
 
-def get_multipole_matrix(mol, itype='dipole', coupling=None, origin=None):
+def get_multipole_matrix(mol, itype='dipole', c_lambda=None, origin=None):
     """
-    coupling: (n_mode, 3)
+    c_lambda: (n_mode, 3) = coupling_strength * sqrt(2.*photon_frequency)
     """
     if origin is None:
         origin = np.zeros(3)
-    if isinstance(coupling, list):
-        coupling = np.array(coupling)
+    if isinstance(c_lambda, list):
+        c_lambda = np.array(c_lambda)
 
     multipoles = {}
     with mol.with_common_orig(origin):
         if 'dipole' in itype:
             dipole = mol.intor('int1e_r', comp=3, hermi=0)
-            if isinstance(coupling, np.ndarray):
-                dipole = np.einsum('xpq,...x->...pq', dipole, coupling)
+            if isinstance(c_lambda, np.ndarray):
+                dipole = np.einsum('xpq,...x->...pq', dipole, c_lambda)
             multipoles['dipole'] = dipole
 
         if 'quadrupole' in itype:
             nao = mol.nao_nr()
             quadrupole = mol.intor('int1e_rr', comp=9, hermi=0).reshape(3,3,nao,nao)
-            if isinstance(coupling, np.ndarray):
-                quadrupole = np.einsum('xypq,...x,...y->...pq', quadrupole, coupling, coupling)
+            if isinstance(c_lambda, np.ndarray):
+                quadrupole = np.einsum('xypq,...x,...y->...pq', quadrupole, c_lambda, c_lambda)
             multipoles['quadrupole'] = quadrupole
 
         return multipoles
 
 
-def get_dse_2e(dipole, den): # coupling is included
+def get_dse_2e(dipole, den): # c_lambda is included
     return np.einsum('...pq,...rs,qs->...pr', dipole, dipole, den)
 
 
@@ -42,19 +42,19 @@ def get_dse_2e_xyz(dipole, den): # xyz
     return np.einsum('xpq,yrs,qs->xypr', dipole, dipole, den)
 
 
-def cal_dse_gs(mol, den, coupling, dipole=None, quadrupole=None):
+def cal_dse_gs(mol, den, c_lambda, dipole=None, quadrupole=None):
     itype = ''
     if isinstance(dipole, np.ndarray):
-        dipole = np.einsum('xpq,...x->...pq', dipole, coupling)
+        dipole = np.einsum('xpq,...x->...pq', dipole, c_lambda)
     else:
         itype = itype + 'dipole'
     if isinstance(quadrupole, np.ndarray):
-        quadrupole = np.einsum('xypq,...x,...y->...pq', quadrupole, coupling, coupling)
+        quadrupole = np.einsum('xypq,...x,...y->...pq', quadrupole, c_lambda, c_lambda)
     else:
         itype = itype + 'quadrupole'
 
     if 'pole' in itype:
-        multipoles = get_multipole_matrix(mol, itype, coupling)
+        multipoles = get_multipole_matrix(mol, itype, c_lambda)
         dipole = multipoles.get('dipole', dipole)
         quadrupole = multipoles.get('quadrupole', quadrupole)
 
@@ -66,9 +66,9 @@ def cal_dse_gs(mol, den, coupling, dipole=None, quadrupole=None):
 
 from pyscf.dft.rks import RKS
 class polariton(RKS):
-    def get_multipole_matrix(self, coupling):
+    def get_multipole_matrix(self, c_lambda):
         mol = self.mol
-        multipoles = get_multipole_matrix(mol, 'dipole_quadrupole', coupling)
+        multipoles = get_multipole_matrix(mol, 'dipole_quadrupole', c_lambda)
         self.dipole = multipoles['dipole']
         self.quadrupole = multipoles['quadrupole']
 
@@ -108,11 +108,11 @@ if __name__ == '__main__':
     #functional, basis = get_rem_info(parameters.get(section_names[1]))[:2]
     #mol = build_single_molecule(charge, spin, atom, basis, verbose=0)
     atom = """
-            H    0 0 -1.4
-            H    0 0 1.4
+            H    0. 0. -0.373
+            H    0. 0.  0.373
     """
-    functional = 'hf'
-    mol = build_single_molecule(0, 0, atom, '3-21g')
+    functional = 'pbe0'
+    mol = build_single_molecule(0, 0, atom, '6-311++g**')
     mf = scf.RKS(mol)
 
     mf.xc = functional
@@ -122,18 +122,21 @@ if __name__ == '__main__':
     den = mf.make_rdm1()
     dipole, quadrupole = get_multipole_matrix(mol, 'dipole_quadrupole')
 
+    frequency = 0.42978
+
     dse = []
-    for i in np.linspace(1, 20, 21):
-        for x in range(3):
+    for c in np.linspace(0, 10, 21): # better to use integer here
+        for x in range(2, 3):
             coupling = np.zeros(3)
-            coupling[x] = i*1e-3
-            e = cal_dse_gs(mol, den, coupling, dipole, quadrupole)
+            coupling[x] = c*1e-2
+            c_lambda = coupling * np.sqrt(2.*frequency)
+            e = cal_dse_gs(mol, den, c_lambda, dipole, quadrupole)
             dse.append(convert_units(e, 'hartree', 'ev'))
 
             mf1 = polariton(mol)
             mf1.xc = functional
             mf1.grids.prune = True
-            mf1.get_multipole_matrix(coupling)
+            mf1.get_multipole_matrix(c_lambda)
             mf1.kernel()
             e1 = mf1.energy_elec()[0] - mf.energy_elec()[0]
             e1 = convert_units(e1, 'hartree', 'ev')
