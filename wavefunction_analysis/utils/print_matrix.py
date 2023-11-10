@@ -10,7 +10,8 @@ def print_matrix(keyword, matrix, nwidth=0, nind=0, trans=False):
     # transpose the last two dimensions
     if trans: matrix = np.einsum('...ij->...ji', matrix)
 
-    if len(matrix.shape) == 1: # 1d array
+    ndim = matrix.ndim
+    if ndim == 1: # 1d array
         if nwidth==0: nwidth = 6
         for n in range(len(matrix)):
             if nind > 0: # column index
@@ -20,7 +21,7 @@ def print_matrix(keyword, matrix, nwidth=0, nind=0, trans=False):
             if (n+1)%nwidth==0: print('')
         print('\n')
 
-    elif len(matrix.shape) == 2: # 2d array
+    elif ndim == 2: # 2d array
         nrow, ncol = matrix.shape
         if nwidth==0:
             nloop = 1
@@ -47,22 +48,22 @@ def print_matrix(keyword, matrix, nwidth=0, nind=0, trans=False):
             if nind == 0: # blank line if without column index
                 print('')
 
-    elif len(matrix.shape) == 3: # 3d array
+    elif ndim == 3: # 3d array
         for i in range(matrix.shape[0]):
             print_matrix(keyword+' '+str(i+1)+' ', matrix[i], nwidth, nind)
 
-    elif len(matrix.shape) == 4: # 4d array
+    elif ndim == 4: # 4d array
         for i in range(matrix.shape[0]):
             print_matrix(keyword+' '+str(i+1)+' ', matrix[i], nwidth, nind)
 
-    elif len(matrix.shape) == 5: # 5d array
+    elif ndim == 5: # 5d array
         n1, n2, n3 = matrix.shape[:3]
         for i in range(n1):
             for j in range(n2):
                 for k in range(n3):
                     print_matrix(keyword+' i: '+str(i+1)+'  j: '+str(j+1)+'  k: '+str(k+1)+'  ', matrix[i, j, k], nwidth, nind)
 
-    elif len(matrix.shape) == 6: # 6d array
+    elif ndim == 6: # 6d array
         n1, n2, n3, n4 = matrix.shape[:4]
         for i in range(n1):
             for j in range(n2):

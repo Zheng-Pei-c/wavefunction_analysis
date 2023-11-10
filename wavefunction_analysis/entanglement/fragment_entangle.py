@@ -47,7 +47,7 @@ def get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao, ovlp_ao,
             V = V[:, (s>threshold)&(s<2.-threshold)]
         return V
 
-    nspin = dm_lo_in_ao.shape[0] if len(dm_lo_in_ao.shape) > 2 else 0
+    nspin = dm_lo_in_ao.shape[0] if dm_lo_in_ao.ndim > 2 else 0
     V = []
     if nspin > 0:
         for i in range(nspin):

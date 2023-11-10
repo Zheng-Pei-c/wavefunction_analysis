@@ -34,7 +34,7 @@ def get_multipole_matrix(mol, itype='dipole', c_lambda=None, origin=None):
             quadrupole = mol.intor('int1e_rr', comp=9, hermi=0).reshape(3,3,nao,nao)
             if isinstance(c_lambda, np.ndarray):
                 c2 = np.einsum('...x,...y->...xy', c_lambda, c_lambda)
-                if len(c2.shape) == 3: # contract modes
+                if c2.ndim == 3: # contract modes
                     c2 = np.sum(c2, axis=0)
                 quadrupole = np.einsum('xypq,xy->pq', quadrupole, c2)
             multipoles['quadrupole'] = quadrupole
@@ -43,7 +43,7 @@ def get_multipole_matrix(mol, itype='dipole', c_lambda=None, origin=None):
 
 
 def get_dse_2e(dipole, den): # c_lambda is included
-    if len(dipole.shape) == 2:
+    if dipole.ndim == 2:
         return np.einsum('pq,rs,...qs->...pr', dipole, dipole, den)
     else: # contract modes
         return np.einsum('ipq,irs,...qs->...pr', dipole, dipole, den)
@@ -57,11 +57,13 @@ def cal_dse_gs(mol, den, c_lambda, dipole=None, quadrupole=None):
 
     itype = ''
     if isinstance(dipole, np.ndarray):
-        dipole = np.einsum('xpq,ix->ipq', dipole, c_lambda)
+        dipole = np.einsum('xpq,...x->...pq', dipole, c_lambda)
     else:
         itype = itype + 'dipole'
     if isinstance(quadrupole, np.ndarray):
-        c2 = np.einsum('ix,iy->xy', c_lambda, c_lambda) # contract modes
+        c2 = np.einsum('...x,...y->...xy', c_lambda, c_lambda)
+        if c2.ndim == 3: # contract modes
+            c2 = np.sum(c2, axis=0)
         quadrupole = np.einsum('xypq,xy->pq', quadrupole, c2)
     else:
         itype = itype + 'quadrupole'
@@ -71,8 +73,13 @@ def cal_dse_gs(mol, den, c_lambda, dipole=None, quadrupole=None):
         dipole = multipoles.get('dipole', dipole)
         quadrupole = multipoles.get('quadrupole', quadrupole)
 
-    quadrupole -= .5* get_dse_2e(dipole, den)
-    dse = .5* np.einsum('pq,pq->', quadrupole, den) # need 1/2 for dse here
+    if den.ndim == 2: # assume restricted total density
+        quadrupole -= .5* get_dse_2e(dipole, den)
+        dse = .5* np.einsum('pq,pq->', quadrupole, den) # need 1/2 for dse here
+    else: # alpha and beta density matrices
+        dse = .5* np.einsum('pq,npq->', quadrupole, den)
+        dse -= .5* np.einsum('npq,npq->', get_dse_2e(dipole, den), den)
+
     return dse
 
 
@@ -91,17 +98,8 @@ class polariton(RKS):
 
         h = mol.intor_symmetric('int1e_kin')
         h += mol.intor_symmetric('int1e_nuc')
-        h += .5* self.quadrupole
+        h += .5* self.quadrupole # need 1/2 for dse
         return h
-
-
-    #def get_veff(self, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
-    #    if dm is None: dm = self.make_rdm1()
-    #    vhf = super().get_veff(dm=dm)
-    #    dse_2e = get_dse_2e(self.dipole, dm)
-    #    vhf.vk += dse_2e
-    #    #vhf.vxc -= .5* dse_2e
-    #    return vhf
 
 
     def get_jk(self, mol=None, dm=None, hermi=1, with_j=True, with_k=True,
