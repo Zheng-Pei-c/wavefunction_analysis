@@ -4,13 +4,35 @@ import numpy as np
 from wavefunction_analysis.utils import print_matrix
 
 def print_cg_coeff(j1=0, m1=0, j2=0, m2=0, j3=0, m3=0, cg=0,
-        header=False, ic=0):
+                   header=False, ic=0):
     if header:
-        print('%9s %5s %5s %5s %5s %5s %7s' % ('j1', 'm1', 'j2', 'm2', 'j3', 'm3', 'CG'))
+        print('%9s %5s %5s %5s %5s %5s %8s' % ('j1', 'm1', 'j2', 'm2', 'j3', 'm3', 'CG'))
 
     if ic >= 0:
-        print('%2d: %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %9.4f'
-                % (ic, j1, m1, j2, m2, j3, m3, cg))
+        #print('%2d: %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %9.4f'
+        #        % (ic, j1, m1, j2, m2, j3, m3, cg))
+
+        print('%2d:' % ic, end=' ')
+        for a in [j1, m1, j2, m2, j3, m3]:
+            if a.is_integer():
+                print('%5d' % a, end=' ')
+            else:
+                a1, a2 = a.as_integer_ratio()
+                print('%3d/%1d' % (a1, a2), end=' ')
+
+        if isinstance(cg, list): # need to sqrt the first number
+            a1, a2 = cg
+            sign = '-' if np.sign(a2) == -1 else ''
+            cg = a1 * a2**2
+            if cg.is_integer():
+                print('%8d' % cg)
+            else:
+                from fractions import Fraction
+                cg = Fraction(cg).limit_denominator()
+                a1, a2 = cg.numerator, cg.denominator
+                print('%12s' % (sign+'sqrt('+str(a1)+'/'+str(a2)+')'))
+        else:
+            print('%9.4f' % cg)
 
 
 def ladder_coeff(j, m, operator):
@@ -31,7 +53,7 @@ def ladder_coeff(j, m, operator):
     return np.sqrt(j*(j+1) - m*(operator(m, 1)))
 
 
-def clebsch_gordan_coeff_direct(j1, m1, j2, m2, j3, m3):
+def clebsch_gordan_coeff_direct(j1, m1, j2, m2, j3, m3, sqrt=False):
     """
     j3 is \in {|j_1 - j_2|, \dots, j_1 + j_2}
     m3 = m_1 + m_2 \in {-J, -J+1, \dots, J-1, J}
@@ -43,7 +65,7 @@ def clebsch_gordan_coeff_direct(j1, m1, j2, m2, j3, m3):
 
     cg = (2.*j3+1)*factorial(j3+j1-j2) * factorial(j3-j1+j2) * factorial(j1+j2-j3) / factorial(j1+j2+j3+1)
     cg *= factorial(j3+m3) * factorial(j3-m3) * factorial(j1+m1) * factorial(j1-m1) * factorial(j2+m2) * factorial(j2-m2)
-    cg = np.sqrt(cg)
+    #cg = np.sqrt(cg)
 
     a = np.array([j1 + j2 - j3, j1 - m1, j2 + m2, j3 - j2 + m1, j3 - j1 - m2])
 
@@ -58,7 +80,10 @@ def clebsch_gordan_coeff_direct(j1, m1, j2, m2, j3, m3):
         c1 = factorial(k) * np.prod(factorial(c1))
         c += (-1)**k / c1
 
-    return cg*c
+    if sqrt:
+        return np.sqrt(cg) * c
+    else:
+        return [cg, c]
 
 
 def clebsch_gordan_coeff_recur(j1, m1, j2, m2):
@@ -89,6 +114,6 @@ if __name__ == '__main__':
             m3 = m1 + m2
             for j3 in np.arange(abs(j1-j2), j1+j2+1):
                 cg = clebsch_gordan_coeff_direct(j1, m1, j2, m2, j3, m3)
-                if abs(cg) > 1e-8:
+                if isinstance(cg, list) or abs(cg) > 1e-8:
                     print_cg_coeff(j1, m1, j2, m2, j3, m3, cg, False, ic)
                     ic += 1
