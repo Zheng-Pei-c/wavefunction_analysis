@@ -6,6 +6,11 @@ import pyscf
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units
 
+def get_c_lambda(coupling_strength, frequency):
+    if isinstance(frequency, float):
+        frequency = [frequency]
+    return np.einsum('x,i->ix', coupling_strength, np.sqrt(2.)*np.sqrt(frequency))
+
 
 def get_multipole_matrix(mol, itype='dipole', c_lambda=None, origin=None):
     """
@@ -28,28 +33,36 @@ def get_multipole_matrix(mol, itype='dipole', c_lambda=None, origin=None):
             nao = mol.nao_nr()
             quadrupole = mol.intor('int1e_rr', comp=9, hermi=0).reshape(3,3,nao,nao)
             if isinstance(c_lambda, np.ndarray):
-                quadrupole = np.einsum('xypq,...x,...y->...pq', quadrupole, c_lambda, c_lambda)
+                c2 = np.einsum('...x,...y->...xy', c_lambda, c_lambda)
+                if len(c2.shape) == 3: # contract modes
+                    c2 = np.sum(c2, axis=0)
+                quadrupole = np.einsum('xypq,xy->pq', quadrupole, c2)
             multipoles['quadrupole'] = quadrupole
 
         return multipoles
 
 
 def get_dse_2e(dipole, den): # c_lambda is included
-    return np.einsum('...pq,...rs,qs->...pr', dipole, dipole, den)
+    if len(dipole.shape) == 2:
+        return np.einsum('pq,rs,...qs->...pr', dipole, dipole, den)
+    else: # contract modes
+        return np.einsum('ipq,irs,...qs->...pr', dipole, dipole, den)
 
 
-def get_dse_2e_xyz(dipole, den): # xyz
-    return np.einsum('xpq,yrs,qs->xypr', dipole, dipole, den)
+def get_dse_2e_xyz(dipole, den): # xyz without coupling
+    return np.einsum('xpq,yrs,...qs->...xypr', dipole, dipole, den)
 
 
 def cal_dse_gs(mol, den, c_lambda, dipole=None, quadrupole=None):
+
     itype = ''
     if isinstance(dipole, np.ndarray):
-        dipole = np.einsum('xpq,...x->...pq', dipole, c_lambda)
+        dipole = np.einsum('xpq,ix->ipq', dipole, c_lambda)
     else:
         itype = itype + 'dipole'
     if isinstance(quadrupole, np.ndarray):
-        quadrupole = np.einsum('xypq,...x,...y->...pq', quadrupole, c_lambda, c_lambda)
+        c2 = np.einsum('ix,iy->xy', c_lambda, c_lambda) # contract modes
+        quadrupole = np.einsum('xypq,xy->pq', quadrupole, c2)
     else:
         itype = itype + 'quadrupole'
 
@@ -59,7 +72,7 @@ def cal_dse_gs(mol, den, c_lambda, dipole=None, quadrupole=None):
         quadrupole = multipoles.get('quadrupole', quadrupole)
 
     quadrupole -= .5* get_dse_2e(dipole, den)
-    dse = .5* np.einsum('...pq,pq->', quadrupole, den) # need 1/2 for dse here
+    dse = .5* np.einsum('pq,pq->', quadrupole, den) # need 1/2 for dse here
     return dse
 
 
@@ -107,12 +120,22 @@ if __name__ == '__main__':
     #charge, spin, atom = parameters.get(section_names[0])[1:4]
     #functional, basis = get_rem_info(parameters.get(section_names[1]))[:2]
     #mol = build_single_molecule(charge, spin, atom, basis, verbose=0)
-    atom = """
+
+    atom = sys.argv[1]
+    h2 = """
             H    0. 0. -0.373
             H    0. 0.  0.373
     """
+    hf = """
+            H    0. 0. -0.459
+            F    0. 0.  0.459
+    """
+    lif = """
+           Li    0. 0. -0.791
+            F    0. 0.  0.791
+    """
     functional = 'pbe0'
-    mol = build_single_molecule(0, 0, atom, '6-311++g**')
+    mol = build_single_molecule(0, 0, locals()[atom], '6-311++g**')
     mf = scf.RKS(mol)
 
     mf.xc = functional
@@ -129,7 +152,7 @@ if __name__ == '__main__':
         for x in range(2, 3):
             coupling = np.zeros(3)
             coupling[x] = c*1e-2
-            c_lambda = coupling * np.sqrt(2.*frequency)
+            c_lambda = get_c_lambda(coupling, frequency)
             e = cal_dse_gs(mol, den, c_lambda, dipole, quadrupole)
             dse.append(convert_units(e, 'hartree', 'ev'))
 
