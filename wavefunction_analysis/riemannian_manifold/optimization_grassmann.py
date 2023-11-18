@@ -7,15 +7,7 @@ import pyscf
 from pyscf import lib, gto, scf
 
 from wavefunction_analysis.utils import print_matrix
-
-def get_orthogonal_basis(S):
-    e, v = np.linalg.eigh(S)
-    idx = e > 1e-15
-    Z = np.dot(v[:,idx]/np.sqrt(e[idx]), v[:,idx].conj().T)
-    L = np.dot(v[:,idx]*np.sqrt(e[idx]), v[:,idx].conj().T)
-    inv = np.dot(v[:,idx]/e[idx], v[:,idx].conj().T)
-    return Z, L, inv
-
+from wavefunction_analysis.utils.ortho_ao_basis import get_ortho_basis
 
 def geodesic_exp(T, full=True, scale=1.):
     from scipy.linalg import expm
@@ -95,7 +87,7 @@ class Grassmann(object):
         self._Q = Q
         self._Y = Y
         self._P = P
-        self.Z, self.L, self.sinv = get_orthogonal_basis(S)
+        self.L, self.Z, self.sinv = get_ortho_basis(S)
 
         self.method = method
 

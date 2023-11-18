@@ -4,7 +4,7 @@ import numpy as np
 import pyscf
 
 from wavefunction_analysis.utils.pyscf_parser import *
-from wavefunction_analysis.utils import convert_units
+from wavefunction_analysis.utils import convert_units, print_matrix
 
 def get_c_lambda(coupling_strength, frequency):
     if isinstance(frequency, float):
