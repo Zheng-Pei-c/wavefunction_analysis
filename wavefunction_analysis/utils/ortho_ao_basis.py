@@ -27,20 +27,25 @@ def get_ortho_basis(S, method='lowdin', eigen=False):
         Z = np.dot(V/np.sqrt(s), V.conj().T)
         inv = np.dot(V/s, V.conj().T)
 
+        if eigen:
+            return L, Z, inv, s, V
+        else:
+            return L, Z, inv
+
     elif method == 'cholesky':
         import scipy
         L = scipy.linalg.cholesky(ovlp)
         Z = scipy.linalg.lapack.dtrtri(L, lower=True)[0]
         inv = np.linalg.inv(ovlp)
 
-    if eigen:
-        return L, Z, inv, s, V
-    else:
         return L, Z, inv
 
 
-def get_ortho_basis_deriv(S, dS, l_or_z='L', solver='iter'):
-    L, Z, Sinv, s, V = get_ortho_basis(S, eigen=True)
+def get_ortho_basis_deriv(S, dS, method='lowdin', l_or_z='L', solver='iter'):
+    if method == 'cholesky':
+        raise ValueError('no direct inverse for cholesky yet and the iter is not tested')
+
+    L, Z, Sinv, s, V = get_ortho_basis(S, method=method, eigen=True)
 
     if l_or_z == 'Z':
         dS = -np.einsum('pq,xqr,rs->xps', Sinv, dS, Sinv)
@@ -68,9 +73,9 @@ def get_ortho_basis_deriv(S, dS, l_or_z='L', solver='iter'):
     elif solver == 'iter':
         I = np.eye(nbas)
         if l_or_z == 'Z':
-            A = np.kron(I, Z) + np.kron(Z.T, I)
+            A = np.kron(I, Z) + np.kron(Z.conj().T, I)
         else: # 'L'
-            A = np.kron(I, L) + np.kron(L, I)
+            A = np.kron(I, L) + np.kron(L.conj().T, I)
 
         d1 = []
         for i in range(dS.shape[0]):
@@ -82,13 +87,14 @@ def get_ortho_basis_deriv(S, dS, l_or_z='L', solver='iter'):
 
 
 if __name__ == '__main__':
+    method = 'lowdin'
     infile = '../samples/h2o.in'
     parameters = parser(infile)
     results = run_pyscf_final(parameters)
     mol, mf = results['mol'], results['mf']
 
     ovlp = mf.get_ovlp()
-    L, Z, Sinv = get_ortho_basis(ovlp)
+    L, Z, Sinv = get_ortho_basis(ovlp, method=method)
     #print_matrix('ovlp:', ovlp, 7, 1)
     #print_matrix('S^-1/2:', Z, 7, 1)
 
@@ -109,21 +115,21 @@ if __name__ == '__main__':
     S_d1 = np.reshape(S_d1, (-1, nbas, nbas))
     Sinv_d1 = -np.einsum('pq,xqr,rs->xps', Sinv, S_d1, Sinv)
 
-    dL  = get_ortho_basis_deriv(ovlp, S_d1, l_or_z='L', solver='inv')
-    dL2 = get_ortho_basis_deriv(ovlp, S_d1, l_or_z='L', solver='iter')
-    print('dL-dL2 diff:', np.linalg.norm(dL-dL2))
+    dL = get_ortho_basis_deriv(ovlp, S_d1, method=method, l_or_z='L', solver='iter')
+    if method == 'lowdin':
+        dL2  = get_ortho_basis_deriv(ovlp, S_d1, method=method, l_or_z='L', solver='inv')
+        print('dL-dL2 diff:', np.linalg.norm(dL-dL2))
     dS2  = np.einsum('xpq,qr->xpr', dL, L)
     dS2 += np.einsum('pq,xqr->xpr', L, dL)
     print('dS-(dL*L+L*dL) diff:', np.linalg.norm(S_d1-dS2))
 
-    dZ  = get_ortho_basis_deriv(ovlp, S_d1, l_or_z='Z', solver='inv')
-    dZ2 = get_ortho_basis_deriv(ovlp, S_d1, l_or_z='Z', solver='iter')
-    print('dZ-dZ2 diff:', np.linalg.norm(dZ-dZ2))
-
+    dZ = get_ortho_basis_deriv(ovlp, S_d1, method=method, l_or_z='Z', solver='iter')
+    if method == 'lowdin':
+        dZ2  = get_ortho_basis_deriv(ovlp, S_d1, method=method, l_or_z='Z', solver='inv')
+        print('dZ-dZ2 diff:', np.linalg.norm(dZ-dZ2))
     dS2  = np.einsum('xpq,qr->xpr', dZ, Z)
     dS2 += np.einsum('pq,xqr->xpr', Z, dZ)
-    dS = -np.einsum('pq,xqr,rs->xps', Sinv, S_d1, Sinv)
-    print('dSinv-(dZ*Z+Z*dZ) diff:', np.linalg.norm(dS-dS2))
+    print('dSinv-(dZ*Z+Z*dZ) diff:', np.linalg.norm(Sinv_d1-dS2))
 
     L_d1, Z_d1 = dL, dZ
 
@@ -149,7 +155,7 @@ if __name__ == '__main__':
                 ovlp1 = mf.get_ovlp(pmol)
                 #print_matrix('pmf:', s12, 7, 1)
 
-                Lx, Zx, Sinvx = get_ortho_basis(ovlp1)
+                Lx, Zx, Sinvx = get_ortho_basis(ovlp1, method=method)
 
                 S1.append(ovlp1)
                 L1.append(Lx)
