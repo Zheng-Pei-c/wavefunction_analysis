@@ -34,9 +34,9 @@ def get_ortho_basis(S, method='lowdin', eigen=False):
 
     elif method == 'cholesky':
         import scipy
-        L = scipy.linalg.cholesky(ovlp)
+        L = scipy.linalg.cholesky(S)
         Z = scipy.linalg.lapack.dtrtri(L, lower=True)[0]
-        inv = np.linalg.inv(ovlp)
+        inv = scipy.linalg.inv(S)
 
         return L, Z, inv
 

@@ -1,8 +1,10 @@
 import os, sys
 import numpy as np
+import scipy
 
 from pyscf import scf, gto, df, lib, grad
 
+from wavefunction_analysis.utils import print_matrix
 from wavefunction_analysis.utils.ortho_ao_basis import get_ortho_basis
 from wavefunction_analysis.plot import plt
 
@@ -49,7 +51,7 @@ class NuclearDynamicsStep():
         from pyscf.data import elements
         for i in range(self.natoms):
             self.nuclear_mass[i] = elements.MASSES[self.atmsym[i]] / ELECTRON_MASS_IN_AMU
-        #print('nuclear_mass:\n', self.nuclear_mass)
+        #print_matrix('nuclear_mass:\n', self.nuclear_mass)
 
         self.nuclear_save_nframe = nuclear_save_nframe
         #self.nuclear_kinetic = np.zeros((self.nuclear_save_nframe))
@@ -64,6 +66,7 @@ class NuclearDynamicsStep():
         #self.nuclear_forces = np.zeros((self.nuclear_save_nframe, self.natoms, 3))
         if init_velocity:
             self.nuclear_velocities = np.reshape(init_velocity, (self.natoms, 3))
+            self.remove_trans_rotat_velocity()
             self.get_nuclear_kinetic_energy(self.nuclear_velocities)
         else:
             self.nuclear_velocities = np.zeros((self.natoms, 3))
@@ -76,7 +79,6 @@ class NuclearDynamicsStep():
 
 
     def update_nuclear_coords_velocity(self, nuclear_force):
-
         if self.nuclear_update_method == 'euler':
             self.euler_step(nuclear_force)
         elif self.nuclear_update_method == 'leapfrog':
@@ -84,6 +86,14 @@ class NuclearDynamicsStep():
         elif self.nuclear_update_method == 'velocity_verlet':
             self.velocity_verlet_step(nuclear_force, 1)
             # we will finish the last falf after electronic step
+
+
+    def update_nuclear_coords_velocity2(self, nuclear_force):
+        # velocity_verlet is cumbersome
+        if self.nuclear_update_method == 'velocity_verlet':
+            self.velocity_verlet_step(nuclear_force, 2)
+
+        self.remove_trans_rotat_velocity()
 
 
     def euler_step(self, nuclear_force):
@@ -117,14 +127,21 @@ class NuclearDynamicsStep():
         self.nuclear_temperature = self.nuclear_kinetic * 2 / (velocities.size)
 
 
+    def remove_trans_rotat_velocity(self):
+        # velocity of atomic center
+        v0 = np.einsum('i,ix->x', self.nuclear_mass, self.nuclear_velocities)
+        v0 /= np.sum(self.nuclear_mass)
+        self.nuclear_velocities[:] -= v0
+
+
 
 def cal_idempotency(P, S=None):
     if S is None:
         PSP = np.einsum('ij,jk->ik', P, P)
-        print('idempotency in orthogonal basis:\n', PSP-P)
+        print_matrix('idempotency in orthogonal basis:\n', PSP-P)
     else:
         PSP = np.einsum('ij,jk,kl->il', P, S, P)
-        print('idempotency in atomic basis:\n', PSP-P)
+        print_matrix('idempotency in atomic basis:\n', PSP-P)
 
     return PSP
 
@@ -141,7 +158,8 @@ def density_purification(P, S=None):
 
 
 def cal_electronic_energy1(mf, P1, Z=None, method='lowdin'):
-    if Z is None: _, Z, _ = get_ortho_basis(mf.get_ovlp(), method)
+    """normal energy"""
+    if Z is None: Z = get_ortho_basis(mf.get_ovlp(), method)[1]
 
     # build fock
     hcore = mf.get_hcore()
@@ -156,30 +174,28 @@ def cal_electronic_energy1(mf, P1, Z=None, method='lowdin'):
 
 
 def cal_electronic_energy2(mf, P1, Z=None, method='lowdin'):
-    if Z is None: _, Z, _ = get_ortho_basis(mf.get_ovlp(), method)
+    """extended lagrange energy"""
+    if Z is None: Z = get_ortho_basis(mf.get_ovlp(), method)[1]
 
     # build fock
     hcore = mf.get_hcore()
-    vjk = mf.get_veff(mf.mol, P1)
+    vjk = mf.get_veff(mf.mol, (P1+P1.T)*.5) # symmetrize density matrix
     F = hcore + vjk
 
     #print('elec: ', mf.mol.nelectron//2)
     F_ortho = np.einsum('ji,jk,kl->il', Z, F, Z)
     _, Q = np.linalg.eigh(F_ortho)
     Q = Q[:,:mf.mol.nelectron//2]
-    P2 = 2 * np.einsum('ij,kj->ik', Q, Q)
-    P2 = np.einsum('ij,jk,lk->il', Z, P2, Z)
-    P3 = 2 * P2 - P1
+    P2 = np.einsum('ij,kj->ik', Q, Q)
+    P2 = 2.* np.einsum('ij,jk,lk->il', Z, P2, Z) # total D matrix
+    P3 = 2.* P2 - P1 # total
 
 
     energy_tot = np.einsum('ij,ji->', hcore, P2)
-    energy_tot += 0.5 * np.einsum('ij,ji->', vjk, P3)
+    energy_tot += .5* np.einsum('ij,ji->', vjk, P3)
     energy_tot += mf.energy_nuc()
 
-    energy_tot2 = np.einsum('ij,ji->', hcore, P2)
-    vjk = mf.get_veff(mf.mol, P2)
-    energy_tot2 += 0.5 * np.einsum('ij,ji->', vjk, P2)
-    energy_tot2 += mf.energy_nuc()
+    energy_tot2 = 0.
 
     return energy_tot, P2, P3, F, energy_tot2
 
@@ -188,11 +204,11 @@ def cal_electronic_force(mf, P1, P2=None, P3=None, F=None, Z=None, method='lowdi
     if P2 is None: P2 = P1
     if P3 is None: P3 = P1
     if F is None: F = mf.get_fock(dm=P1)
-    if Z is None: _, Z, _ = get_ortho_basis(mf.get_ovlp(), method)
+    if Z is None: Z = get_ortho_basis(mf.get_ovlp(), method)[1]
 
     g = grad.rhf.Gradients(mf)
     hcore_deriv = g.hcore_generator(mf.mol)
-    vjk_deriv = g.get_veff(mf.mol, P1)
+    vjk_deriv = g.get_veff(mf.mol, (P1+P1.T)*.5) # symmetrize density matrix
     ovlp_deriv = g.get_ovlp(mf.mol)
 
     ZZtFP = np.einsum('ij,kj->ik', Z, Z)
@@ -217,7 +233,7 @@ def cal_electronic_force(mf, P1, P2=None, P3=None, F=None, Z=None, method='lowdi
     de += grad.rhf.grad_nuc(mf.mol)
     electronic_forces = -de
 
-    #print('electronic_forces:\n', electronic_forces)
+    #print_matrix('electronic_forces:\n', electronic_forces)
     return electronic_forces
 
 
@@ -383,9 +399,11 @@ class ElectronicDynamicsStep():
 
 
 
-class ExtendedLangElectronicDynamicsStep(ElectronicDynamicsStep):
+class ExtendedLagElectronicDynamicsStep(ElectronicDynamicsStep):
     """
     refer: Niklasson 2009 JCP 10.1063/1.3148075
+           Niklasson 2017 JCP 10.1063/1.4985893
+           Niklasson 2020 JCP 10.1063/1.5143270
     """
     def __init__(self, key):
         super().__init__(key)
@@ -396,7 +414,7 @@ class ExtendedLangElectronicDynamicsStep(ElectronicDynamicsStep):
         if not hasattr(self, 'xl_inv_temp'): self.xl_inv_temp = 1500
         self.xl_inv_temp = kT_AU_to_Kelvin / self.xl_inv_temp
 
-        self.ncall = -1
+        self.ncall = 1
 
 
     def init_xl_variables(self):
@@ -412,6 +430,9 @@ class ExtendedLangElectronicDynamicsStep(ElectronicDynamicsStep):
         elif self.xl_nk == 6:
             self.xl_kappa, self.xl_alpha = 1.84, 0.0055
             self.xl_cs = [-14, 36, -27, -2, 12, -6, 1]
+        elif self.xl_nk == 7:
+            self.xl_kappa, self.xl_alpha = 1.86, 0.0016
+            self.xl_cs = [-36, 99, -88, 11, 32, -25, 8, -1]
         elif self.xl_nk == 9:
             self.xl_kappa, self.xl_alpha = 1.89, 0.00012
             self.xl_cs = [-286, 858, -936, 364, 168, -300, 184, -63, 12, -1]
@@ -420,12 +441,13 @@ class ExtendedLangElectronicDynamicsStep(ElectronicDynamicsStep):
         # init with converged density, after SCF!
         self.Pao = self.mf.make_rdm1()
         self.nao = self.Pao.shape[0]
+        DS = np.einsum('ij,jk->ik', self.Pao, self.mf.get_ovlp())
 
         self.xl_Xdotdot = np.zeros((self.nao, self.nao))
         self.xl_auxiliary_density = np.zeros((self.xl_nk+2, self.nao, self.nao))
-        DS = np.einsum('ij,jk->ik', self.Pao, self.mf.get_ovlp())
-        for k in range(self.xl_nk+1):
-            self.xl_auxiliary_density[k] = DS
+        #for k in range(self.xl_nk+1):
+        #    self.xl_auxiliary_density[k] = DS
+        self.xl_auxiliary_density[0] = DS
 
 
     def init_electronic_density_static(self, coords):
@@ -436,12 +458,11 @@ class ExtendedLangElectronicDynamicsStep(ElectronicDynamicsStep):
 
 
     def update_electronic_density_static(self, coords):
-        self.static_extended_lagrange()
-
         if self.ncall > self.xl_nk:
+            self.static_extended_lagrange()
             self.xl_build_fock(coords)
-        else:
-            self.xl_build_fock_init(coords)
+        else: # do scf for first xl_nk steps
+            self.xl_build_fock_init(coords, self.ncall)
             self.ncall += 1
 
         return self.energy_tot, self.electronic_forces
@@ -480,15 +501,12 @@ class ExtendedLangElectronicDynamicsStep(ElectronicDynamicsStep):
         return self.energy_tot, self.electronic_forces
 
 
-    def xl_build_fock_init(self, coords):
+    def xl_build_fock_init(self, coords, k):
         super().init_electronic_density_static(coords)
 
         self.Pao = self.mf.make_rdm1()
-        ovlp = self.mf.get_ovlp()
-
-        # calculate the second derivatives of xl_auxiliary_density
-        self.xl_Xdotdot = np.einsum('ij,jk->ik', self.Pao, ovlp) - self.xl_auxiliary_density[self.xl_nk]
-        #self.xl_Xdotdot = np.einsum('ji,jk,kl->il', L, P2, L) - self.xl_auxiliary_density[self.xl_nk]
+        DS = np.einsum('ij,jk->ik', self.Pao, self.mf.get_ovlp())
+        self.xl_auxiliary_density[k] = DS
 
         return self.energy_tot, self.electronic_forces
 
@@ -504,7 +522,7 @@ class ExtendedLangElectronicDynamicsStep(ElectronicDynamicsStep):
         F0 = np.einsum('ji,jk,kl->il', Z, F0, Z)
         e, Q = np.linalg.eigh(F0)
         F0 = np.einsum('ji,jk,kl->il', Q, F0, Q)
-        print('F0 should be diagonal 2\n', F0)
+        print_matrix('F0 should be diagonal 2\n', F0)
         ###
 
         # krylov space
@@ -513,7 +531,7 @@ class ExtendedLangElectronicDynamicsStep(ElectronicDynamicsStep):
 
         W[0] = np.einsum('ij,jk->ik', self.Pao, ovlp) - self.xl_auxiliary_density[self.xl_nk]
         W[0] = np.einsum('ij,jk->ik', W[0], self.xl_preconditioner_k)
-        print('W0:\n', W[0])
+        print_matrix('W0:\n', W[0])
 
         thresh = 1.0e-8
         m, error = 0, 1.0
@@ -524,7 +542,7 @@ class ExtendedLangElectronicDynamicsStep(ElectronicDynamicsStep):
                 for j in range(1, m-1):
                     V[m] -= np.einsum('ij,ij->', V[m], V[j]) * V[j]
             V[m] /= np.linalg.norm(V[m])
-            print('vm:\n', V[m])
+            print_matrix('vm:\n', V[m])
 
             F1 = self.mf.get_veff(self.mf.mol, np.einsum('ij,jk->ik', V[m], ovlp_inv))
             F1 = np.einsum('ji,jk,kl->il', Z, F1, Z)
@@ -542,10 +560,10 @@ class ExtendedLangElectronicDynamicsStep(ElectronicDynamicsStep):
                 X1 = Xtmp + 2 * np.einsum('ij,jk->ik', (X1 - Xtmp), X0)
                 X1 = np.einsum('ij,jk->ik', Ytmp, X1)
 
-            print('X0\n', X0)
-            print('X1\n', X1)
+            print_matrix('X0\n', X0)
+            print_matrix('X1\n', X1)
             D0mu = self.xl_inv_temp * np.einsum('ij,jk->ik', X0, (self.xl_identity - X0))
-            print('D0mu\n', D0mu)
+            print_matrix('D0mu\n', D0mu)
             D1 = X1 - np.trace(X1) / np.trace(D0mu) * D0mu
             D1 = np.einsum('ij,jk,lk->il', Q, D1, Q)
             D1 = np.einsum('ij,jk,kl->il', Z, D1, L)
@@ -559,7 +577,7 @@ class ExtendedLangElectronicDynamicsStep(ElectronicDynamicsStep):
                     W0_res += W[l] * np.einsum('ij,ij->', W[k], W[0]) / O
 
             W0_res -= W[0]
-            print('W0_res:\n', W0_res)
+            print_matrix('W0_res:\n', W0_res)
             error = np.einsum('ij,ij->', W0_res, W0_res) / np.einsum('ij,ij->', W[0], W[0])
             print('error:', error)
 
@@ -592,7 +610,7 @@ class CurvyElectronicDynamicsStep(ElectronicDynamicsStep):
     def init_electronic_density_static(self, coords):
         super().init_electronic_density_static(coords)
         self.Pao = self.mf.make_rdm1()
-        #print('init P:\n', self.Pao)
+        #print_matrix('init P:\n', self.Pao)
         self.nao = self.Pao.shape[0]
         self.cy_delta_dot = np.zeros((self.nao, self.nao))
         self.cy_delta = np.zeros((self.nao, self.nao))
@@ -640,7 +658,7 @@ class CurvyElectronicDynamicsStep(ElectronicDynamicsStep):
                 sqrt_mass[i] = self.cy_fic_mass * factor
 
         mass_bas = np.einsum('i,j->ij', sqrt_mass, sqrt_mass)
-        #print('mass_ba\n', mass_bas)
+        #print_matrix('mass_ba\n', mass_bas)
         return mass_bas
 
 
@@ -891,8 +909,8 @@ class MolecularDynamics():
                                           nuclear_update_method, nuclear_save_nframe,
                                           init_velocity, init_kick)
 
-        if self.ed_method == 'extended_lang':
-            self.edstep = ExtendedLangElectronicDynamicsStep(key)
+        if self.ed_method == 'extended_lag':
+            self.edstep = ExtendedLagElectronicDynamicsStep(key)
         elif self.ed_method == 'curvy':
             key['electronic_dt'] = nuclear_dt
             key['electronic_update_method'] = nuclear_update_method
@@ -915,11 +933,11 @@ class MolecularDynamics():
         et, electronic_force = self.edstep.init_electronic_density_static(coords)
         #et, electronic_force = self.edstep.update_electronic_density_static(coords)
         print('potential:', et)
-        print('forces:\n', self.edstep.electronic_forces)
+        print_matrix('forces:\n', self.edstep.electronic_forces)
         print('kinetic:', self.ndstep.nuclear_kinetic)
         print('temperature: %4.2f K' % float(self.ndstep.nuclear_temperature * kT_AU_to_Kelvin))
-        print('velocities:\n', self.ndstep.nuclear_velocities)
-        print('current nuclear coordinates:\n', coords*BOHR)
+        print_matrix('velocities:\n', self.ndstep.nuclear_velocities)
+        print_matrix('current nuclear coordinates:\n', coords*BOHR)
 
         self.md_time_coordinates[0] = coords
         self.md_time_total_energies[0] = et + self.ndstep.nuclear_kinetic
@@ -930,22 +948,23 @@ class MolecularDynamics():
             self.ndstep.update_nuclear_coords_velocity(electronic_force)
             et, electronic_force = self.edstep.update_electronic_density_static(coords)
 
-            print('\ncurrent time:%7.3f fs' % float(ti*self.nuclear_dt*FS))
+            print('current time:%7.3f fs' % float(ti*self.nuclear_dt*FS))
             #coords = self.ndstep.nuclear_coordinates # dont need to reassign
-            print('current nuclear coordinates:\n', coords*BOHR)
+            print_matrix('current nuclear coordinates:\n', coords*BOHR)
 
-            # velocity_verlet is cumbersome
-            if self.ndstep.nuclear_update_method == 'velocity_verlet':
-                self.ndstep.velocity_verlet_step(electronic_force, 2)
+            ## velocity_verlet is cumbersome
+            #if self.ndstep.nuclear_update_method == 'velocity_verlet':
+            #    self.ndstep.velocity_verlet_step(electronic_force, 2)
+            self.ndstep.update_nuclear_coords_velocity2(electronic_force)
 
             if self.ed_method == 'curvy':
                 et, electronic_force = self.edstep.update_electronic_density_static2(coords)
 
             print('potential:', et)
-            print('forces:\n', self.edstep.electronic_forces)
+            print_matrix('forces:\n', self.edstep.electronic_forces)
             print('kinetic:', self.ndstep.nuclear_kinetic)
             print('temperature: %4.2f K' % float(self.ndstep.nuclear_temperature * kT_AU_to_Kelvin))
-            print('velocities:\n', self.ndstep.nuclear_velocities)
+            print_matrix('velocities:\n', self.ndstep.nuclear_velocities)
 
             self.md_time_coordinates[ti] = coords
             self.md_time_total_energies[ti] = et + self.ndstep.nuclear_kinetic #+ self.edstep.electronic_kinetic
@@ -958,7 +977,7 @@ class MolecularDynamics():
 
         coords = self.md_time_coordinates * BOHR
         ax[0].plot(time_line, coords[:,1,-1]-coords[:,0,-1])
-        ax[0].set_ylabel('H-He$^+$ ($\AA$)')
+        ax[0].set_ylabel('He--H$^+$ ($\AA$)')
         ax[1].plot(time_line, self.md_time_total_energies-self.md_time_total_energies[0])
         ax[1].set_xlabel('Time (fs)')
         ax[1].set_ylabel('Energy (a.u.)')
@@ -982,7 +1001,7 @@ def plot_time_variables(total_time, nuclear_nsteps, dists, energies):
     fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(11,6), sharex=True)
     for i in range(dists.shape[0]):
         ax[0].plot(time_line, dists[i], label=method1[i])
-        ax[0].set_ylabel('H-He$^+$ ($\AA$)')
+        ax[0].set_ylabel('He--H$^+$ Length ($\AA$)')
         ax[0].legend()
 
     for i in range(energies.shape[0]):
@@ -993,9 +1012,6 @@ def plot_time_variables(total_time, nuclear_nsteps, dists, energies):
 
     plt.tight_layout()
     plt.savefig('dynamics')
-
-
-
 
 
 
@@ -1026,11 +1042,11 @@ if __name__ == '__main__':
         md.plot_time_variables(fig_name='normal_time_coords')
 
     elif mdtype == 1:
-        print('run extended_lang')
-        key['ed_method'] = 'extended_lang'
+        print('run extended_lag')
+        key['ed_method'] = 'extended_lag'
         md = MolecularDynamics(key)
         md.run_dynamics()
-        md.plot_time_variables(fig_name='extended_lang_time_coords')
+        md.plot_time_variables(fig_name='extended_lag_time_coords')
 
     elif mdtype == 2:
         print('run curvy')
@@ -1056,7 +1072,7 @@ if __name__ == '__main__':
         dists.append( md.md_time_coordinates[:,1,-1] - md.md_time_coordinates[:,0,-1])
         energies.append( md.md_time_total_energies)
 
-        key['ed_method'] = 'extended_lang'
+        key['ed_method'] = 'extended_lag'
         for xl_nk in [3, 6, 9]:
 
             key['xl_nk'] = xl_nk
