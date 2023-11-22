@@ -17,14 +17,14 @@ def plot_time_variables(md, ax, idx=0):
     dists = np.array(dists) * BOHR
     energies = np.array(energies) - energies[0]
 
-    ax[0].plot(time_line, dists)
-    if idx == 0:
-        ax[0].set_ylabel('He--H$^+$ Length ($\AA$)')
+    #ax[0].plot(time_line, dists)
+    #if idx == 0:
+    #    ax[0].set_ylabel('He--H$^+$ Length ($\AA$)')
 
-    ax[1].plot(time_line, energies)
-    ax[1].set_xlabel('Time (fs)')
+    ax.plot(time_line, energies)
+    ax.set_xlabel('Time (fs)')
     if idx == 0:
-        ax[1].set_ylabel('Energy (a.u.)')
+        ax.set_ylabel('Energy (a.u.)')
 
 
 
@@ -50,19 +50,17 @@ if __name__ == '__main__':
     key['nuclear_update_method'] = 'velocity_verlet'
     key['ortho_method'] = 'lowdin' # 'cholesky'
 
-    #print('run extended_lag')
-
-    #key['ed_method'] = 'extended_lag'
-
     times = [2, 4, 8, 16, 32]
     fig, ax = plt.subplots(nrows=2, ncols=len(times), figsize=(16,6), sharex=True)
-    for i, t in enumerate(times):
-        key['nuclear_dt'] = t
+    for j, method in ['normal', 'extended_lag']:
+        key['ed_method'] = method
+        for i, t in enumerate(times):
+            key['nuclear_dt'] = t
 
-        md = MolecularDynamics(key)
-        md.run_dynamics()
-        plot_time_variables(md, ax[:,i], i)
-        ax[0,i].title.set_text('dt=%2dau (%.3ffs)' % (t, convert_units(t, 'au', 'fs')))
+            md = MolecularDynamics(key)
+            md.run_dynamics()
+            plot_time_variables(md, ax[j,i], i)
+            ax[0,i].title.set_text('dt=%2dau (%.3ffs)' % (t, convert_units(t, 'au', 'fs')))
     plt.tight_layout()
     #plt.savefig(molecule+'_extended_lag_md')
     plt.savefig(molecule+'_md')
