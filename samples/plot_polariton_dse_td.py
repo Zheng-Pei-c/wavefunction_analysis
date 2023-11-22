@@ -19,7 +19,7 @@ if __name__ == '__main__':
     coupling = read_number(file_name, 'polariton_tddft', n=0, dtype=str)
     for i, s in enumerate(coupling):
         coupling[i] = float(s.split('_')[-1].split('.out')[0]) * .005
-    coupling = np.reshape(coupling, (5, -1))[0]
+    coupling = np.reshape(coupling, (7, -1))[0]
 
     dse  = read_number(file_name, 'total: ', 1, -1, float)
     ex_e = read_number(file_name, 'ex   ', 3, dtype=float)

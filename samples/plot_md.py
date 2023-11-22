@@ -4,6 +4,7 @@ import numpy as np
 from wavefunction_analysis.plot import plt
 from wavefunction_analysis.dynamics.molecular_dynamics import *
 from wavefunction_analysis.utils import convert_units
+from wavefunction_analysis.utils.sec_mole import read_symbols_coords
 
 def plot_time_variables(md, ax, idx=0):
     total_time = md.total_time
@@ -28,17 +29,21 @@ def plot_time_variables(md, ax, idx=0):
 
 
 if __name__ == '__main__':
+    infile = sys.argv[1]
+    molecule = infile.split('.')[0]
+    symbols, coords = read_symbols_coords(infile)
+
     key = {}
     key['functional'] = 'hf'
-    #key['basis'] = '3-21g'
-    #key['charge'] = 0
-    #key['atmsym'] = [1, 1]
-    #key['init_coords'] = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.5]]
     key['basis'] = 'sto-3g'
-    key['charge'] = 1
-    key['atmsym'] = [1, 2]
-    key['init_coords'] = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.929352]]
-    key['init_velocity'] = [[0.0, 0.0, 0.0008], [0.0, 0.0, -0.0008]]
+    key['charge'] = 0
+    #key['atmsym'] = [1, 2]
+    #key['init_coords'] = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.929352]]
+    #key['init_velocity'] = [[0.0, 0.0, 0.0008], [0.0, 0.0, -0.0008]]
+    key['atmsym'] = symbols
+    key['init_coords'] = coords
+    #key['init_velocity'] = 'random'
+    key['init_velocity'] = 'thermo_298'
 
     key['nuclear_dt'] = 10
     key['total_time'] = 4000
@@ -57,7 +62,7 @@ if __name__ == '__main__':
         md = MolecularDynamics(key)
         md.run_dynamics()
         plot_time_variables(md, ax[:,i], i)
-        ax[0,i].title.set_text('dt=%2dau (%.3fs)' % (t, convert_units(t, 'au', 'fs')))
+        ax[0,i].title.set_text('dt=%2dau (%.3ffs)' % (t, convert_units(t, 'au', 'fs')))
     plt.tight_layout()
-    #plt.savefig('heh_extended_lag_md')
-    plt.savefig('heh_md')
+    #plt.savefig(molecule+'_extended_lag_md')
+    plt.savefig(molecule+'_md')

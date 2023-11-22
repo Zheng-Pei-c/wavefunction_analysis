@@ -1,7 +1,7 @@
 import os, sys
 import numpy as np
 
-def print_matrix(keyword, matrix, nwidth=0, nind=0, trans=False):
+def print_matrix(keyword, matrix, nwidth=0, nind=0, trans=False, dtype=float):
     if '\n' in keyword[-3:]: keyword = keyword[:-2]
     print(keyword)
 

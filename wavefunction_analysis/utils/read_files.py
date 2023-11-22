@@ -31,7 +31,7 @@ def read_number(filename, keyword, n=-1, o=1, dtype=int):
     return numbers
 
 
-def read_matrix(filename, nrow, ncol, keyword, nwidth=10, nind=0, nskip=0):
+def read_matrix(filename, nrow, ncol, keyword, nwidth=10, nind=0, nskip=0, dtype=float):
     if nwidth == -1: nwidth = ncol
 
     nbatch = ncol // nwidth
@@ -47,7 +47,7 @@ def read_matrix(filename, nrow, ncol, keyword, nwidth=10, nind=0, nskip=0):
                     for n in range(nskip): # skip rows
                         line = next(infile)
 
-                    matrix = np.zeros((nrow, ncol))
+                    matrix = np.zeros((nrow, ncol), dtype=dtype)
                     for k in range(nbatch):
                         if k > 0: line = next(infile)
                         elif nind > 0: line = next(infile) # skip the top index
@@ -55,7 +55,7 @@ def read_matrix(filename, nrow, ncol, keyword, nwidth=10, nind=0, nskip=0):
                             data = next(infile).split()
                             for d in range(len(data)-nind):
                                 if k*nwidth+d < ncol:
-                                    matrix[i, k*nwidth+d] = float(data[d+nind])
+                                    matrix[i, k*nwidth+d] = dtype(data[d+nind])
                     matrices.append(matrix)
 
         if len(matrices) == 1: matrix = matrices[0]
@@ -69,13 +69,13 @@ def read_matrix(filename, nrow, ncol, keyword, nwidth=10, nind=0, nskip=0):
             for line in infile:
                 if line.find(keyword) >= 0:
 
-                    matrix = np.zeros(ncol)
+                    matrix = np.zeros(ncol, dtype=dtype)
                     for k in range(nbatch):
                         if nind > 0: line = next(infile) # skip the top index
                         data = next(infile).split()
                         for d in range(len(data)-nind):
                             if k*nwidth+d < ncol:
-                                matrix[k*nwidth+d] = float(data[d+nind])
+                                matrix[k*nwidth+d] = dtype(data[d+nind])
                     matrices.append(matrix)
 
         if len(matrices) == 1: matrix = matrices[0]

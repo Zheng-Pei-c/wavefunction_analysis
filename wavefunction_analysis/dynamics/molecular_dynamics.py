@@ -4,7 +4,7 @@ import scipy
 
 from pyscf import scf, gto, df, lib, grad
 
-from wavefunction_analysis.utils import print_matrix
+from wavefunction_analysis.utils import print_matrix, convert_units
 from wavefunction_analysis.utils.ortho_ao_basis import get_ortho_basis
 from wavefunction_analysis.plot import plt
 
@@ -17,6 +17,10 @@ FS = 1.0e15
 BOHR = 0.52917721067121
 ELECTRON_MASS_IN_AMU = 5.4857990945e-04
 
+def get_boltzmann_beta(temperature):
+    from pyscf.data.nist import HARTREE2J, BOLTZMANN
+    return HARTREE2J / (BOLTZMANN * temperature)
+
 
 class NuclearDynamicsStep():
     """
@@ -28,6 +32,7 @@ class NuclearDynamicsStep():
             nuclear_dt, nuclear_update_method, nuclear_save_nframe,
             init_velocity=None, init_kick=None):
 
+        #key.setdefault('temperature', 298) # system temperature
         #key.setdefault('nuclear_dt', 10)
         #key.setdefault('nuclear_update_method', 'velocity_verlet')
         #key.setdefault('nuclear_nuclear_save_nframe', 0)
@@ -41,7 +46,6 @@ class NuclearDynamicsStep():
         #self.nuclear_t_total = nuclear_t_total
         #self.nuclear_ntimes = int(self.nuclear_t_total/self.nuclear_dt)
         self.nuclear_update_method = nuclear_update_method
-        #self.init_velocity = init_velocity
 
         self.atmsym = atmsym
         self.natoms = len(atmsym)
@@ -50,7 +54,7 @@ class NuclearDynamicsStep():
         # use pyscf's
         from pyscf.data import elements
         for i in range(self.natoms):
-            self.nuclear_mass[i] = elements.MASSES[self.atmsym[i]] / ELECTRON_MASS_IN_AMU
+            self.nuclear_mass[i] = elements.MASSES[elements.charge(self.atmsym[i])] / ELECTRON_MASS_IN_AMU
         #print_matrix('nuclear_mass:\n', self.nuclear_mass)
 
         self.nuclear_save_nframe = nuclear_save_nframe
@@ -64,8 +68,15 @@ class NuclearDynamicsStep():
         #self.nuclear_velocities = np.zeros((self.nuclear_save_nframe, self.natoms, 3))
         #self.nuclear_velocities = np.zeros((self.natoms, 3))
         #self.nuclear_forces = np.zeros((self.nuclear_save_nframe, self.natoms, 3))
-        if init_velocity:
-            self.nuclear_velocities = np.reshape(init_velocity, (self.natoms, 3))
+        if isinstance(init_velocity, list):
+            init_velocity = np.reshape(init_velocity, (self.natoms, 3))
+        elif init_velocity == 'random':
+            init_velocity = self.init_velocity_random(2e-3)
+        elif 'thermo' in init_velocity:
+            init_velocity = self.init_velocity_thermo(float(init_velocity.split('_')[1]))
+
+        if isinstance(init_velocity, np.ndarray):
+            self.nuclear_velocities = init_velocity
             self.remove_trans_rotat_velocity()
             self.get_nuclear_kinetic_energy(self.nuclear_velocities)
         else:
@@ -76,6 +87,45 @@ class NuclearDynamicsStep():
         if init_kick:
             self.nuclear_forces = np.reshape(init_kick, (self.natoms, 3))
         else: self.nuclear_forces = np.zeros((self.natoms, 3))
+
+
+    def init_velocity_random(self, etrans, sigma=1e-4, scale=.1):
+        """
+        random kinetic energy for atoms at three directions
+        """
+        size = 3 * self.natoms
+
+        #etrans = convert_units(etrans*scale, 'eh', 'kcal')
+        mean = etrans / float(size)
+
+        rng = np.random.default_rng()
+        # mean is the center
+        # sigma is the standard deviation whose square is variance
+        ek = rng.normal(loc=mean, scale=sigma, size=size)
+        ek = np.abs(ek) * etrans / np.sum(ek) # scale by the generated kinetic energy
+
+        sign = rng.random((self.natoms, 3))
+        sign = np.where(sign>.5, 1, -1)
+        velocity = 2.*np.einsum('ix,i->ix', ek.reshape(self.natoms, 3), 1./self.nuclear_mass)
+        velocity = np.einsum('ix,ix->ix', sign, np.sqrt(velocity))
+        return velocity
+
+
+    def init_velocity_thermo(self, temp):
+        """
+        random velocity following Boltzmann distribution
+        """
+        #etrans = unit_conversion(temp, 'k', 'eh')
+        #sigma = np.sqrt(etrans/self.nuclear_mass)
+        beta_b = get_boltzmann_beta(temp)
+        sigma = np.sqrt(1./beta_b/self.nuclear_mass)
+        velocity = np.zeros((self.natoms, 3))
+
+        rng = np.random.default_rng()
+        for i in range(self.natoms):
+            velocity[i] = rng.normal(loc=0., scale=sigma[i], size=3)
+
+        return velocity
 
 
     def update_nuclear_coords_velocity(self, nuclear_force):
@@ -128,10 +178,34 @@ class NuclearDynamicsStep():
 
 
     def remove_trans_rotat_velocity(self):
-        # velocity of atomic center
+        return
+        # translational part
         v0 = np.einsum('i,ix->x', self.nuclear_mass, self.nuclear_velocities)
-        v0 /= np.sum(self.nuclear_mass)
-        self.nuclear_velocities[:] -= v0
+        #v0 /= np.sum(self.nuclear_mass)
+        #self.nuclear_velocities[:] -= v0
+        self.nuclear_velocities -= np.einsum('x,i->ix', v0/self.natoms, 1./self.nuclear_mass)
+
+        # rotational part
+        # total angular momentum
+        L = np.einsum('i,ix->x', self.nuclear_mass, np.cross(self.nuclear_coordinates, self.nuclear_velocities))
+        # total moment of inertia tensor
+        x2 = np.einsum('i,ix,iy->xy', self.nuclear_mass, self.nuclear_coordinates, self.nuclear_coordinates)
+        I = -np.copy(x2) # off-diagonal
+        for i in range(3): # diagonal
+            j, k = (i+1)%3, (i+2)%3
+            I[i,i] = (x2[j,j]+x2[k,k])
+
+        print_matrix('I', I)
+        print_matrix('L', L)
+        # total angular velocity I^-1 * L
+        U, s, Vt = np.linalg.svd(I)
+        idx = np.where(s[np.abs(s)>1e-10])[0]
+        s, U, Vt = 1./s[idx], U[:,idx], Vt[:,idx]
+        W = np.einsum('ij,j,kj,k->i', Vt, s, U, L)
+        #L = np.zeros((self.natoms, 3)) # debug
+        #for i in range(self.natoms):
+        #    L[i] = np.cross(W, self.nuclear_coordinates[i])
+        self.nuclear_velocities -= np.cross(W, self.nuclear_coordinates)
 
 
 
