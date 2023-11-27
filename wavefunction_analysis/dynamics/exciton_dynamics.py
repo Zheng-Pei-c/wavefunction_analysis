@@ -14,6 +14,10 @@ def get_boltzmann_beta(temperature):
     return HARTREE2J / (BOLTZMANN * temperature)
 
 
+"""
+refer to Alessandro Troisi and Giorgio Orlandi PRL 2006 10.1103/PhysRevLett.96.086601
+         Fornari, et. al. JPCC 2016 10.1021/acs.jpcc.6b01298
+"""
 class OscillatorDynamicsStep():
     def __init__(self, key={}, **kwargs):
         """
@@ -188,9 +192,10 @@ class ExcitonDynamicsStep():
             n_site as a number or 1d, 2d, or 3d int array
             distance as a number or 1d, 2d, or 3d float array in Angstrom
             energy as an array in meV
-            coupling_g has dimension (n_mode, nstate) in meV / AA
-            coupling_j in meV
-            coupling_a in meV
+            coupling_g on site coupling between vibrational modes has dimension (n_mode, nstate) in meV / AA
+            coupling_j neighboring site coupling between excitons in meV
+            coupling_a neighboring site coupling between vibrational modes in meV
+            assume coupling_j and coupling_a have same first dimension
         """
         self.debug = 1
         self.temperature = 298 # K
@@ -241,7 +246,9 @@ class ExcitonDynamicsStep():
         self.coupling_j /= (HARTREE2EV*1000)
         self.coupling_a /= (HARTREE2EV*1000/BOHR)
 
-        self.ntype = self.coupling_j.shape[0] # number of different dimers
+        # number of different dimers
+        # used for both coupling_j and coupling_a
+        self.ntype = self.coupling_j.shape[0]
 
         if self.debug > 0:
             print_matrix('on-site exciton energy (au):', self.energy, 10)
