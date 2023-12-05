@@ -133,7 +133,7 @@ if __name__ == '__main__':
     parameters = parser(infile)
     results = run_pyscf_final(parameters)
     mol, mf = results['mol'], results['mf']
-    print('nbasis:', mf.mo_coeff.shape[0])
+    print('nelec:', mol.nelectron//2, 'nbasis:', mf.mo_coeff.shape[0])
     print_matrix('mo_energy:', mf.mo_energy)
 
     nroots = 3
@@ -147,7 +147,8 @@ if __name__ == '__main__':
     frgm_idx = get_frgm_idx(parameters)
     print('frgm_idx:', frgm_idx)
 
-    e, nocc_eo, eo_energy, coeff_eo_in_ao = get_embedding_system(mol, mf, frgm_idx)
+    extra_orb = 1
+    e, nocc_eo, eo_energy, coeff_eo_in_ao = get_embedding_system(mol, mf, frgm_idx, extra_orb=extra_orb)
     mo_occ = np.zeros(len(eo_energy))
     mo_occ[:nocc_eo//2] = 2
     print_matrix('eo_energy:', eo_energy)

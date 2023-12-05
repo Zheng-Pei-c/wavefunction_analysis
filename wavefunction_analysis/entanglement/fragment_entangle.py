@@ -8,7 +8,7 @@ from pyscf.scf.hf import dot_eri_dm
 
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.entanglement.mol_lo_tools import partition_lo_to_imps
-from wavefunction_analysis.riemannian_manifold.optimization_grassmann import get_orthogonal_basis
+from wavefunction_analysis.utils.ortho_ao_basis import get_ortho_basis
 
 def get_localized_orbital(mol, coeff, method='pipek_mezey'):
     if method == 'pipek_mezey':
@@ -19,13 +19,13 @@ def get_localized_orbital(mol, coeff, method='pipek_mezey'):
         return lo.cholesky.cholesky_mos(coeff)
 
 
-def get_localized_orbital_rdm(coeff_lo_in_ao, coeff_mo_in_ao, ovlp_ao, nocc, scale=2.):
+def get_localized_orbital_rdm(coeff_lo_in_ao, coeff_mo_in_ao, ovlp_ao, nocc, scale=2., extra_orb=0):
     """
     total density matrix alpha+beta
     """
     # identity = np.einsum('...pi,pq,...qj->...ij', coeff_lo_in_ao, ovlp_ao, coeff_lo_in_ao)
     coeff_lo_in_mo = np.einsum('...pi,pq,...qj->...ij', coeff_lo_in_ao, ovlp_ao, coeff_mo_in_ao)
-    dm_lo_in_ao = np.einsum('...ik,...jk->...ij', coeff_lo_in_mo[:,:nocc], coeff_lo_in_mo[:,:nocc])
+    dm_lo_in_ao = np.einsum('...ik,...jk->...ij', coeff_lo_in_mo[:,:nocc+extra_orb], coeff_lo_in_mo[:,:nocc+extra_orb])
 
     return scale * dm_lo_in_ao
 
@@ -71,12 +71,13 @@ def get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao, ovlp_ao,
     return coeff_eo_in_ao, dm_eo_in_ao
 
 
-def get_embedding_energy(mol, mf, coeff_eo_in_ao, dm_eo_in_ao, neo_imp):
+def get_embedding_energy(mol, mf, coeff_eo_in_ao, dm_eo_in_ao, neo_imp, extra_orb=0):
     """
     electronic energy of the impurity in the embedding basis
     """
     neo = dm_eo_in_ao.shape[1]
     nocc_eo = int(np.round(np.trace(dm_eo_in_ao))) # round up to an integer
+    nocc_eo -= extra_orb*2
     print('total %d electrons in %d embedding (%d impurity + %d bath) orbitals'
            % (nocc_eo, neo, neo_imp, neo-neo_imp))
 
@@ -109,14 +110,16 @@ def get_embedding_energy(mol, mf, coeff_eo_in_ao, dm_eo_in_ao, neo_imp):
     return energy*.5, nocc_eo, e_eo, coeff_eo_in_ao
 
 
-def get_embedding_system(mol, mf, frgm_idx, ifrgm=0):
+def get_embedding_system(mol, mf, frgm_idx, ifrgm=0, extra_orb=0):
     nocc = mol.nelectron // 2
     ovlp_ao = mf.get_ovlp()
     coeff_mo_in_ao = mf.mo_coeff
 
+    if nocc > ovlp_ao.shape[0]-nocc: extra_orb = -extra_orb
+
     # local orbital depends on the localization method
     coeff_lo_in_ao = get_localized_orbital(mol, coeff_mo_in_ao)
-    dm_lo_in_ao = get_localized_orbital_rdm(coeff_lo_in_ao, coeff_mo_in_ao, ovlp_ao, nocc)
+    dm_lo_in_ao = get_localized_orbital_rdm(coeff_lo_in_ao, coeff_mo_in_ao, ovlp_ao, nocc, extra_orb=extra_orb)
 
     frgm_lo_idx = partition_lo_to_imps(frgm_idx, mol, coeff_lo_in_ao, min_weight=0.8)
 
@@ -129,7 +132,7 @@ def get_embedding_system(mol, mf, frgm_idx, ifrgm=0):
 
         coeff_eo_in_ao, dm_eo_in_ao = get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao,
                             ovlp_ao, imp_lo_idx, env_lo_idx, embed_method)
-        return get_embedding_energy(mol, mf, coeff_eo_in_ao, dm_eo_in_ao, neo_imp)
+        return get_embedding_energy(mol, mf, coeff_eo_in_ao, dm_eo_in_ao, neo_imp, extra_orb)
 
     if ifrgm >= 0:
         return embedding(ifrgm)
