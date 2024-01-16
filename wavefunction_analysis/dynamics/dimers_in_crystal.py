@@ -2,6 +2,8 @@ import os, sys
 import numpy as np
 from numpy import cos, sin, arccos
 
+ELECTRON_MASS_IN_AMU = 5.4857990945e-04
+
 # based on https://www.ucl.ac.uk/~rmhajc0/frorth.pdf
 def read_unit_cell_info(ciff):
     if ciff[-4:] != '.cif':
@@ -43,21 +45,15 @@ def read_unit_cell_info(ciff):
 
 
 def add_molecule(ix, iy, iz, inverse, abc, angles, elements, scales):
-    #Eq. 17
-    natoms = len(elements)
-    coordinates = np.zeros_like(scales)
+    if inverse == 1: scales *= -1. # image molecule
 
+    #Eq. 17
     a, b, c = abc[0], abc[1], abc[2]
     alpha, beta, gamma, alpha_star = angles[0], angles[1], angles[2], angles[3]
 
-    for i in range(natoms):
-        x = scales[i,0]
-        y = scales[i,1]
-        z = scales[i,2]
-        if inverse == 1:
-            x *= -1.0
-            y *= -1.0
-            z *= -1.0
+    coordinates = np.zeros_like(scales)
+    for i in range(scales.shape[0]):
+        x, y, z = scales[i]
         coordinates[i,0] = (ix+x) * a + (iy+y) * b * cos(gamma) + (iz+z) * c * cos(beta)
         coordinates[i,1] =              (iy+y) * b * sin(gamma) - (iz+z) * c * sin(beta) * cos(alpha_star)
         coordinates[i,2] =                                        (iz+z) * c * sin(beta) * sin(alpha_star)
@@ -65,22 +61,91 @@ def add_molecule(ix, iy, iz, inverse, abc, angles, elements, scales):
     return coordinates
 
 
+def add_molecules_cell(n_images, abc, angles, elements, scales):
+    ix_min = -int((n_images[0]-1)/2)
+    iy_min = -int((n_images[1]-1)/2)
+    iz_min = -int((n_images[2]-1)/2)
+    #ix_min = 0
+    #iy_min = 0
+    #iz_min = 0
+    n_total = 2 * n_images[0] * n_images[1] * n_images[2]
+
+    elements_all = []
+    coordinates = np.zeros((n_total*natoms, 3))
+    centers_all = np.zeros((n_total, 3))
+
+    dimer_label = {}
+    icount = 0
+    for ix in range(ix_min, ix_min+n_images[0]):
+        for iy in range(iy_min, iy_min+n_images[1]):
+            for iz in range(iz_min, iz_min+n_images[2]):
+                for inverse in range(2): # number of molecules in a unit cell
+                    for i in range(natoms):
+                        elements_all.append(elements[i])
+
+                    coordinates[icount*natoms:(icount+1)*natoms,:] = add_molecule(ix, iy, iz, inverse, abc, angles, elements, scales)
+                    centers_all[icount, :] = .5 * (coordinates[icount*natoms+4,:] + coordinates[icount*natoms+8,:])
+                    icount += 1
+                    dimer_label[icount] = str(ix)+','+str(iy)+','+str(iz)+','+str(inverse)
+    #print('dimer_label:', dimer_label)
+    return elements_all, coordinates, centers_all, dimer_label
+
+
 def write_xyz_files(elements, coordinates, mol):
     natoms = len(elements)
+
     with open(mol+'.xyz', 'w') as xyzf:
         xyzf.write('%3d \n\n' %(natoms))
-        for i in range(0, natoms):
+        for i in range(natoms):
             xyzf.write('%1s %12.7f %12.7f %12.7f\n' %(elements[i], coordinates[i,0], coordinates[i,1], coordinates[i,2]))
 
 
 def write_eda_files(elements, coordinates, mol):
     natoms = len(elements)
+
     with open(mol+'-dc.inp', 'w') as xyzf:
         xyzf.write('$molecule\n0 1\n--\n0 1\n')
         for i in range(natoms):
             xyzf.write('%1s %12.7f %12.7f %12.7f\n' %(elements[i], coordinates[i,0], coordinates[i,1], coordinates[i,2]))
             if i == natoms/2-1: xyzf.write('--\n0 1\n')
         xyzf.write('$end')
+
+
+def dipole_dipole_interaction(d1, d2, r1, r2):
+    """
+    d1, d2: dipoles (x,y,z)
+    r1, r2: dipole center coordinates (x, y, z)
+    """
+    dr = r2 - r1
+    d1dr, d2dr = np.dot(d1, dr), np.dot(d2, dr)
+
+    dr = np.linalg.norm(dr)
+    r3, r5 = dr**3, dr**5
+
+    return np.dot(d1, d2) / r3 - 3. * d1dr * d2dr / r5
+
+
+def cal_dipole_interactions(dipoles, coords):
+    ndip = dipoles.shape[0]
+
+    dd_coupling = np.zeros((ndip, ndip))
+    for i in range(ndip):
+        for j in range(i):
+            dd_coupling[i,j] = dd_coupling[j,i] = dipole_dipole_interaction(dipoles[i], dipoles[j], coords[i], coords[j])
+
+    return dd_coupling
+
+
+def get_center_of_mass(atmsym, coords):
+    natoms = len(atmsym)
+    mass = np.zeros(natoms)
+    # use pyscf's
+    from pyscf.data import elements
+    for i in range(natoms):
+        mass[i] = elements.MASSES[elements.charge(atmsym[i])] / ELECTRON_MASS_IN_AMU
+    mass_center = np.einsum('z,zx->x', mass, coords) / mass.sum()
+    return mass_center
+
 
 
 if __name__ == '__main__':
@@ -90,45 +155,38 @@ if __name__ == '__main__':
     natoms = len(elements)
     print('natoms:', natoms)
 
+    npairs = 13
+
     n_images = [3,3,3]
     n_total = 2 * n_images[0] * n_images[1] * n_images[2]
     print('n_total:', n_total)
-    ix_min = -int((n_images[0]-1)/2)
-    iy_min = -int((n_images[1]-1)/2)
-    iz_min = -int((n_images[2]-1)/2)
 
-    elements_all = []
-    coordinates = np.zeros((n_total*natoms, 3))
-    centers_all = np.zeros((n_total, 3))
-
-    icount = 0
-    for ix in range(ix_min, ix_min+n_images[0]):
-        for iy in range(iy_min, iy_min+n_images[1]):
-            for iz in range(iz_min, iz_min+n_images[2]):
-                for inverse in range(2):
-                    for i in range(natoms):
-                        elements_all.append(elements[i])
-
-                    coordinates[icount*natoms:(icount+1)*natoms,:] = add_molecule(ix, iy, iz, inverse, abc, angles, elements, scales)
-                    centers_all[icount, :] = .5 * (coordinates[icount*natoms+4,:] + coordinates[icount*natoms+8,:])
-                    icount += 1
+    elements_all, coordinates, centers_all, dimer_label = add_molecules_cell(n_images, abc, angles, elements, scales)
 
     fname = mol+'-'+str(n_images[0])+'-'+str(n_images[1])+'-'+str(n_images[2])
     write_xyz_files(elements_all, coordinates, fname)
 
     distances = []
-    i = int(n_total//2)
+    i = int(n_total//2) # center site
     print('i:', i)
     for j in range(n_total):
         distances.append(np.linalg.norm(centers_all[i,:]-centers_all[j,:]))
     distances = np.array(distances)
 
-    order = distances.argsort()
-    print('distances:', distances)
-    print('order:', order)
-    print('distances:', distances[order[:12]])
+    print('centers:', centers_all[i])
+    print('center of mass:', get_center_of_mass(elements_all[:natoms], coordinates[i*natoms:(i+1)*natoms]))
 
-    for k in range(1, 12):
+    order = distances.argsort()
+    print('distances:', np.sort(distances))
+    print('order:', order+1)
+    #print('distances:', distances[order[:(npairs+1)]])
+    #order = np.sort(order[1:npairs+1])
+    #order = np.insert(order, 0, i)
+    print('dimer_label:')
+    for k in range(npairs+1):
+        print('%3d: %10s %12.5f' % (order[k]+1, dimer_label[order[k]+1], distances[order[k]]))
+
+    for k in range(1, npairs+1):
       fname = mol+'-'+str(i+1)+'-'+str(order[k]+1)+'-dimer'
       coordinates_dimer = np.zeros((2*natoms, 3))
       coordinates_dimer[:natoms, :]         = np.copy(coordinates[i*natoms:(i+1)*natoms,:])

@@ -6,6 +6,7 @@ from pyscf import lib
 
 from wavefunction_analysis.utils import print_matrix
 from wavefunction_analysis.utils.sec_rem import put_kwargs_keys_to_object, put_kwargs_to_keys
+from wavefunction_analysis.dynamics.dimers_in_crystal import add_molecules_cell
 
 
 AU2FS = 2.e5 * 8.854187817e-12 * PLANCK * BOHR / E_CHARGE**2
@@ -196,20 +197,25 @@ class ExcitonDynamicsStep():
             coupling_j neighboring site coupling between excitons in meV
             coupling_a neighboring site coupling between vibrational modes in meV
             assume coupling_j and coupling_a have same first dimension
+            dimer_label provide the neighboring dimer indices
         """
         self.debug = 1
         self.temperature = 298 # K
 
         # exciton dynamics time step
         self.exciton_dt = 1 # au
-        # 3D molecular site number
+        # 3D molecular unit cell number
         self.n_site = 0
+        # number of molecules in a unit cell
+        self.n_mol = 0
         # vibrational mode number of each site
         self.n_mode = 0
         # exciton number of each site
         self.nstate = 0
         # intermolecular distance in (x,y,z) directions
         self.distance = 0 # Angstrom
+        # cell angule in (x,y,z) directions
+        self.angle = 0
 
         # exciton energy of each site
         self.energy = 0
@@ -217,6 +223,8 @@ class ExcitonDynamicsStep():
         self.coupling_g = 0
         self.coupling_j = 0
         self.coupling_a = 0
+
+        self.dimer_label = None
 
         put_kwargs_keys_to_object(self, key, **kwargs)
 
@@ -236,10 +244,8 @@ class ExcitonDynamicsStep():
 
     def convert_parameter_units(self):
         self.beta_b = get_boltzmann_beta(self.temperature)
-        self.n_site_tot = np.prod(self.n_site)
+        self.n_site_tot = np.prod(self.n_site) * self.n_mol
         self.distance /= BOHR
-        self.length = np.linspace(0, self.distance*self.n_site_tot, self.n_site_tot)
-        self.length -= np.average(self.length)
 
         self.energy /= (HARTREE2EV*1000)
         self.coupling_g /= (HARTREE2EV*1000/BOHR)
@@ -258,6 +264,9 @@ class ExcitonDynamicsStep():
 
 
     def process_parameters(self):
+        self.length = np.linspace(0, self.distance*self.n_site_tot, self.n_site_tot)
+        self.length -= np.average(self.length) # move center
+
         #n_site_tot, n_mode, nstate = self.n_site_tot, self.n_mode, self.nstate
         # every site has same exciton energies and same on-site couplings
         #self.energy = np.tile(self.energy, (n_site_tot, 1))
@@ -271,7 +280,6 @@ class ExcitonDynamicsStep():
 
         #if self.debug > 0:
         #    print_matrix('coupling_j:', self.coupling_j, 10)
-        pass
 
 
     def get_exciton_hamiltonian0(self):
@@ -428,6 +436,83 @@ class ExcitonDynamicsStep():
 
 
 
+class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
+    def process_parameters(self):
+        self.length = add_molecules_cell(self.n_site, self.distance, self.angle, [0], self.coords)[1]
+
+        index = [] # given neighboring pairs
+        for dk, dv in enumerate(self.dimer_label):
+            dv = dv.split(',')
+            a, b, c, d = dv
+            index.append([a,b,c,d])
+
+        neighbor_index = [None]*self.n_mol
+        i = index[0][3]
+        neighbor_index[i] = np.array(index[1:]) # remove the center index
+
+        for j in range(1, len(index)):
+            a, b, c, d = index[j]
+            index[j] = [-a, -b, -c, abs(d-1)]
+        neighbor_index[abs(i-1)] = np.array(index[1:])
+
+        self.neighbor_index = np.array(neighbor_index)
+        self.ntype = self.neighbor_index.shape[1]
+
+
+    def get_exciton_couplings(self, nuclear_coordinates):
+        nx, ny, nz, nt, ns = self.n_site, self.n_mol, self.nstate
+        hamiltonian = np.zeros((nx, ny, nz, nt, ns, nx, ny, nz, nt, ns))
+
+        nuclear_coordinates1 = np.copy(nuclear_coordinates)
+        nuclear_coordinates1[:-1] -= nuclear_coordinates[1:]
+        #coupling = np.einsum('kmij,nkm->nkij', self.coupling_a, nuclear_coordinates1.reshape(-1, self.ntype, self.n_mode))
+        #coupling = coupling.reshape(-1, self.nstate, self.nstate)
+
+        icount = 0
+        for i in range(1, nx-1):
+            for j in range(1, ny-1):
+                for k in range(1, nz-1):
+                    for l in range(nt): # number of molecule in a unit cell
+                        coupling = np.einsum('tmij,m->tij', self.coupling_a, nuclear_coordinates1[icount])
+                        for x, (a, b, c, d) in enumerate(self.neighbor_index[l]):
+                            hamiltonian[i,j,k,l,:,i+a,j+b,k+c,d] = self.coupling_j[k] + coupling
+                            hamiltonian[i+a,j+b,k+c,d,i,j,k,l] = hamiltonian[i,j,k,0,:,i+a,j+b,k+c,d].transpose()
+                        icount += 1
+
+        return np.reshape(hamiltonian, (self.n_site_tot*self.nstate, -1))
+
+
+    def cal_force(self, nuclear_coordinates, coefficients=None):
+        if coefficients is None: coefficients = self.coefficients
+
+        nx, ny, nz, nt = self.n_site, self.n_mol
+        coefficients = np.reshape(coefficients, (nx, ny, nz, nt, -1)) # last dimension is nstate
+        force = np.zeros((nx, ny, nz, nt, self.n_mode))
+
+        for i in range(1, nx-1):
+            for j in range(1, ny-1):
+                for k in range(1, nz-1):
+                    for l in range(nt): # number of molecule in a unit cell
+                        c2 = np.zeros(self.ntype)
+                        for x, (a, b, c, d) in enumerate(self.neighbor_index[l]):
+                            c2[x] = np.einsum('i,j->ij', coefficients[i,j,k,l].conj(), coefficients[i+a,j+b,k+c,d])
+                        force[i,j,k,l] = -2.* np.einsum('tmij,tij->m', self.coupling_a, c2.real)
+
+        return np.ravel(force)
+
+
+    def cal_r_correlation(self, coefficients=None):
+        if coefficients is None: coefficients = self.coefficients
+
+        coefficients = np.reshape(coefficients, (self.n_site_tot, -1))
+        c2 = np.einsum('ni,nj->nij', coefficients.conj(), coefficients)
+        correlation = np.einsum('nx,nx,nij->x', self.length, self.length, c2)
+        correlation -= np.einsum('nx,nij->x', self.length, c2)**2
+        #print('correlation: %8.6f %10.8f' % correlation.real, correlation.imag)
+        return correlation.real
+
+
+
 class Dynamics():
     def __init__(self, key, **kwargs):
         self.total_time = 1
@@ -439,7 +524,11 @@ class Dynamics():
         print('dynamics run %d steps in %.3f fs.' %(self.total_time, float(self.total_time*AU2FS)))
 
         self.ndstep = OscillatorDynamicsStep(key)
-        self.edstep = ExcitonDynamicsStep(key)
+
+        if 'dimer_label' in key.keys():
+            self.edstep = ExcitonDynamicsStep3D(key)
+        else: # normal 1d
+            self.edstep = ExcitonDynamicsStep(key)
 
         self.md_time_total_energies = np.zeros(self.total_time)
         self.correlation = np.zeros(self.total_time)
@@ -512,6 +601,9 @@ if __name__ == '__main__':
     total_time = 400
     key = {}
 
+    """
+    Fornari, et. al. JPCC 2016 10.1021/acs.jpcc.6b01298 parameters testing
+    """
     n_mode = 6
     key['n_mode'] = n_mode
     key['nuclear_mass']  = [6., 6., 754., 754., 754., 754.] # amu

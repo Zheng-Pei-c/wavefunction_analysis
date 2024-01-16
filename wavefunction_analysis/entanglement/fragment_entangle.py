@@ -17,6 +17,8 @@ def get_localized_orbital(mol, coeff, method='pipek_mezey'):
         return pm.kernel()
     elif method == 'cholesky':
         return lo.cholesky.cholesky_mos(coeff)
+    elif 'lowdin' in method: #(meta_)lowdin
+        return lo.orth.orth_ao(mol, method)
 
 
 def get_localized_orbital_rdm(coeff_lo_in_ao, coeff_mo_in_ao, ovlp_ao, nocc, scale=2., extra_orb=0):
@@ -38,7 +40,7 @@ def get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao, ovlp_ao,
         if method == 0: # singular value vectors of off-diagonal block of the dm in lo
             dm_imp_env_lo = dm_lo_in_ao[np.ix_(imp_lo_idx, env_lo_idx)] # get environmental orbitals
             _, s, Vt = np.linalg.svd(dm_imp_env_lo, full_matrices=False)
-            if iprint > 0: print_matrix('singular values:', s)
+            if iprint > 0: print_matrix('singular values:'+str(np.sum(s)), s)
             V = Vt[s>threshold].T
         elif method == 1: # eigenvectors of environment diagonal block of the dm in lo
             dm_env_env_lo = dm_lo_in_ao[np.ix_(env_lo_idx, env_lo_idx)]
@@ -173,7 +175,7 @@ if __name__ == '__main__':
            H         2.8954132119   -1.0661605274    2.1741344071
            H         3.0247679096    0.0221180670    1.0833062723
         """,
-        basis = 'sto-3g',
+        basis = '6-311++g**',
         verbose=0
     )
 
@@ -187,4 +189,6 @@ if __name__ == '__main__':
     mf.kernel()
     print_matrix('mo_energy:', mf.mo_energy)
 
-    get_embedding_system(mol, mf, frgm_idx, -1)
+    for i in range(-mol.nelectron//2+1, mf.mo_coeff.shape[0]-mol.nelectron//2):
+        print('i:', i, mol.nelectron//2+i)
+        get_embedding_system(mol, mf, frgm_idx, extra_orb=i)

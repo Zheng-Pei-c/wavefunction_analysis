@@ -9,7 +9,7 @@ from wavefunction_analysis.utils import convert_units, print_matrix
 def get_c_lambda(coupling_strength, frequency):
     if isinstance(frequency, float):
         frequency = [frequency]
-    return np.einsum('x,i->ix', coupling_strength, np.sqrt(2.)*np.sqrt(frequency))
+    return np.einsum('x,i->ix', coupling_strength, np.sqrt(frequency)/np.sqrt(2.))
 
 
 def get_multipole_matrix(mol, itype='dipole', c_lambda=None, origin=None):
@@ -70,8 +70,10 @@ def cal_dse_gs(mol, den, c_lambda, dipole=None, quadrupole=None):
 
     if 'pole' in itype:
         multipoles = get_multipole_matrix(mol, itype, c_lambda)
-        dipole = multipoles.get('dipole', dipole)
-        quadrupole = multipoles.get('quadrupole', quadrupole)
+        if 'dipole' in itype:
+            dipole = multipoles.get('dipole', dipole)
+        if 'quadrupole' in itype:
+            quadrupole = multipoles.get('quadrupole', quadrupole)
 
     if den.ndim == 2: # assume restricted total density
         quadrupole -= .5* get_dse_2e(dipole, den)
@@ -139,27 +141,32 @@ if __name__ == '__main__':
     mf.xc = functional
     mf.grids.prune = True
     mf.kernel()
+    nocc = mol.nelectron // 2
 
     den = mf.make_rdm1()
     dipole, quadrupole = get_multipole_matrix(mol, 'dipole_quadrupole')
 
-    frequency = 0.42978
+    frequency = 0.42978 # gs doesn't depend on frequency
 
     dse = []
     for c in np.linspace(0, 10, 21): # better to use integer here
         for x in range(2, 3):
             coupling = np.zeros(3)
             coupling[x] = c*1e-2
-            c_lambda = get_c_lambda(coupling, frequency)
-            e = cal_dse_gs(mol, den, c_lambda, dipole, quadrupole)
+            #c_lambda = get_c_lambda(coupling, frequency)
+            e = cal_dse_gs(mol, den, coupling, dipole, quadrupole)
             dse.append(convert_units(e, 'hartree', 'ev'))
 
             mf1 = polariton(mol)
             mf1.xc = functional
             mf1.grids.prune = True
-            mf1.get_multipole_matrix(c_lambda)
+            mf1.get_multipole_matrix(coupling)
             mf1.kernel()
             e1 = mf1.energy_elec()[0] - mf.energy_elec()[0]
             e1 = convert_units(e1, 'hartree', 'ev')
 
-            print('coupling: %8.5f  dse: %8.5f eV  polariton: %8.5f eV' % (coupling[x], dse[-1], e1))
+            e2 = cal_dse_gs(mol, mf1.make_rdm1(), coupling, dipole, quadrupole)
+            e2 = convert_units(e2, 'hartree', 'ev')
+
+            print('coupling: %8.5f  dse: %8.5f eV  polariton: %8.5f eV  dse2: %8.5f eV' % (coupling[x], dse[-1], e1, e2))
+            print(np.diag(np.einsum('pi,pq,qj->ij', mf.mo_coeff, mf.get_ovlp(), mf1.mo_coeff)))
