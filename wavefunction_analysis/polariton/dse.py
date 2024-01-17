@@ -39,7 +39,7 @@ def get_multipole_matrix(mol, itype='dipole', c_lambda=None, origin=None):
                 quadrupole = np.einsum('xypq,xy->pq', quadrupole, c2)
             multipoles['quadrupole'] = quadrupole
 
-        return multipoles
+    return multipoles
 
 
 def get_dse_2e(dipole, den): # c_lambda is included
@@ -70,17 +70,17 @@ def cal_dse_gs(mol, den, c_lambda, dipole=None, quadrupole=None):
 
     if 'pole' in itype:
         multipoles = get_multipole_matrix(mol, itype, c_lambda)
-        if 'dipole' in itype:
-            dipole = multipoles.get('dipole', dipole)
-        if 'quadrupole' in itype:
-            quadrupole = multipoles.get('quadrupole', quadrupole)
+        dipole = multipoles.get('dipole', dipole)
+        quadrupole = multipoles.get('quadrupole', quadrupole)
 
     if den.ndim == 2: # assume restricted total density
         quadrupole -= .5* get_dse_2e(dipole, den)
         dse = .5* np.einsum('pq,pq->', quadrupole, den) # need 1/2 for dse here
-    else: # alpha and beta density matrices
+    elif den.ndim == 3: # alpha and beta density matrices
         dse = .5* np.einsum('pq,npq->', quadrupole, den)
         dse -= .5* np.einsum('npq,npq->', get_dse_2e(dipole, den), den)
+    else:
+        raise ValueError('wrong density matrix')
 
     return dse
 
@@ -96,10 +96,7 @@ class polariton(RKS):
 
 
     def get_hcore(self, mol=None):
-        if mol is None: mol = self.mol
-
-        h = mol.intor_symmetric('int1e_kin')
-        h += mol.intor_symmetric('int1e_nuc')
+        h = super().get_hcore(mol)
         h += .5* self.quadrupole # need 1/2 for dse
         return h
 
@@ -135,7 +132,7 @@ if __name__ == '__main__':
             F    0. 0.  0.791
     """
     functional = 'pbe0'
-    mol = build_single_molecule(0, 0, locals()[atom], '6-311++g**')
+    mol = build_single_molecule(0, 0, locals()[atom], '6-31g')#'6-311++g**')
     mf = scf.RKS(mol)
 
     mf.xc = functional
@@ -169,4 +166,3 @@ if __name__ == '__main__':
             e2 = convert_units(e2, 'hartree', 'ev')
 
             print('coupling: %8.5f  dse: %8.5f eV  polariton: %8.5f eV  dse2: %8.5f eV' % (coupling[x], dse[-1], e1, e2))
-            print(np.diag(np.einsum('pi,pq,qj->ij', mf.mo_coeff, mf.get_ovlp(), mf1.mo_coeff)))
