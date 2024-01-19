@@ -11,6 +11,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 1: molecule = sys.argv[1]
     file_name = molecule+'.polariton.psi4.txt'
     fig_name = molecule+'_qed_dse_td.png'
+    n = 6 if molecule=='h2' else 8
 
     #fig = plt.figure(figsize=(4, 3), dpi=300)
     fig, axs = plt.subplots(3, 1, figsize=(5, 5), dpi=300,
@@ -19,9 +20,10 @@ if __name__ == '__main__':
     coupling = read_number(file_name, 'polariton_tddft', n=0, dtype=str)
     for i, s in enumerate(coupling):
         coupling[i] = float(s.split('_')[-1].split('.out')[0]) * .005
-    coupling = np.reshape(coupling, (7, -1))[0]
+    coupling = np.reshape(coupling, (n, -1))[0]
 
-    dse  = read_number(file_name, 'total: ', 1, -1, float)
+    dse = read_number(file_name, 'total: ', 1, -1, float)
+    polariton = read_number(file_name, 'Polaritonic RKS total energy: ', 1, -1, float)
     ex_e = read_number(file_name, 'ex   ', 3, dtype=float)
     ex_e2 = read_number(file_name, 'ex   ', 4, dtype=float)
     ex_p = read_number(file_name, 'ex   ', 5, dtype=float)
@@ -30,6 +32,7 @@ if __name__ == '__main__':
 
     n = len(dse)
     dse = np.array(dse)
+    polariton = np.array(polariton)
     ex_e = np.reshape(ex_e, (n, -1))
     ex_e2 = np.reshape(ex_e2, (n, -1))
     ex_p = np.reshape(ex_p, (n, -1))
@@ -37,8 +40,11 @@ if __name__ == '__main__':
     arg = np.argsort(coupling)
     coupling, dse, ex_e, ex_p = coupling[arg], dse[arg], ex_e[arg], ex_p[arg]
     ex_e2 = ex_e2[arg]
+    polariton = polariton[arg]
+    polariton -= polariton[0]
 
     dse = convert_units(dse, 'hartree', 'ev')
+    polariton = convert_units(polariton, 'hartree', 'ev')
     ex_e = convert_units(ex_e, 'hartree', 'ev')
     ex_e2 = convert_units(ex_e2, 'hartree', 'ev')
 
@@ -66,7 +72,8 @@ if __name__ == '__main__':
     axs[1].set_xlabel('coupling $\lambda$ (au)')
     axs[1].set_ylabel('total energy (eV)')
 
-    axs[2].plot(coupling, dse, color='black', label='psi4')
+    axs[2].plot(coupling, dse, color='black', label='psi4-dse')
+    axs[2].plot(coupling, polariton, color='green', label='psi4')
     axs[2].plot(coupling, dse2, color='blue', label='pyscf-0')
     axs[2].plot(coupling, dse3, color='red', label='pyscf-1')
     axs[2].legend()

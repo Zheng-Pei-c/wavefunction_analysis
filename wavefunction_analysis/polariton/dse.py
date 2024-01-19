@@ -73,12 +73,17 @@ def cal_dse_gs(mol, den, c_lambda, dipole=None, quadrupole=None):
         dipole = multipoles.get('dipole', dipole)
         quadrupole = multipoles.get('quadrupole', quadrupole)
 
+    dse = np.zeros(3)
     if den.ndim == 2: # assume restricted total density
-        quadrupole -= .5* get_dse_2e(dipole, den)
-        dse = .5* np.einsum('pq,pq->', quadrupole, den) # need 1/2 for dse here
+        #quadrupole -= .5* get_dse_2e(dipole, den)
+        #dse = .5* np.einsum('pq,pq->', quadrupole, den) # need 1/2 for dse here
+        dse[0] = .5* np.einsum('pq,pq->', quadrupole, den) # need 1/2 for dse here
+        dse[1] = -.5* np.einsum('pq,pq->', .5* get_dse_2e(dipole, den), den) # need 1/2 for dse here
+        dse[2] = dse[0] + dse[1]
     elif den.ndim == 3: # alpha and beta density matrices
-        dse = .5* np.einsum('pq,npq->', quadrupole, den)
-        dse -= .5* np.einsum('npq,npq->', get_dse_2e(dipole, den), den)
+        dse[0] = .5* np.einsum('pq,npq->', quadrupole, den)
+        dse[1] -= .5* np.einsum('npq,npq->', get_dse_2e(dipole, den), den)
+        dse[2] = dse[0] + dse[1]
     else:
         raise ValueError('wrong density matrix')
 
@@ -86,6 +91,7 @@ def cal_dse_gs(mol, den, c_lambda, dipole=None, quadrupole=None):
 
 
 
+from pyscf import dft
 from pyscf.dft.rks import RKS
 class polariton(RKS):
     def get_multipole_matrix(self, c_lambda):
@@ -93,6 +99,22 @@ class polariton(RKS):
         multipoles = get_multipole_matrix(mol, 'dipole_quadrupole', c_lambda)
         self.dipole = multipoles['dipole']
         self.quadrupole = multipoles['quadrupole']
+
+        self.get_exchange_factor()
+
+
+    def get_exchange_factor(self):
+        # the dse_2e term is added to exchange integral in fock
+        # so we need to correct the hyb factor for dse_2e
+        dft_type = 0
+        if self.xc != 'wb97xd':
+            dft_type = dft.xcfun.parse_xc(self.xc)
+        else:
+            dft_type = dft.libxc.parse_xc(self.xc)
+            omega, alpha, hyb = self._numint.rsh_and_hybrid_coeff(self.mf.xc)
+            dft_type[0][:] = [hyb, alpha, omega]
+        hyb, alpha, omega = dft_type[0]
+        self.hyb = hyb
 
 
     def get_hcore(self, mol=None):
@@ -105,7 +127,7 @@ class polariton(RKS):
                omega=None):
         if dm is None: dm = self.make_rdm1()
         vj, vk = super().get_jk(mol, dm, hermi, with_j, with_k, omega)
-        vk += .5* get_dse_2e(self.dipole, dm) # need 1/2 for dse
+        vk += get_dse_2e(self.dipole, dm) / self.hyb # need 1/2 for dse
         return vj, vk
 
 
@@ -132,7 +154,7 @@ if __name__ == '__main__':
             F    0. 0.  0.791
     """
     functional = 'pbe0'
-    mol = build_single_molecule(0, 0, locals()[atom], '6-31g')#'6-311++g**')
+    mol = build_single_molecule(0, 0, locals()[atom], '6-311++g**')
     mf = scf.RKS(mol)
 
     mf.xc = functional
@@ -151,18 +173,27 @@ if __name__ == '__main__':
             coupling = np.zeros(3)
             coupling[x] = c*1e-2
             #c_lambda = get_c_lambda(coupling, frequency)
-            e = cal_dse_gs(mol, den, coupling, dipole, quadrupole)
-            dse.append(convert_units(e, 'hartree', 'ev'))
+            e0 = cal_dse_gs(mol, den, coupling, dipole, quadrupole)
+            e0 = convert_units(e0, 'hartree', 'ev')
 
             mf1 = polariton(mol)
+            #mf1.verbose = 10
             mf1.xc = functional
             mf1.grids.prune = True
             mf1.get_multipole_matrix(coupling)
-            mf1.kernel()
+            mf1.kernel()#(dm0=den)
             e1 = mf1.energy_elec()[0] - mf.energy_elec()[0]
             e1 = convert_units(e1, 'hartree', 'ev')
 
             e2 = cal_dse_gs(mol, mf1.make_rdm1(), coupling, dipole, quadrupole)
             e2 = convert_units(e2, 'hartree', 'ev')
 
-            print('coupling: %8.5f  dse: %8.5f eV  polariton: %8.5f eV  dse2: %8.5f eV' % (coupling[x], dse[-1], e1, e2))
+            print('coupling: %8.5f' % coupling[x], end=' ')
+            print('dse: ', end='')
+            for i in range(2, len(e0)):
+                print('%8.5f eV' % e0[i], end=' ')
+            print('polariton: %8.5f eV' % e1, end=' ')
+            #print('dse2:', end='')
+            #for i in range(len(e2)):
+            #    print('%8.5f' % e2[i], end=' ')
+            print('')
