@@ -224,6 +224,18 @@ class polariton_n(polariton):
 
 
 
+def print_qed_dse_energy(e0, e1, e_tot, unit='ev'):
+    # e0: dse energy with gas-phase density
+    # e1: dse energy with qed-ks density
+    # e_tot: gas-phase and qed-ks total energy
+    print('coupling: %7.5f' % coupling[x], end=' ')
+    for i, e in enumerate([e0, e1]):
+        print(' dse'+str(i)+':', end='')
+        for i in range(len(e)):
+            print('%11.5f' % e[i], end=' ')
+    print(' polariton: %11.5f %s' % (e_tot[1]-e_tot[0], unit))
+
+
 
 if __name__ == '__main__':
     #infile = 'h2o.in'
@@ -252,7 +264,7 @@ if __name__ == '__main__':
 
     mf.xc = functional
     mf.grids.prune = True
-    mf.kernel()
+    e_tot0 = mf.kernel()
     nocc = mol.nelectron // 2
 
     den = mf.make_rdm1()
@@ -280,21 +292,12 @@ if __name__ == '__main__':
             mf1.xc = functional
             mf1.grids.prune = True
             mf1.get_multipole_matrix(coupling)
-            mf1.kernel()#(dm0=den)
+            e_tot = mf1.kernel()#(dm0=den)
 
-            #e1 = mf1.energy_elec()[0] - mf.energy_elec()[0]
-            e1 = mf1.energy_tot() - mf.energy_tot()
+            e1 = cal_dse_gs(mol, mf1.make_rdm1(), coupling, dipole, quadrupole, coherent_state)
             e1 = convert_units(e1, 'hartree', 'ev')
 
-            e2 = cal_dse_gs(mol, mf1.make_rdm1(), coupling, dipole, quadrupole, coherent_state)
-            e2 = convert_units(e2, 'hartree', 'ev')
+            e_tot = np.array([e_tot0, e_tot])
+            e_tot = convert_units(e_tot, 'hartree', 'ev')
 
-            print('coupling: %7.5f' % coupling[x], end=' ')
-            print(' dse:', end='')
-            for i in range(len(e0)):
-                print('%10.5f' % e0[i], end=' ')
-            print(' polariton: %9.5f eV' % e1, end=' ')
-            #print(' dse2:', end='')
-            #for i in range(len(e2)):
-            #    print('%10.5f' % e2[i], end=' ')
-            print('')
+            print_qed_dse_energy(e0, e1, e_tot)
