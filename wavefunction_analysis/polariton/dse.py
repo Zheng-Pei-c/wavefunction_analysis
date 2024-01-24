@@ -224,11 +224,16 @@ class polariton_n(polariton):
 
 
 
-def print_qed_dse_energy(e0, e1, e_tot, unit='ev'):
+def print_qed_dse_energy(coupling, e0, e1, e_tot, unit='ev'):
     # e0: dse energy with gas-phase density
     # e1: dse energy with qed-ks density
     # e_tot: gas-phase and qed-ks total energy
-    print('coupling: %7.5f' % coupling[x], end=' ')
+    print('coupling:', end=' ')
+    if isinstance(coupling, float):
+        print('%7.5f' % coupling, end=' ')
+    else:
+        for i in range(len(coupling)):
+            print('%7.5f' % coupling[i], end=' ')
     for i, e in enumerate([e0, e1]):
         print(' dse'+str(i)+':', end='')
         for i in range(len(e)):
@@ -300,4 +305,4 @@ if __name__ == '__main__':
             e_tot = np.array([e_tot0, e_tot])
             e_tot = convert_units(e_tot, 'hartree', 'ev')
 
-            print_qed_dse_energy(e0, e1, e_tot)
+            print_qed_dse_energy(coupling[x], e0, e1, e_tot)
