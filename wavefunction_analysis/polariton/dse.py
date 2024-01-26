@@ -62,7 +62,10 @@ def get_multipole_matrix(mol, itype='dipole', c_lambda=None, origin=None):
 
 
 def get_dse_elec_nuc(dipole, nuc_dip): # c_lambda is included
-    return -np.einsum('...pq,...->pq', dipole, nuc_dip)
+    if isinstance(nuc_dip, float):
+        return -nuc_dip * dipole
+    else: # numpy does not sum over ellipsis
+        return -np.einsum('lpq,l->pq', dipole, nuc_dip) # l is the number of photon modes
 
 
 def get_energy_nuc_dip(nuc_dip):
@@ -195,7 +198,7 @@ class polariton_cs(polariton):
 
 
 
-class polariton_n(polariton):
+class polariton_ns(polariton):
     """
     in photon number states
     """
@@ -277,8 +280,8 @@ if __name__ == '__main__':
 
     frequency = 0.42978 # gs doesn't depend on frequency
 
-    coherent_state = False
-    #coherent_state = True
+    #coherent_state = False
+    coherent_state = True
 
     dse = []
     for c in np.linspace(0, 10, 21): # better to use integer here
@@ -291,7 +294,7 @@ if __name__ == '__main__':
             if coherent_state:
                 mf1 = polariton_cs(mol) # in coherent state
             else:
-                mf1 = polariton_n(mol) # in number (Fock) state
+                mf1 = polariton_ns(mol) # in number (Fock) state
 
             #mf1.verbose = 10
             mf1.xc = functional
