@@ -276,7 +276,8 @@ if __name__ == '__main__':
     nocc = mol.nelectron // 2
 
     den = mf.make_rdm1()
-    dipole, quadrupole = get_multipole_matrix(mol, 'dipole_quadrupole')
+    multipoles = get_multipole_matrix(mol, 'dipole_quadrupole')
+    dipole, quadrupole = multipoles['dipole'], multipoles['quadrupole']
 
     frequency = 0.42978 # gs doesn't depend on frequency
 
