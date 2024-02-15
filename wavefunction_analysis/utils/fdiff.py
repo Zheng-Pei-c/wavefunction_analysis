@@ -1,4 +1,4 @@
-import os, sys
+import sys
 import numpy as np
 
 from wavefunction_analysis.utils import print_matrix
@@ -54,9 +54,9 @@ class fdiff():
 
 
 if __name__ == '__main__':
+    from wavefunction_analysis.utils import read_matrix, read_number
     from wavefunction_analysis.utils.unit_conversion import BOHR
     from wavefunction_analysis.utils.sec_mole import read_symbols_coords, write_mol_info_geometry, write_rem_info
-    from wavefunction_analysis.utils.read_files import read_matrix, read_number
 
     infile = sys.argv[1]
     jb = 'write'

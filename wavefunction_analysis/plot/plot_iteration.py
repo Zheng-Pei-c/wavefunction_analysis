@@ -1,8 +1,6 @@
-import os, sys
-import numpy as np
+import sys
 
-from wavefunction_analysis.utils.read_files import read_matrix, read_number
-from wavefunction_analysis.utils.print_matrix import print_matrix
+from wavefunction_analysis.utils import read_matrix, read_number, print_matrix
 from wavefunction_analysis.plot import plt, mcolors, ticker
 
 
