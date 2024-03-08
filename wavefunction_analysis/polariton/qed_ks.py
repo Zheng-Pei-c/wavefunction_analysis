@@ -1,7 +1,10 @@
-import os, sys
+import sys
 import numpy as np
 
 import pyscf
+from pyscf import lib
+from pyscf.lib import logger
+from pyscf.dft.rks import RKS
 
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units, print_matrix
@@ -104,9 +107,6 @@ def get_dse_2e_xyz(dipole, dm): # xyz without coupling
 
 
 
-from pyscf import lib, dft
-from pyscf.lib import logger
-from pyscf.dft.rks import RKS
 class polariton(RKS):
     """
     QED-RKS ground state, independent of photon frequency
@@ -167,6 +167,21 @@ class polariton_cs(polariton):
         e = [e['equad'], e['edse_k']]
         e.append(e[0] + e[1])
         return convert_units(np.array(e), 'hartree', unit)
+
+
+    def gen_response(self, *args, **kwargs):
+        vind0 = super().gen_response(*args, **kwargs)
+        singlet = kwargs.get('singlet', True)
+        singlet = singlet or singlet is None
+
+        def vind(dm1): # 2e terms
+            v1 = vind0(dm1)
+            if self.with_dse_response:
+                if singlet is None: # orbital hessian or CPHF type response function
+                    vdse_k = get_dse_2e(self.dipole, dm1, with_j=False) # need 1/2 for dse
+                    v1 -= vdse_k
+            return v1
+        return vind
 
 
 
