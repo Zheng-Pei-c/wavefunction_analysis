@@ -41,6 +41,7 @@ def get_multipole_matrix(mol, itype='dipole', dipole=None, quadrupole=None,
     """
     if origin is None:
         origin = np.zeros(3)
+        #origin = get_center_of_mass(mol)
     if isinstance(c_lambda, list):
         c_lambda = np.array(c_lambda)
 
@@ -87,14 +88,14 @@ def get_energy_nuc_dip(nuc_dip):
 def get_dse_2e(dipole, dm, with_j=False, scale_k=.5): # c_lambda is included
     # scale k by 1/2 for restricted orbital case by default
     if dipole.ndim == 2:
-        vk = np.einsum('pq,rs,...qs->...pr', dipole, dipole, dm)
+        vk = np.einsum('pq,rs,...qr->...ps', dipole, dipole, dm)
         if with_j is False:
             return vk*scale_k
         else:
             vj = np.einsum('pq,rs,...rs->...pq', dipole, dipole, dm)
             return [vj, vk*scale_k]
     else: # contract modes
-        vk = np.einsum('ipq,irs,...qs->...pr', dipole, dipole, dm)
+        vk = np.einsum('ipq,irs,...qr->...ps', dipole, dipole, dm)
         if with_j is False:
             return vk*scale_k
         else:
@@ -102,8 +103,13 @@ def get_dse_2e(dipole, dm, with_j=False, scale_k=.5): # c_lambda is included
             return [vj, vk*scale_k]
 
 
-def get_dse_2e_xyz(dipole, dm): # xyz without coupling
-    return np.einsum('xpq,yrs,...qs->...xypr', dipole, dipole, dm)
+def get_dse_2e_xyz(dipole, dm, with_j=False, scale_k=.5): # xyz without coupling
+    vk = np.einsum('xpq,yrs,...qr->...xyps', dipole, dipole, dm)
+    if with_j is False:
+        return vk*scale_k
+    else:
+        vj = np.einsum('xpq,yrs,...rs->...xypq', dipole, dipole, dm)
+        return [vj, vk*scale_k]
 
 
 
@@ -111,8 +117,8 @@ class polariton(RKS):
     """
     QED-RKS ground state, independent of photon frequency
     """
-    def get_multipole_matrix(self, c_lambda, dipole=None, quadrupole=None):
-        multipoles = get_multipole_matrix(self.mol, 'all', dipole, quadrupole, c_lambda=c_lambda)
+    def get_multipole_matrix(self, c_lambda, dipole=None, quadrupole=None, origin=None):
+        multipoles = get_multipole_matrix(self.mol, 'all', dipole, quadrupole, c_lambda=c_lambda, origin=origin)
         self.c_lambda = c_lambda
         self.dipole = multipoles['dipole']
         self.quadrupole = multipoles['quadrupole']
@@ -134,8 +140,8 @@ class polariton_cs(polariton):
     def get_veff(self, mol=None, dm=None, *args, **kwargs):
         if dm is None: dm = self.make_rdm1()
         vxc = super().get_veff(mol, dm, *args, **kwargs)
-        vdse_k = get_dse_2e(self.dipole, dm, with_j=False) # need 1/2 for dse
-        edse_k = -.5* np.einsum('...pq,...pq->', vdse_k, dm) # dse exchange energy
+        vdse_k = get_dse_2e(self.dipole, dm, with_j=False)
+        edse_k = -.5* np.einsum('...pq,...qp->', vdse_k, dm) # 1/2 needed for dse, exchange has already scaled in the integral for another required 1/2
 
         # old tags are destroyed after the number operations
         ecoul, exc, vj, vk = vxc.ecoul, vxc.exc, vxc.vj, vxc.vk
@@ -152,10 +158,17 @@ class polariton_cs(polariton):
 
         e_tot, e2 = super().energy_elec(dm, h1e, vhf)
 
-        equad = np.einsum('pq,...pq->', h1e.hquad, dm)
+        # the dse quadrupole energy is already in e_tot from e1
+        # but the ks class didn't add dse jk energy, which is added in hf class though
+        edse_k = vhf.edse_k.real
+        e_tot += edse_k
+        e2 += edse_k
+
+        # keep track of the individual terms
+        equad = np.einsum('pq,...qp->', h1e.hquad, dm)
         self.scf_summary['equad'] = equad.real
-        self.scf_summary['edse_k'] = vhf.edse_k.real
-        logger.debug(self, 'Quadrupole Energy = %s  DSE-K Energy = %s', equad, vhf.edse_k)
+        self.scf_summary['edse_k'] = edse_k
+        logger.debug(self, 'Quadrupole Energy = %s  DSE-K Energy = %s', equad, edse_k)
         return e_tot, e2
 
 
@@ -205,8 +218,8 @@ class polariton_ns(polariton):
         if dm is None: dm = self.make_rdm1()
         vxc = super().get_veff(mol, dm, *args, **kwargs)
         vdse_j, vdse_k = get_dse_2e(self.dipole, dm, with_j=True)
-        edse_j = .5* np.einsum('...pq,...pq->', vdse_j, dm) # need 1/2 for dse here
-        edse_k = -.5* np.einsum('...pq,...pq->', vdse_k, dm) # need 1/2 for dse here
+        edse_j = .5* np.einsum('...pq,...qp->', vdse_j, dm) # need 1/2 for dse here
+        edse_k = -.5* np.einsum('...pq,...qp->', vdse_k, dm) # need 1/2 for dse here
 
         ecoul, exc, vj, vk = vxc.ecoul, vxc.exc, vxc.vj, vxc.vk
         vxc += (vdse_j - vdse_k)
@@ -222,13 +235,19 @@ class polariton_ns(polariton):
 
         e_tot, e2 = super().energy_elec(dm, h1e, vhf)
 
-        equad = np.einsum('pq,...pq->', h1e.hquad, dm)
-        edipe = np.einsum('pq,...pq->', h1e.hdipe, dm)
+        # the dse e1 energy is already in e_tot
+        # but the ks class didn't add dse jk energy, which is added in hf class though
+        edse_j, edse_k = vhf.edse_j.real, vhf.edse_k.real
+        e_tot += (edse_j + edse_k)
+        e2 += (edse_j + edse_k)
+
+        equad = np.einsum('pq,...qp->', h1e.hquad, dm)
+        edipe = np.einsum('pq,...qp->', h1e.hdipe, dm)
         self.scf_summary['equad'] = equad.real
         self.scf_summary['edipe'] = edipe.real
-        self.scf_summary['edse_j'] = vhf.edse_j.real
-        self.scf_summary['edse_k'] = vhf.edse_k.real
-        logger.debug(self, 'Quadrupole Energy = %s  Nuclear-Electronic Dipole Energy = %s  DSE-J Energy = %s  DSE-K Energy = %s', equad, edipe, vhf.edse_j, vhf.edse_k)
+        self.scf_summary['edse_j'] = edse_j
+        self.scf_summary['edse_k'] = edse_k
+        logger.debug(self, 'Quadrupole Energy = %s  Nuclear-Electronic Dipole Energy = %s  DSE-J Energy = %s  DSE-K Energy = %s', equad, edipe, edse_j, edse_k)
         return e_tot, e2
 
 

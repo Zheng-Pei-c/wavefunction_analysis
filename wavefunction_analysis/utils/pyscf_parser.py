@@ -1,7 +1,6 @@
-import os, sys
-import warnings
+import sys
 import numpy as np
-from pyscf import scf, tdscf, gto, lib
+from pyscf import scf, tdscf, gto
 
 #import qed
 from . import print_matrix
@@ -148,7 +147,7 @@ def get_frgm_idx(parameters):
 def _get_center_of_mass(mol):
     mass = mol.atom_mass_list(isotope_avg=True)
     atom_coords = mol.atom_coords()
-    mass_center = numpy.einsum('z,zx->x', mass, atom_coords) / mass.sum()
+    mass_center = np.einsum('z,zx->x', mass, atom_coords) / mass.sum()
     return mass_center
 
 

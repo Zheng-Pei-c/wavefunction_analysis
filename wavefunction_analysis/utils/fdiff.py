@@ -16,23 +16,29 @@ class fdiff():
         if norder < 1: norder == 1
         if norder > 4: raise ValueError('fdiff order currently is in [1,4].')
 
-
-    def get_x(self, x0, idx):
-        x0 = np.array(x0)
-        x = np.array([x0] * self.norder * 2)
-
         d = []
         for i in range(self.norder, 0, -1):
             d.append(-i*self.step_size)
         for i in range(1, self.norder+1):
             d.append(i*self.step_size)
-        d = np.array(d)
+        self.d = np.array(d)
+
+
+    def get_d(self, ndim, idx):
+        d = np.zeros((self.norder * 2, ndim))
+        d[:, idx] += self.d
+        return d
+
+
+    def get_x(self, x0, idx):
+        x0 = np.array(x0)
+        x = np.array([x0] * self.norder * 2)
 
         if len(idx) == 1:
-            x[:, idx] = x[:, idx] + d
+            x[:, idx] = x[:, idx] + self.d
         elif len(idx) == 2:
             i, j = idx
-            x[:, i, j] = x[:, i, j] + d
+            x[:, i, j] = x[:, i, j] + self.d
 
         #print_matrix('x:', x)
         return x
