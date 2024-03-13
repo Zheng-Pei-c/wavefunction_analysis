@@ -337,7 +337,7 @@ if __name__ == '__main__':
     #print_matrix('mo1_s:', mo1_s[:,:,:nocc], 5, 1)
 
     theta = fd_mo - mo1_s
-    print_matrix('theta pi:', theta, 5, 1)
+    #print_matrix('theta pi:', theta, 5, 1)
     theta = np.einsum('ma,mn,xni->xai', mo[:,nocc:], ovlp, theta[:,:,:nocc])
     #print_matrix('theta:', theta, 5, 1)
 
