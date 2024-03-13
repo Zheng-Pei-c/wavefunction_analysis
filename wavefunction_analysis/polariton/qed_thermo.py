@@ -10,6 +10,7 @@ from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units, print_matrix
 from wavefunction_analysis.polariton.qed_ks import polariton_cs
 from wavefunction_analysis.polariton.qed_ks_grad import get_multipole_matrix_d1
+from wavefunction_analysis.plot.vibrational_spectra import get_dipole_dev, infrared
 
 """
 diagonalize the matter and photon Hessian here
@@ -119,7 +120,7 @@ def harmonic_analysis(mol, hess, exclude_trans=True, exclude_rot=True,
     if isinstance(w2, float): w2 = [w2]
 
     n1, n2 = g1.shape
-    print(n1, n2)
+    #print(n1, n2)
     hess2 = np.zeros((n1+n2, n1+n2))
     hess2[:n1,:n1] += hess
     hess2[:n1,n1:] += g1
@@ -212,15 +213,22 @@ if __name__ == '__main__':
     e_tot = mf.kernel()
     hessobj = mf.Hessian()
     h = hessobj.kernel()
-    print_matrix('hess:', h, 5, 1)
 
     results = thermo.harmonic_analysis(mol, h) # only molecular block
     print('freq_au:', results['freq_au'])
     print('freq_wavenumber:', results['freq_wavenumber'])
     print('force_const_dyne:', results['force_const_dyne'])
+    print_matrix('mode:', results['norm_mode'].reshape(-1, len(results['freq_au'])))
+    dip_dev = get_dipole_dev(mf, hessobj)
+    sir = infrared(dip_dev, results['norm_mode'])
+    print('infrared intensity:', sir)
 
     d1 = get_g1_d1(mf, frequency, hessobj)
     results = harmonic_analysis(mol, [h, d1, frequency])
     print('freq_wavenumber:', results['freq_wavenumber'])
     print('force_const_dyne:', results['force_const_dyne'])
+    print_matrix('mode:', results['norm_mode'].reshape(-1, len(results['freq_au'])))
 
+    dip_dev = get_dipole_dev(mf, hessobj)
+    sir = infrared(dip_dev, results['norm_mode'])
+    print('infrared intensity:', sir)
