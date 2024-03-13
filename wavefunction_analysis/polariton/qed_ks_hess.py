@@ -299,12 +299,13 @@ if __name__ == '__main__':
 
     fde = np.zeros((natoms, 3, natoms, 3))
     fd_moe, fd_mo, theta = [], [], []
+    dipole_deriv = []
     for n in range(natoms):
         for x in range(3):
             fd = fdiff(norder, step_size)
             coords_new = fd.get_x(coords, [n, x])
 
-            e1, mo1, g1 = [], [], []
+            gs_dipole_d1, mo1, g1 = [], [], []
             for k in range(coords_new.shape[0]):
                 mol_new = mol.set_geom_(coords_new[k], inplace=False, unit='bohr')
                 mf1 = polariton_cs(mol_new) # in coherent state
@@ -320,13 +321,17 @@ if __name__ == '__main__':
 
                 de1 = mf1.Gradients().kernel()
                 g1.append(de1)
+                gs_dipole_d1.append(mf1.dip_moment(mol_new, unit='au'))
 
             fde[n,x] = fd.compute_fdiff(np.array(g1))
 
             #e1 = fd.compute_fdiff(np.array(e1))
             mo1 = fd.compute_fdiff(np.array(mo1))
             fd_mo.append(mo1)
+            gs_dipole_d1 = fd.compute_fdiff(np.array(gs_dipole_d1))
+            dipole_deriv.append(gs_dipole_d1)
 
+    print_matrix('dipole_deriv:', dipole_deriv)
     fd_mo = np.array(fd_mo)
     fd_mo[0::3,5,3] = 0.
     fd_mo[np.abs(fd_mo)>2.] = 0.

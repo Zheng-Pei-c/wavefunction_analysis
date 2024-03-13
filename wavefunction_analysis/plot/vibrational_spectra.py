@@ -97,17 +97,17 @@ def get_dipole_dev(mf, hessobj, origin=None):
     g1 = np.zeros((natm, 3, 3))
     aoslices = mol.aoslice_by_atom()
     for k, ia in enumerate(atmlst):
-        p0, p1 = aoslices[ia, 2:]
+        p0, p1 = aoslices[ia,2:]
         dm1 = np.einsum('xpi,qi->xpq', mo1[ia], mocc)
 
-        g1[k] += np.einsum('ypq,xqp->xy', dipole, dm1)
-        g1[k] -= np.einsum('xypq,pq->xy', dipole_d1, dm) # dipole_d1 has extra minus
+        g1[k] += np.einsum('ypq,xqp->xy', dipole, dm1)*2.
+        g1[k] -= np.einsum('xypq,qp->xy', dipole_d1[:,:,p0:p1], dm[:,p0:p1]) # dipole_d1 has extra minus
 
     g1 *= -2. # electron dipole is negative
 
     z = mol.atom_charges()
     for i in range(natm): # nuclear dipole derivative
-        g1[i] += np.ones(3)*z[i]
+        g1[i] += np.eye(3)*z[i]
 
     return g1.reshape(natm*3, 3)
 
@@ -138,7 +138,7 @@ if __name__ == '__main__':
     atom = locals()[sys.argv[1]] if len(sys.argv) > 1 else hf
 
     functional = 'hf'
-    mol = build_single_molecule(0, 0, atom, '3-21g')
+    mol = build_single_molecule(0, 0, atom, 'sto-3g')
 
     mf = RKS(mol) # in coherent state
     mf.xc = functional
@@ -156,5 +156,6 @@ if __name__ == '__main__':
     print('reduced_mass:', results['reduced_mass'])
 
     dip_dev = get_dipole_dev(mf, hessobj)
+    print_matrix('dip_dev:', dip_dev)
     sir = infrared(dip_dev, results['norm_mode'])
     print('infrared intensity:', sir)
