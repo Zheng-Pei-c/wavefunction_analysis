@@ -18,6 +18,13 @@ def get_scaled_lambda(c_lambda, frequency):
     return np.einsum('x,i->ix', c_lambda, np.sqrt(frequency)/np.sqrt(2.))
 
 
+def get_lambda2(c_lambda): # lambda square for quadrupole contraction
+    c2 = np.einsum('...x,...y->...xy', c_lambda, c_lambda)
+    if c2.ndim == 3: # contract modes
+        c2 = np.sum(c2, axis=0)
+    return c2
+
+
 def get_nuclear_dipoles(mol, c_lambda, origin=None):
     """
     lambda cdot nuclear_dipole
@@ -64,10 +71,7 @@ def get_multipole_matrix(mol, itype='dipole', dipole=None, quadrupole=None,
             dipole = np.einsum('xpq,...x->...pq', dipole, c_lambda)
 
         if isinstance(quadrupole, np.ndarray):
-            c2 = np.einsum('...x,...y->...xy', c_lambda, c_lambda)
-            if c2.ndim == 3: # contract modes
-                c2 = np.sum(c2, axis=0)
-            quadrupole = np.einsum('xypq,xy->pq', quadrupole, c2)
+            quadrupole = np.einsum('xypq,xy->pq', quadrupole, get_lambda2(c_lambda))
 
     multipoles = {'dipole': dipole, 'quadrupole': quadrupole}
     return multipoles
@@ -119,10 +123,18 @@ class polariton(RKS):
     """
     def get_multipole_matrix(self, c_lambda, dipole=None, quadrupole=None, origin=None):
         multipoles = get_multipole_matrix(self.mol, 'all', dipole, quadrupole, c_lambda=c_lambda, origin=origin)
+        self.origin = origin
         self.c_lambda = c_lambda
         self.dipole = multipoles['dipole']
         self.quadrupole = multipoles['quadrupole']
 
+        # set it when needed
+        #self.with_dse_response = True # dse response
+
+
+    def nuc_grad_method(self): # used in Hessian evaluation
+        from wavefunction_analysis.polariton import qed_ks_grad
+        return qed_ks_grad.Gradients(self)
 
 
 class polariton_cs(polariton):
@@ -182,16 +194,17 @@ class polariton_cs(polariton):
         return convert_units(np.array(e), 'hartree', unit)
 
 
-    def gen_response(self, *args, **kwargs):
+    def gen_response(self, *args, **kwargs): # for CPHF or excited-states
         vind0 = super().gen_response(*args, **kwargs)
-        singlet = kwargs.get('singlet', True)
-        singlet = singlet or singlet is None
+        singlet = kwargs.get('singlet', None) # only used for RHF, default is None
+
+        with_dse_response = self.with_dse_response if hasattr(self, 'with_dse_response') else True
 
         def vind(dm1): # 2e terms
             v1 = vind0(dm1)
-            if self.with_dse_response:
+            if with_dse_response:
                 if singlet is None: # orbital hessian or CPHF type response function
-                    vdse_k = get_dse_2e(self.dipole, dm1, with_j=False) # need 1/2 for dse
+                    vdse_k = get_dse_2e(self.dipole, dm1, with_j=False)
                     v1 -= vdse_k
             return v1
         return vind

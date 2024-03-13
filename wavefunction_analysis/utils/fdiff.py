@@ -59,6 +59,66 @@ class fdiff():
         return np.einsum('i...,i->...', fx, coeff)
 
 
+
+def change_wf_phase(C0, X0, Y0, C1, X1, Y1):
+    C1 = change_matrix_phase_c(C0, C1)
+    X1 = change_matrix_phase_rc(X0, X1)
+    if isinstance(Y0, np.ndarray): Y1 = change_matrix_phase_rc(Y0, Y1)
+
+
+def change_matrix_phase_rc(matrix0, matrix1):
+    if len(matrix0.shape)==2:
+        nrow, ncol = matrix0.shape
+        for r in range(nrow):
+            for c in range(ncol):
+                if matrix0[r,c]*matrix1[r,c]<0:
+                    matrix1[r,c] *= -1
+    elif len(matrix0.shape)==3:
+        nslice, nrow, ncol = matrix0.shape
+        for s in range(nslice):
+            for r in range(nrow):
+                for c in range(ncol):
+                    if matrix0[s,r,c]*matrix1[s,r,c]<0:
+                        matrix1[s,r,c] *= -1
+
+    return matrix1
+
+
+def change_matrix_phase_c(matrix0, matrix1):
+    nrow, ncol = matrix0.shape
+    idx0 = np.argmax(np.abs(matrix0), axis=0)
+    idx1 = np.argmax(np.abs(matrix1), axis=0)
+    #print('idx:', idx0, idx1)
+    swap = []
+    for i, d1 in enumerate(idx0):
+        if d1 != idx1[i]:
+            for j, d2 in enumerate(idx1):
+                if d1 == d2 and [j, i] not in swap:
+                    swap.append([i, j])
+
+    #print('swap:', swap)
+    if len(swap) > 0:
+        for i, [d1, d2] in enumerate(swap):
+            tmp = np.copy(matrix1[:, d1])
+            matrix1[:, d1] = np.copy(matrix1[:, d2])
+            matrix1[:, d2] = np.copy(tmp)
+
+    for c in range(ncol):
+        r = np.argmax(np.abs(matrix0[:,c]))
+        if matrix0[r,c]*matrix1[r,c]<0:
+            matrix1[:,c] *= -1
+
+    return matrix1
+
+
+def change_number_phase(num0, num1):
+    if num0*num1 < 0:
+        num1 *= -1
+    # have to return this number
+    return num1
+
+
+
 if __name__ == '__main__':
     from wavefunction_analysis.utils import read_matrix, read_number
     from wavefunction_analysis.utils.unit_conversion import BOHR

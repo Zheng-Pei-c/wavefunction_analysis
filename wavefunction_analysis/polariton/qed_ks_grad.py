@@ -9,16 +9,19 @@ from pyscf.grad import rks as rks_grad
 
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units, print_matrix, fdiff
-from wavefunction_analysis.polariton.qed_ks import polariton_cs
+from wavefunction_analysis.polariton.qed_ks import polariton_cs, get_lambda2
 
 
-def check_multipole_matrix_fd(mol, dm=None, origin=None, norder=2, step_size=1e-4):
+def cal_multipole_matrix_fd(mol, dm=None, origin=None, norder=2, step_size=1e-4, ideriv=1):
     if origin is None:
         origin = np.zeros(3)
 
     coords = mol.atom_coords() # in bohr
     natoms = mol.natm
+    nao = mol.nao_nr()
     #print_matrix('coords:\n', coords)
+
+    combine = True if isinstance(dm, np.ndarray) else False
 
     dipole_d1, quadrupole_d1 = [], []
     for n in range(natoms):
@@ -27,31 +30,50 @@ def check_multipole_matrix_fd(mol, dm=None, origin=None, norder=2, step_size=1e-
             coords_new = fd.get_x(coords, [n, x])
 
             dipole, quadrupole = [], []
-            for k in range(coords_new.shape[0]):
-                mol_new = mol.set_geom_(coords_new[k], inplace=False, unit='bohr')
+            for c in range(coords_new.shape[0]):
+                mol_new = mol.set_geom_(coords_new[c], inplace=False, unit='bohr')
                 #print_matrix('mol_new:', mol_new.atom_coords())
                 with mol_new.with_common_orig(origin):
-                    ints = mol_new.intor('int1e_r', comp=3, hermi=0)
-                    dipole.append(ints)
+                    if ideriv == 1:
+                        ints1 = mol_new.intor('int1e_r', comp=3, hermi=0)
+                        ints2 = mol_new.intor('int1e_rr', comp=9, hermi=0)
+                        if combine:
+                            ints1 = np.einsum('xpq,...pq->x...', ints1, dm)
+                            ints2 = np.einsum('xpq,...pq->x...', ints2, dm).reshape(3,3)
+                        else:
+                            ints2 = ints2.reshape(3,3,nao,nao)
 
-                    ints = mol_new.intor('int1e_rr', comp=9, hermi=0)
-                    quadrupole.append(ints)
+                    elif ideriv == 2:
+                        ints1, ints2 = cal_multipole_matrix_d1(mol_new, dm, origin)
+
+                    dipole.append(ints1)
+                    quadrupole.append(ints2)
+
 
             dipole_d1.append( fd.compute_fdiff(np.array(dipole)) )
             quadrupole_d1.append( fd.compute_fdiff(np.array(quadrupole)) )
 
-    if isinstance(dm, np.ndarray): # combine with density matrix
-        dipole_d1 = np.einsum('ixpq,pq->ix', dipole_d1, dm)
-        quadrupole_d1 = np.einsum('ixpq,pq->ix', quadrupole_d1, dm).reshape(natoms*3,3,3)
-    else:
-        nao = mol.nao_nr()
-        dipole_d1 = np.array(dipole_d1)
-        quadrupole_d1 = np.array(quadrupole_d1).reshape(natoms*3,3,3,nao,nao)
+    dipole_d1 = np.array(dipole_d1)
+    quadrupole_d1 = np.array(quadrupole_d1)
+
+    ## get pyscf style compact matrices
+    #if not combine and ideriv == 2:
+    #    dip_d1, qua_d1 = np.zeros((3,3,3,nao,nao)), np.zeros((3,3,3,3,nao,nao))
+    #    dipole_d1 = dipole_d1.reshape(natoms, 3, natoms, 3, 3, nao, nao)
+    #    quadrupole_d1 = quadrupole_d1.reshape(natoms, 3, natoms, 3, 3, 3, nao, nao)
+
+    #    atmlst = range(mol.natm)
+    #    aoslices = mol.aoslice_by_atom()
+    #    for k, ia in enumerate(atmlst):
+    #        p0, p1 = aoslices[ia,2:]
+
+    #        tmp1 = dipole[:,:,p0:p1]
+    #        tmp2 = quadrupole[:,:,p0:p1]
 
     return dipole_d1, quadrupole_d1
 
 
-def check_multipole_matrix_d1(mol, dm=None, origin=None):
+def cal_multipole_matrix_d1(mol, dm=None, origin=None):
     if origin is None:
         origin = np.zeros(3)
 
@@ -106,28 +128,27 @@ def get_multipole_matrix_d1(mol, c_lambda, origin=None):
         dipole = mol.intor('int1e_irp', comp=9, hermi=0).reshape(3,3,nao,nao)
         quadrupole = mol.intor('int1e_irrp', comp=27, hermi=0).reshape(3,3,3,nao,nao)
 
-    c2 = np.einsum('...x,...y->...xy', c_lambda, c_lambda)
-    dipole = - np.einsum('xypq,...x->yqp', dipole, c_lambda)
-    quadrupole = - np.einsum('xyzpq,...xy->zqp', quadrupole, c2)
+    # these derivatives don't distinguish nuclei
+    dipole = - np.einsum('mxpq,...m->...xqp', dipole, c_lambda)
+    quadrupole = - np.einsum('mnxpq,mn->xqp', quadrupole, get_lambda2(c_lambda))
     return dipole, quadrupole
 
 
-def get_dipole_2e(dipole, dm, with_j=False, scale_k=.5): # c_lambda is included
+def get_dse_2e(dipole, dipole_d1, dm, with_j=False, scale_k=.5): # c_lambda is included
     # scale k by 1/2 for restricted orbital case by default
-    # dipole could be its derivative
     if dm.ndim == 2:
-        vk = np.einsum('...rs,qr->...qs', dipole, dm)
+        vk = np.einsum('...xpq,...rs,qr->xps', dipole_d1, dipole, dm)
         if with_j is False:
             return vk*scale_k
         else:
-            vj = np.einsum('rs,...rs->...', dipole, dm)
+            vj = np.einsum('...xpq,...rs,sr->xpq', dipole_d1, dipole, dm)
             return [vj, vk*scale_k]
     else: # multiple density matrices, ie uhf
-        vk = np.einsum('...rs,iqr->i...qs', dipole, dm)
+        vk = np.einsum('...xpq,...rs,iqr->ixps', dipole_d1, dipole, dm)
         if with_j is False:
             return vk*scale_k
         else:
-            vj = np.einsum('...rs,irs->i...', dipole, dm)
+            vj = np.einsum('...xpq,...rs,isr->ixpq', dipole_d1, dipole, dm)
             return [vj, vk*scale_k]
 
 
@@ -140,14 +161,20 @@ class Gradients(rks_grad.Gradients):
         vxc = super().get_veff(mol, dm)
         exc = vxc.exc1_grid
 
-        # here the dipoles and quadrupoles have aleady combined with coupling
-        dipole_d1, quadrupole_d1 = get_multipole_matrix_d1(mol, self.base.c_lambda)
-        vdse_k = get_dipole_2e(self.base.dipole, dm, with_j=False)
-        vdse_k = np.einsum('xpq,...qs->x...ps', dipole_d1, vdse_k)
-
-        vxc += (.5*quadrupole_d1 - vdse_k)
+        vxc += self.dse_fock_d1(mol, dm)
 
         return lib.tag_array(vxc, exc1_grid=exc)
+
+
+    # add this to the gradient class so that can be called for the cphf
+    def dse_fock_d1(self, mol, dm, dipole_d1=None, quadrupole_d1=None):
+        mf = self.base
+        # here the dipoles and quadrupoles have aleady combined with coupling
+        if not isinstance(dipole_d1, np.ndarray):
+            dipole_d1, quadrupole_d1 = get_multipole_matrix_d1(mol, mf.c_lambda, mf.origin)
+        vdse_k = get_dse_2e(mf.dipole, dipole_d1, dm, with_j=False)
+        return (.5*quadrupole_d1 - vdse_k)
+
 
 polariton_cs.Gradients = lib.class_as_method(Gradients)
 
@@ -202,7 +229,6 @@ if __name__ == '__main__':
         for x in range(3):
             fd = fdiff(norder, step_size)
             coords_new = fd.get_x(coords, [n, x])
-            d = fd.get_d(3, x)
 
             energy = []
             for k in range(coords_new.shape[0]):
@@ -210,8 +236,7 @@ if __name__ == '__main__':
                 mf1 = polariton_cs(mol_new) # in coherent state
                 mf1.xc = functional
                 mf1.grids.prune = True
-                # the finite-difference need to change the origin to the com!
-                mf1.get_multipole_matrix(coupling, origin=get_center_of_mass(mol_new))
+                mf1.get_multipole_matrix(coupling)
 
                 e_tot = mf1.kernel()
                 energy.append(e_tot)
@@ -223,8 +248,8 @@ if __name__ == '__main__':
 
 
     # check the multipole matrix derivatives
-    #dipole_fd, quadrupole_fd = check_multipole_matrix_fd(mol, dm=dm, norder=norder, step_size=step_size)
-    #dipole_d1, quadrupole_d1 = check_multipole_matrix_d1(mol, dm=dm)
+    #dipole_fd, quadrupole_fd = cal_multipole_matrix_fd(mol, dm=dm, norder=norder, step_size=step_size)
+    #dipole_d1, quadrupole_d1 = cal_multipole_matrix_d1(mol, dm=dm)
 
     #print_matrix('dipole_fd:', dipole_fd, 5, 1)
     #print_matrix('dipole_d1:', dipole_d1, 5, 1)
