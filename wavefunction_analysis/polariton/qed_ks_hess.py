@@ -10,8 +10,44 @@ from pyscf.hessian import rks as rks_hess
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units, print_matrix, fdiff
 from wavefunction_analysis.polariton.qed_ks import polariton_cs, get_lambda2
-from wavefunction_analysis.polariton.qed_ks_grad import get_multipole_matrix_d1, cal_multipole_matrix_fd
-from wavefunction_analysis.utils.fdiff import change_matrix_phase_c
+from wavefunction_analysis.polariton.qed_ks_grad import get_multipole_matrix_d1, cal_multipole_matrix_fd, finite_difference
+
+
+def fd_orbital_rotation_mo1(mf, fd_mo):
+    mol = mf.mol
+
+    mo = mf.mo_coeff
+    print_matrix('mo:', mo, 5, 1)
+    nao = mo.shape[0]
+    nocc = (mf.mo_occ>0).sum()
+
+    cct = np.einsum('mp,np->mn', mo, mo)
+    ovlp = mf.get_ovlp()
+
+    ovlp1 = mol.intor('int1e_ipovlp', comp=3)
+    s1 = np.zeros((natoms, 3, nao, nao))
+    atmlst = range(mol.natm)
+    aoslices = mol.aoslice_by_atom()
+    for k, ia in enumerate(atmlst):
+        p0, p1 = aoslices[ia,2:]
+        s1[k,:,p0:p1] += ovlp1[:,p0:p1]
+        s1[k,:,:,p0:p1] += ovlp1[:,p0:p1].transpose(0,2,1)
+    s1 = s1.reshape(-1,nao,nao)
+
+    sinv_sx = np.einsum('mn,xnp->xmp', cct, s1) * .5
+    mo1_s = np.einsum('xmn,np->xmp', sinv_sx, mo)
+    #print_matrix('mo1_s:', mo1_s[:,:,:nocc], 5, 1)
+
+    theta = fd_mo - mo1_s
+    #print_matrix('theta pi:', theta, 5, 1)
+    theta = np.einsum('ma,mn,xni->xai', mo[:,nocc:], ovlp, theta[:,:,:nocc])
+    #print_matrix('theta:', theta, 5, 1)
+
+    mo1_theta = np.einsum('pa,xai->xpi', mo[:,nocc:], theta)
+    #print_matrix('mo1_theta', mo1_theta, 5, 1)
+
+    mo1 = mo1_theta+mo1_s[:,:,:nocc]
+    return mo1
 
 
 def resemble_deriv_on_atoms(mol, mat0):
@@ -276,84 +312,19 @@ if __name__ == '__main__':
 
     norder, step_size = 2, 1e-4
 
-    coords = mol.atom_coords()
+    fd_e, fd_mo, fd_dip = finite_difference(mf, norder, step_size, extra=True)
 
-    nocc = (mf.mo_occ>0).sum()
-    dm = mf.make_rdm1()
-    mo = mf.mo_coeff
-    nao = mo.shape[0]
-    cct = np.einsum('mp,np->mn', mo, mo)
-    ovlp = mf.get_ovlp()
-    print_matrix('mo0:', mo, 5, 1)
+    print_matrix('fd_dip:', fd_dip)
 
-    ovlp1 = mol.intor('int1e_ipovlp', comp=3)
-    s1 = np.zeros((natoms, 3, nao, nao))
-    atmlst = range(mol.natm)
-    aoslices = mol.aoslice_by_atom()
-    for k, ia in enumerate(atmlst):
-        p0, p1 = aoslices[ia,2:]
-        s1[k,:,p0:p1] += ovlp1[:,p0:p1]
-        s1[k,:,:,p0:p1] += ovlp1[:,p0:p1].transpose(0,2,1)
-    s1 = s1.reshape(-1,nao,nao)
-
-
-    fde = np.zeros((natoms, 3, natoms, 3))
-    fd_moe, fd_mo, theta = [], [], []
-    dipole_deriv = []
-    for n in range(natoms):
-        for x in range(3):
-            fd = fdiff(norder, step_size)
-            coords_new = fd.get_x(coords, [n, x])
-
-            gs_dipole_d1, mo1, g1 = [], [], []
-            for k in range(coords_new.shape[0]):
-                mol_new = mol.set_geom_(coords_new[k], inplace=False, unit='bohr')
-                mf1 = polariton_cs(mol_new) # in coherent state
-                mf1.xc = functional
-                mf1.grids.prune = True
-                mf1.get_multipole_matrix(coupling)
-
-                e_tot = mf1.kernel()
-                #mo1.append(mf1.mo_coeff)
-                mo1.append(change_matrix_phase_c(mo, mf1.mo_coeff))
-                print_matrix('mo '+str(n)+' '+str(x)+' '+str(k)+':', mo1[-1], 5, 1)
-                #e1.append(np.einsum('pi,pq,qj->ij', mo1[-1][:,:nocc], mf1.get_fock(), mo1[-1][:,:nocc]))
-
-                de1 = mf1.Gradients().kernel()
-                g1.append(de1)
-                gs_dipole_d1.append(mf1.dip_moment(mol_new, unit='au'))
-
-            fde[n,x] = fd.compute_fdiff(np.array(g1))
-
-            #e1 = fd.compute_fdiff(np.array(e1))
-            mo1 = fd.compute_fdiff(np.array(mo1))
-            fd_mo.append(mo1)
-            gs_dipole_d1 = fd.compute_fdiff(np.array(gs_dipole_d1))
-            dipole_deriv.append(gs_dipole_d1)
-
-    print_matrix('dipole_deriv:', dipole_deriv)
-    fd_mo = np.array(fd_mo)
     fd_mo[0::3,5,3] = 0.
     fd_mo[np.abs(fd_mo)>2.] = 0.
     #print_matrix('fd_mo:', np.array(fd_mo), 5, 1)
 
-    sinv_sx = np.einsum('mn,xnp->xmp', cct, s1) * .5
-    mo1_s = np.einsum('xmn,np->xmp', sinv_sx, mo)
-    #print_matrix('mo1_s:', mo1_s[:,:,:nocc], 5, 1)
+    mo1 = fd_orbital_rotation_mo1(mf, fd_mo)
+    print_matrix('mo1', mo1, 5, 1)
 
-    theta = fd_mo - mo1_s
-    #print_matrix('theta pi:', theta, 5, 1)
-    theta = np.einsum('ma,mn,xni->xai', mo[:,nocc:], ovlp, theta[:,:,:nocc])
-    #print_matrix('theta:', theta, 5, 1)
-
-    mo1_theta = np.einsum('pa,xai->xpi', mo[:,nocc:], theta)
-    #print_matrix('mo1_theta', mo1_theta, 5, 1)
-    print_matrix('mo1', mo1_theta+mo1_s[:,:,:nocc], 5, 1)
-
-
-    fde = fde.reshape(natoms*3, natoms*3)
-    print_matrix('fde:', fde, 5, 1)
-    print('gradient diff:', np.linalg.norm(fde-hess))
+    print_matrix('fd_e:', fd_e, 5, 1)
+    print('hessian diff:', np.linalg.norm(fd_e-hess))
 
     #from wavefunction_analysis.utils import read_matrix
     #coeff1 = read_matrix('qc-diff', 1, nao*nao, 'Alpha MO coefficients', 5)

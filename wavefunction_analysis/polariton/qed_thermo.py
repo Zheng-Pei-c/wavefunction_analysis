@@ -199,11 +199,11 @@ if __name__ == '__main__':
     atom = locals()[sys.argv[1]] if len(sys.argv) > 1 else hf
 
     functional = 'hf'
-    mol = build_single_molecule(0, 0, atom, '3-21g')
+    mol = build_single_molecule(0, 0, atom, '6-31g')
 
     #frequency = 0.42978 # gs doesn't depend on frequency
-    frequency = 0.46389948
-    coupling = np.array([0, 0, .03])
+    frequency = 0.45726295
+    coupling = np.array([.03, .0, .0])
 
     mf = polariton_cs(mol) # in coherent state
     mf.xc = functional
@@ -215,20 +215,20 @@ if __name__ == '__main__':
     h = hessobj.kernel()
 
     results = thermo.harmonic_analysis(mol, h) # only molecular block
-    print('freq_au:', results['freq_au'])
-    print('freq_wavenumber:', results['freq_wavenumber'])
-    print('force_const_dyne:', results['force_const_dyne'])
+    print_matrix('freq_au:', results['freq_au'])
+    print_matrix('freq_wavenumber:', results['freq_wavenumber'])
+    #print_matrix('force_const_dyne:', results['force_const_dyne'])
     print_matrix('mode:', results['norm_mode'].reshape(-1, len(results['freq_au'])))
     dip_dev = get_dipole_dev(mf, hessobj)
     sir = infrared(dip_dev, results['norm_mode'])
-    print('infrared intensity:', sir)
+    print_matrix('infrared intensity:', sir)
 
     d1 = get_g1_d1(mf, frequency, hessobj)
     results = harmonic_analysis(mol, [h, d1, frequency])
-    print('freq_wavenumber:', results['freq_wavenumber'])
-    print('force_const_dyne:', results['force_const_dyne'])
+    print_matrix('freq_wavenumber:', results['freq_wavenumber'])
+    #print_matrix('force_const_dyne:', results['force_const_dyne'])
     print_matrix('mode:', results['norm_mode'].reshape(-1, len(results['freq_au'])))
 
     dip_dev = get_dipole_dev(mf, hessobj)
     sir = infrared(dip_dev, results['norm_mode'])
-    print('infrared intensity:', sir)
+    print_matrix('infrared intensity:', sir)

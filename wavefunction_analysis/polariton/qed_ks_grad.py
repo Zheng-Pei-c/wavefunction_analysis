@@ -10,6 +10,54 @@ from pyscf.grad import rks as rks_grad
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units, print_matrix, fdiff
 from wavefunction_analysis.polariton.qed_ks import polariton_cs, get_lambda2
+from wavefunction_analysis.utils.fdiff import change_matrix_phase_c
+
+def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
+    mo = mf.mo_coeff
+    functional, prune = mf.xc, mf.grids.prune
+    coupling = mf.c_lambda if hasattr(mf, 'c_lambda') else None
+
+    mol = mf.mol
+    natoms = mol.natm
+    coords = mol.atom_coords()
+
+    fd_e, fd_mo, fd_dip = [], [], []
+    for n in range(natoms):
+        for x in range(3):
+            fd = fdiff(norder, step_size)
+            coords_new = fd.get_x(coords, [n, x])
+
+            gs_dipole_d1, mo1, g1 = [], [], []
+            for k in range(coords_new.shape[0]):
+                mol_new = mol.set_geom_(coords_new[k], inplace=False, unit='bohr')
+                mf1 = polariton_cs(mol_new) # in coherent state
+                mf1.xc = functional
+                mf1.grids.prune = prune
+                mf1.get_multipole_matrix(coupling)
+
+                e_tot = mf1.kernel()
+
+                if ideriv == 1:
+                    g1.append(e_tot)
+                elif ideriv == 2:
+                    de1 = mf1.Gradients().kernel()
+                    g1.append(de1)
+
+                if extra:
+                    mo1.append(change_matrix_phase_c(mo, mf1.mo_coeff))
+                    #print_matrix('mo '+str(n)+' '+str(x)+' '+str(k)+':', mo1[-1], 5, 1)
+                    gs_dipole_d1.append(mf1.dip_moment(mol_new, unit='au'))
+
+            g1 = fd.compute_fdiff(np.array(g1))
+            fd_e.append(g1)
+
+            if extra:
+                mo1 = fd.compute_fdiff(np.array(mo1))
+                fd_mo.append(mo1)
+                gs_dipole_d1 = fd.compute_fdiff(np.array(gs_dipole_d1))
+                fd_dip.append(gs_dipole_d1)
+
+    return np.reshape(fd_e, (3*natoms, -1)), np.array(fd_mo), np.array(fd_dip)
 
 
 def cal_multipole_matrix_fd(mol, dm=None, origin=None, norder=2, step_size=1e-4, ideriv=1):
@@ -221,28 +269,9 @@ if __name__ == '__main__':
 
     norder, step_size = 2, 1e-4
 
-    natoms = mol.natm
-    coords = mol.atom_coords()
 
-    fde = np.zeros((natoms, 3))
-    for n in range(natoms):
-        for x in range(3):
-            fd = fdiff(norder, step_size)
-            coords_new = fd.get_x(coords, [n, x])
-
-            energy = []
-            for k in range(coords_new.shape[0]):
-                mol_new = mol.set_geom_(coords_new[k], inplace=False, unit='bohr')
-                mf1 = polariton_cs(mol_new) # in coherent state
-                mf1.xc = functional
-                mf1.grids.prune = True
-                mf1.get_multipole_matrix(coupling)
-
-                e_tot = mf1.kernel()
-                energy.append(e_tot)
-
-            fde[n,x] = fd.compute_fdiff(np.array(energy))
-
+    fde = finite_difference(mf, norder, step_size, ideriv=1)[0]
+    fde = fde.reshape(-1, 3)
     print_matrix('fde:', fde)
     print('gradient diff:', np.linalg.norm(fde-de1))
 
