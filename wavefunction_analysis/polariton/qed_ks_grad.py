@@ -21,13 +21,13 @@ def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
     natoms = mol.natm
     coords = mol.atom_coords()
 
-    fd_e, fd_mo, fd_dip = [], [], []
+    fd_e, fd_mo, fd_dip, fd_g = [], [], [], []
     for n in range(natoms):
         for x in range(3):
             fd = fdiff(norder, step_size)
             coords_new = fd.get_x(coords, [n, x])
 
-            gs_dipole_d1, mo1, g1 = [], [], []
+            g1, mo1, gs_dipole1, transp = [], [], [], []
             for k in range(coords_new.shape[0]):
                 mol_new = mol.set_geom_(coords_new[k], inplace=False, unit='bohr')
                 mf1 = polariton_cs(mol_new) # in coherent state
@@ -46,21 +46,23 @@ def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
                 if extra:
                     mo1.append(change_matrix_phase_c(mo, mf1.mo_coeff))
                     #print_matrix('mo '+str(n)+' '+str(x)+' '+str(k)+':', mo1[-1], 5, 1)
-                    gs_dipole_d1.append(mf1.dip_moment(mol_new, unit='au'))
+                    gs_dipole1.append(mf1.dip_moment(mol_new, unit='au'))
+                    if isinstance(extra, float) or isinstance(extra, list) or isinstance(extra, np.ndarray): # extra is the frequency
+                        transp.append(np.einsum('...pq,qp,...->...', mf1.dipole, mf1.make_rdm1(), extra))
 
-            g1 = fd.compute_fdiff(np.array(g1))
-            fd_e.append(g1)
+            fd_e.append( fd.compute_fdiff(np.array(g1)))
 
             if extra:
-                mo1 = fd.compute_fdiff(np.array(mo1))
-                fd_mo.append(mo1)
-                gs_dipole_d1 = fd.compute_fdiff(np.array(gs_dipole_d1))
-                fd_dip.append(gs_dipole_d1)
+                fd_mo.append( fd.compute_fdiff(np.array(mo1)))
+                fd_dip.append( fd.compute_fdiff(np.array(gs_dipole1)))
+                if isinstance(extra, float) or isinstance(extra, list) or isinstance(extra, np.ndarray): # extra is the frequency
+                    fd_g.append( fd.compute_fdiff(np.array(transp)) )
 
-    return np.reshape(fd_e, (3*natoms, -1)), np.array(fd_mo), np.array(fd_dip)
+    return np.reshape(fd_e, (3*natoms, -1)), np.array(fd_mo), np.array(fd_dip), np.array(fd_g)
 
 
 def cal_multipole_matrix_fd(mol, dm=None, origin=None, norder=2, step_size=1e-4, ideriv=1):
+    # no coupling strength
     if origin is None:
         origin = np.zeros(3)
 
@@ -86,8 +88,12 @@ def cal_multipole_matrix_fd(mol, dm=None, origin=None, norder=2, step_size=1e-4,
                         ints1 = mol_new.intor('int1e_r', comp=3, hermi=0)
                         ints2 = mol_new.intor('int1e_rr', comp=9, hermi=0)
                         if combine:
-                            ints1 = np.einsum('xpq,...pq->x...', ints1, dm)
-                            ints2 = np.einsum('xpq,...pq->x...', ints2, dm).reshape(3,3)
+                            ints1 = np.einsum('xpq,...pq->...x', ints1, dm)
+                            ints2 = np.einsum('xpq,...pq->...x', ints2, dm)
+                            if dm.ndim == 2:
+                                ints2 = ints2.reshape(3,3)
+                            elif dm.ndim == 3:
+                                ints2 = ints2.reshape(-1,3,3)
                         else:
                             ints2 = ints2.reshape(3,3,nao,nao)
 
@@ -121,7 +127,7 @@ def cal_multipole_matrix_fd(mol, dm=None, origin=None, norder=2, step_size=1e-4,
     return dipole_d1, quadrupole_d1
 
 
-def cal_multipole_matrix_d1(mol, dm=None, origin=None):
+def cal_multipole_matrix_d1(mol, dm=None, origin=None): # no coupling strength
     if origin is None:
         origin = np.zeros(3)
 
@@ -177,26 +183,27 @@ def get_multipole_matrix_d1(mol, c_lambda, origin=None):
         quadrupole = mol.intor('int1e_irrp', comp=27, hermi=0).reshape(3,3,3,nao,nao)
 
     # these derivatives don't distinguish nuclei
-    dipole = - np.einsum('mxpq,...m->...xqp', dipole, c_lambda)
+    dipole = - np.einsum('mxpq,...m->xqp...', dipole, c_lambda) # move mode index to the last for convenience latter
     quadrupole = - np.einsum('mnxpq,mn->xqp', quadrupole, get_lambda2(c_lambda))
     return dipole, quadrupole
 
 
 def get_dse_2e(dipole, dipole_d1, dm, with_j=False, scale_k=.5): # c_lambda is included
     # scale k by 1/2 for restricted orbital case by default
+    # we moved the mode index for lambda-dipole derivative to the last
     if dm.ndim == 2:
-        vk = np.einsum('...xpq,...rs,qr->xps', dipole_d1, dipole, dm)
+        vk = np.einsum('xpq...,...rs,qr->xps', dipole_d1, dipole, dm)
         if with_j is False:
             return vk*scale_k
         else:
-            vj = np.einsum('...xpq,...rs,sr->xpq', dipole_d1, dipole, dm)
+            vj = np.einsum('xpq...,...rs,sr->xpq', dipole_d1, dipole, dm)
             return [vj, vk*scale_k]
     else: # multiple density matrices, ie uhf
-        vk = np.einsum('...xpq,...rs,iqr->ixps', dipole_d1, dipole, dm)
+        vk = np.einsum('xpq...,...rs,iqr->ixps', dipole_d1, dipole, dm)
         if with_j is False:
             return vk*scale_k
         else:
-            vj = np.einsum('...xpq,...rs,isr->ixpq', dipole_d1, dipole, dm)
+            vj = np.einsum('xpq...,...rs,isr->ixpq', dipole_d1, dipole, dm)
             return [vj, vk*scale_k]
 
 

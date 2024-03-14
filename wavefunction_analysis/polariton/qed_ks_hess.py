@@ -56,13 +56,24 @@ def resemble_deriv_on_atoms(mol, mat0):
     aoslices = mol.aoslice_by_atom()
     nao = mat0.shape[-1]
 
-    mat1 = np.zeros((mol.natm, 3, nao, nao))
-    for k, ia in enumerate(atmlst):
-        p0, p1 = aoslices[ia,2:]
-        mat1[k,:,p0:p1] += mat0[:,p0:p1]
-        mat1[k,:,:,p0:p1] += mat0[:,p0:p1].transpose(0,2,1)
+    if mat0.ndim == 3:
+        mat1 = np.zeros((mol.natm, 3, nao, nao))
+        for k, ia in enumerate(atmlst):
+            p0, p1 = aoslices[ia,2:]
+            mat1[k,:,p0:p1] += mat0[:,p0:p1]
+            mat1[k,:,:,p0:p1] += mat0[:,p0:p1].transpose(0,2,1)
 
-    return mat1.reshape(-1, nao, nao)
+        return mat1.reshape(-1, nao, nao)
+
+    elif mat0.ndim == 4:
+        nd = mat0.shape[-1] # number of photon mode
+        mat1 = np.zeros((mol.natm, 3, nao, nao, nd))
+        for k, ia in enumerate(atmlst):
+            p0, p1 = aoslices[ia,2:]
+            mat1[k,:,p0:p1] += mat0[:,p0:p1]
+            mat1[k,:,:,p0:p1] += mat0[:,p0:p1].transpose(0,2,1,3)
+
+        return mat1.reshape(-1, nao, nao, nd)
 
 
 def get_multipole_matrix_d2(mol, c_lambda, origin=None):
@@ -110,26 +121,27 @@ def get_dse_2e_a(dipole, dipole_d2, dm, with_j=False, scale_k=.5): # c_lambda is
     return [vj, vk*scale_k]
 
 
-def get_dse_2e_s(dipole_d1, dm, with_j=False, scale_k=.5): # c_lambda is included
-    # scale k by 1/2 for restricted orbital case by default
-    if dm.ndim == 2:
-        vk = np.einsum('...xrs,qr->...xqs', dipole_d1, dm)
-        vk = np.einsum('...xqs,...ysq->xy', vk, vk)
-        if with_j is False:
-            return vk*scale_k
-        else:
-            vj = np.einsum('...rs,sr->...x', dipole_d1, dm)
-            vj = np.einsum('...x,...y->xy', vj, vj)
-            return [vj, vk*scale_k]
-    else: # multiple density matrices, ie uhf
-        vk = np.einsum('...xrs,iqr->ixqs', dipole_d1, dm)
-        vk = np.einsum('...ixqs,...iysq->xy', vk, vk)
-        if with_j is False:
-            return vk*scale_k
-        else:
-            vj = np.einsum('...xrs,isr->i...x', dipole_d1, dm)
-            vj = np.einsum('i...x,i...y->xy', vj, vj)
-            return [vj, vk*scale_k]
+#def get_dse_2e_s(dipole_d1, dm, with_j=False, scale_k=.5): # c_lambda is included
+#    # scale k by 1/2 for restricted orbital case by default
+#    # the mode index for lambda-dipole_d1 is moved to the last
+#    if dm.ndim == 2:
+#        vk = np.einsum('xrs...,qr->...xqs', dipole_d1, dm)
+#        vk = np.einsum('...xqs,...ysq->xy', vk, vk)
+#        if with_j is False:
+#            return vk*scale_k
+#        else:
+#            vj = np.einsum('rs...,sr->...x', dipole_d1, dm)
+#            #vj = np.einsum('...x,...y->xy', vj, vj)
+#            return [vj, vk*scale_k]
+#    else: # multiple density matrices, ie uhf
+#        vk = np.einsum('xrs...,iqr->...ixqs', dipole_d1, dm)
+#        #vk = np.einsum('...ixqs,...iysq->xy', vk, vk)
+#        if with_j is False:
+#            return vk*scale_k
+#        else:
+#            vj = np.einsum('xrs...,isr->i...x', dipole_d1, dm)
+#            #vj = np.einsum('i...x,i...y->xy', vj, vj)
+#            return [vj, vk*scale_k]
 
 
 def partial_hess_elec(hessobj, mo_energy=None, mo_coeff=None, mo_occ=None,
@@ -149,42 +161,55 @@ def partial_hess_elec(hessobj, mo_energy=None, mo_coeff=None, mo_occ=None,
     de2 = rks_hess.partial_hess_elec(hessobj, mo_energy, mo_coeff, mo_occ,
                                      atmlst, max_memory, verbose)
 
+    # 2e-dse 1/2 is cancled by the derivative factor 2.
+
+    # these derivatives are distributed on atoms since they are from finite-difference
+    # TODO: get analytic derivatives and resemble them here
     dipole_d2, quadrupole_d2 = get_multipole_matrix_d2(mol, mf.c_lambda, hessobj.base.origin)
     vdse = .5* np.einsum('xypq,...qp->xy', quadrupole_d2, dm0)
-
     vdse -= get_dse_2e_a(mf.dipole, dipole_d2, dm0, with_j=False)
 
+    vdse = vdse.reshape(mol.natm, 3, mol.natm, 3).transpose(0,2,1,3)
+
     dipole_d1, _ = get_multipole_matrix_d1(mol, mf.c_lambda, mf.origin)
-    dipole_d1 = resemble_deriv_on_atoms(mol, dipole_d1)
-    vdse -= get_dse_2e_s(dipole_d1, dm0, with_j=False)
+    #dipole_d1 = resemble_deriv_on_atoms(mol, dipole_d1)
+    #vdse -= get_dse_2e_s(dipole_d1, dm0, with_j=False)
 
-    natoms = mol.natm
-    de2 += vdse.reshape(natoms, 3, natoms, 3).transpose(0,2,1,3)
+    aoslices = mol.aoslice_by_atom()
+    for i0, ia in enumerate(atmlst):
+        p0, p1 = aoslices[ia, 2:]
 
-    ## explicit derivatives of dse contribution
-    #for i0, ia in enumerate(atmlst):
-    #    shl0, shl1, p0, p1 = aoslices[ia]
-    #    shls_slice = (shl0, shl1) + (0, mol.nbas)*3
+        tmp1 = np.einsum('xrs...,qr->...xqs', dipole_d1[:,p0:p1], dm0[:,p0:p1]) # r is derivative index
+        tmp2 = np.einsum('xrs...,qr->...xqs', dipole_d1[:,p0:p1].transpose(0,2,1), dm0) # s is derivative index
+        for j0, ja in enumerate(atmlst):
+            q0, q1 = aoslices[ja, 2:]
+
+            tmp3 = np.einsum('xpq...,ps->...xsq', dipole_d1[:,q0:q1], dm0[q0:q1]) # r is derivative index
+            tmp4 = np.einsum('xpq...,ps->...xsq', dipole_d1[:,q0:q1], dm0[q0:q1,p0:p1]) # s is derivative index
+            vdse[i0,j0] -= np.einsum('...xqs,...ysq->xy', tmp1, tmp3)
+            vdse[i0,j0] -= np.einsum('...xqs,...ysq->xy', tmp2, tmp4)
+
+    de2 += vdse
 
     return de2
 
 
 def dse_fock_d1_s(dipole, dipole_d1, dm, with_j=False, scale_k=.5): # c_lambda is included
     # scale k by 1/2 for restricted orbital case by default
-    # the density passed through is piece by piece
+    # the dipole_d1 and density are passed through piece by piece
     if dm.ndim == 2:
-        vk = np.einsum('...pq,...xrs,qr->xps', dipole, dipole_d1, dm)
+        vk = np.einsum('...pq,xrs...,qr->xps', dipole, dipole_d1, dm)
         if with_j is False:
             return vk*scale_k
         else:
-            vj = np.einsum('...pq,...xrs,sr->xpq', dipole, dipole_d1, dm)
+            vj = np.einsum('...pq,xrs...,sr->xpq', dipole, dipole_d1, dm)
             return [vj, vk*scale_k]
     else: # multiple density matrices, ie uhf
-        vk = np.einsum('...pq,...xrs,iqr->ixps', dipole, dipole_d1, dm)
+        vk = np.einsum('...pq,xrs...,iqr->ixps', dipole, dipole_d1, dm)
         if with_j is False:
             return vk*scale_k
         else:
-            vj = np.einsum('...pq,...xrs,isr->ixpq', dipole, dipole_d1, dm)
+            vj = np.einsum('...pq,xrs...,isr->ixpq', dipole, dipole_d1, dm)
             return [vj, vk*scale_k]
 
 
@@ -312,16 +337,14 @@ if __name__ == '__main__':
 
     norder, step_size = 2, 1e-4
 
-    fd_e, fd_mo, fd_dip = finite_difference(mf, norder, step_size, extra=True)
-
-    print_matrix('fd_dip:', fd_dip)
+    fd_e, fd_mo = finite_difference(mf, norder, step_size, extra=True)[:2]
 
     fd_mo[0::3,5,3] = 0.
     fd_mo[np.abs(fd_mo)>2.] = 0.
     #print_matrix('fd_mo:', np.array(fd_mo), 5, 1)
 
     mo1 = fd_orbital_rotation_mo1(mf, fd_mo)
-    print_matrix('mo1', mo1, 5, 1)
+    print_matrix('fd_mo1', mo1, 5, 1)
 
     print_matrix('fd_e:', fd_e, 5, 1)
     print('hessian diff:', np.linalg.norm(fd_e-hess))

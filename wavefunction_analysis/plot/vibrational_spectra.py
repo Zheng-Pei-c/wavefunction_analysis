@@ -89,16 +89,16 @@ def get_dipole_dev(mf, hessobj, origin=None):
     mo1 = lib.chkfile.load(hessobj.chkfile, 'scf_mo1')
     mo1 = {int(k): mo1[k] for k in mo1}
 
-    g1 = np.zeros((natm, 3, 3))
+    g1 = np.zeros((natm, 3, 3)) # first 3 is derivative direction
     aoslices = mol.aoslice_by_atom()
     for k, ia in enumerate(atmlst):
-        p0, p1 = aoslices[ia,2:]
+        p0, p1 = aoslices[ia, 2:]
         dm1 = np.einsum('xpi,qi->xpq', mo1[ia], mocc)
 
-        g1[k] += np.einsum('ypq,xqp->xy', dipole, dm1)*2.
+        g1[k] += np.einsum('ypq,xqp->xy', dipole, dm1)*2. # 2 for dm1
         g1[k] -= np.einsum('xypq,qp->xy', dipole_d1[:,:,p0:p1], dm[:,p0:p1]) # dipole_d1 has extra minus
 
-    g1 *= -2. # electron dipole is negative
+    g1 *= -2. # electron dipole is negative # 2 for ket
 
     z = mol.atom_charges()
     for i in range(natm): # nuclear dipole derivative

@@ -9,7 +9,7 @@ from pyscf.data import nist
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units, print_matrix
 from wavefunction_analysis.polariton.qed_ks import polariton_cs
-from wavefunction_analysis.polariton.qed_ks_grad import get_multipole_matrix_d1
+from wavefunction_analysis.polariton.qed_ks_grad import get_multipole_matrix_d1, finite_difference
 from wavefunction_analysis.plot.vibrational_spectra import get_dipole_dev, infrared
 
 """
@@ -77,10 +77,11 @@ def get_g1_d1(mf, frequency, hessobj):
     mo_occ = mf.mo_occ
     mocc = mo_coeff[:,mo_occ>0]
 
-    dipole = mf.dipole
+    dipole = np.einsum('...pq,...->pq', mf.dipole, frequency) # combine with frequency
     dm = mf.make_rdm1()
 
     dipole_d1, _ = get_multipole_matrix_d1(mol, mf.c_lambda, mf.origin)
+    dipole_d1 = np.einsum('xpq...,...->xpq', dipole_d1, frequency)
 
     mo1 = lib.chkfile.load(hessobj.chkfile, 'scf_mo1')
     mo1 = {int(k): mo1[k] for k in mo1}
@@ -89,10 +90,10 @@ def get_g1_d1(mf, frequency, hessobj):
     aoslices = mol.aoslice_by_atom()
     for k, ia in enumerate(atmlst):
         p0, p1 = aoslices[ia, 2:]
-        dm1 = np.einsum('ypi,qi->ypq', mo1[ia], mocc)
+        dm1 = np.einsum('xpi,qi->xpq', mo1[ia], mocc)
 
-        g1[k] = np.einsum('...pq,xqp,...->x...', dipole, dm1, frequency)
-        g1[k] += np.einsum('...xpq,pq,...->x...', dipole_d1, dm, frequency)
+        g1[k] = np.einsum('pq,xqp->x', dipole, dm1)*2. # 2 for dm1
+        g1[k] += np.einsum('xpq,qp->x', dipole_d1[:,p0:p1], dm[:,p0:p1])
 
     return 2.*np.array(g1)
 
@@ -214,15 +215,19 @@ if __name__ == '__main__':
     #print_matrix('force_const_dyne:', results['force_const_dyne'])
     print_matrix('mode:', results['norm_mode'].reshape(len(results['freq_au']), -1).T)
     dip_dev = get_dipole_dev(mf, hessobj)
+    #print_matrix('dip_dev:', dip_dev, 5, 1)
     sir = infrared(dip_dev, results['norm_mode'])
     print_matrix('infrared intensity:', sir)
 
-    d1 = get_g1_d1(mf, frequency, hessobj)
-    results = harmonic_analysis(mol, [h, d1, frequency])
-    print_matrix('freq_wavenumber:', results['freq_wavenumber'])
-    #print_matrix('force_const_dyne:', results['force_const_dyne'])
-    print_matrix('mode:', results['norm_mode'].reshape(len(results['freq_au']), -1).T)
+    if np.any(np.abs(coupling) > 1e-4):
 
-    dip_dev = get_dipole_dev(mf, hessobj)
-    sir = infrared(dip_dev, results['norm_mode'])
-    print_matrix('infrared intensity:', sir)
+        d1 = get_g1_d1(mf, frequency, hessobj)
+        #print_matrix('d1:', d1, 5, 1)
+        results = harmonic_analysis(mol, [h, d1, frequency])
+        print_matrix('freq_wavenumber:', results['freq_wavenumber'])
+        #print_matrix('force_const_dyne:', results['force_const_dyne'])
+        print_matrix('mode:', results['norm_mode'].reshape(len(results['freq_au']), -1).T)
+
+        dip_dev = get_dipole_dev(mf, hessobj)
+        sir = infrared(dip_dev, results['norm_mode'])
+        print_matrix('infrared intensity:', sir)
