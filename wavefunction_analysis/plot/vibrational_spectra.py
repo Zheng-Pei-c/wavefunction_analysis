@@ -79,8 +79,6 @@ def get_dipole_dev(mf, hessobj, origin=None):
     mo_coeff = mf.mo_coeff
     mo_occ = mf.mo_occ
     mocc = mo_coeff[:,mo_occ>0]
-    mo_energy = mf.mo_energy
-    max_memory = 4000
     nao = mo_coeff.shape[0]
 
     dipole = mol.intor('int1e_r', comp=3, hermi=0)
@@ -88,11 +86,7 @@ def get_dipole_dev(mf, hessobj, origin=None):
 
     dipole_d1 = mol.intor('int1e_irp', comp=9, hermi=0).reshape(3,3,nao,nao).transpose(1,0,3,2)
 
-    log = lib.logger.new_logger(hessobj, None)
-    h1ao = hessobj.make_h1(mo_coeff, mo_occ, hessobj.chkfile, atmlst, log)
-    mo1, mo_e1 = hessobj.solve_mo1(mo_energy, mo_coeff, mo_occ, h1ao,
-                                   None, atmlst, max_memory, log)
-    mo1 = lib.chkfile.load(mo1, 'scf_mo1')
+    mo1 = lib.chkfile.load(hessobj.chkfile, 'scf_mo1')
     mo1 = {int(k): mo1[k] for k in mo1}
 
     g1 = np.zeros((natm, 3, 3))

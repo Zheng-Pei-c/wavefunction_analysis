@@ -76,19 +76,13 @@ def get_g1_d1(mf, frequency, hessobj):
     mo_coeff = mf.mo_coeff
     mo_occ = mf.mo_occ
     mocc = mo_coeff[:,mo_occ>0]
-    mo_energy = mf.mo_energy
-    max_memory = 4000
 
     dipole = mf.dipole
     dm = mf.make_rdm1()
 
     dipole_d1, _ = get_multipole_matrix_d1(mol, mf.c_lambda, mf.origin)
 
-    log = lib.logger.new_logger(hessobj, None)
-    h1ao = hessobj.make_h1(mo_coeff, mo_occ, hessobj.chkfile, atmlst, log)
-    mo1, mo_e1 = hessobj.solve_mo1(mo_energy, mo_coeff, mo_occ, h1ao,
-                                   None, atmlst, max_memory, log)
-    mo1 = lib.chkfile.load(mo1, 'scf_mo1')
+    mo1 = lib.chkfile.load(hessobj.chkfile, 'scf_mo1')
     mo1 = {int(k): mo1[k] for k in mo1}
 
     g1 = [None]*natm
