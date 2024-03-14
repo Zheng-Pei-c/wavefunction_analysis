@@ -59,9 +59,10 @@ def plot_spectra(peak_centers, peak_intens, broaden, fig_name):
 def infrared(dip_dev, normal_mode):
     factor = 974.8802478
     if normal_mode.ndim == 3:
-        normal_mode = normal_mode.reshape(dip_dev.shape[0], -1)
+        # first index is mode
+        normal_mode = normal_mode.reshape(-1, dip_dev.shape[0])
 
-    trans_dip = np.einsum('qx,qi->ix', dip_dev, normal_mode)
+    trans_dip = np.einsum('qx,iq->ix', dip_dev, normal_mode)
     sir = np.einsum('ix,ix->i', trans_dip, trans_dip)
     return sir * factor
 

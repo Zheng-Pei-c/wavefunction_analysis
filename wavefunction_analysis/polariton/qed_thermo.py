@@ -203,7 +203,7 @@ if __name__ == '__main__':
 
     #frequency = 0.42978 # gs doesn't depend on frequency
     frequency = 0.45726295
-    coupling = np.array([.03, .0, .0])
+    coupling = np.array([.0, .0, .03])
 
     mf = polariton_cs(mol) # in coherent state
     mf.xc = functional
@@ -218,7 +218,7 @@ if __name__ == '__main__':
     print_matrix('freq_au:', results['freq_au'])
     print_matrix('freq_wavenumber:', results['freq_wavenumber'])
     #print_matrix('force_const_dyne:', results['force_const_dyne'])
-    print_matrix('mode:', results['norm_mode'].reshape(-1, len(results['freq_au'])))
+    print_matrix('mode:', results['norm_mode'].reshape(len(results['freq_au']), -1).T)
     dip_dev = get_dipole_dev(mf, hessobj)
     sir = infrared(dip_dev, results['norm_mode'])
     print_matrix('infrared intensity:', sir)
@@ -227,7 +227,7 @@ if __name__ == '__main__':
     results = harmonic_analysis(mol, [h, d1, frequency])
     print_matrix('freq_wavenumber:', results['freq_wavenumber'])
     #print_matrix('force_const_dyne:', results['force_const_dyne'])
-    print_matrix('mode:', results['norm_mode'].reshape(-1, len(results['freq_au'])))
+    print_matrix('mode:', results['norm_mode'].reshape(len(results['freq_au']), -1).T)
 
     dip_dev = get_dipole_dev(mf, hessobj)
     sir = infrared(dip_dev, results['norm_mode'])
