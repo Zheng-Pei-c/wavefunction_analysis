@@ -77,11 +77,11 @@ def get_g1_d1(mf, frequency, hessobj):
     mo_occ = mf.mo_occ
     mocc = mo_coeff[:,mo_occ>0]
 
-    dipole = np.einsum('...pq,...->pq', mf.dipole, frequency) # combine with frequency
+    dipole = np.einsum('...pq,...->pq...', mf.dipole, frequency) # combine with frequency
     dm = mf.make_rdm1()
 
     dipole_d1, _ = get_multipole_matrix_d1(mol, mf.c_lambda, mf.origin)
-    dipole_d1 = np.einsum('xpq...,...->xpq', dipole_d1, frequency)
+    dipole_d1 = np.einsum('xpq...,...->xpq...', dipole_d1, frequency)
 
     mo1 = lib.chkfile.load(hessobj.chkfile, 'scf_mo1')
     mo1 = {int(k): mo1[k] for k in mo1}
@@ -92,41 +92,51 @@ def get_g1_d1(mf, frequency, hessobj):
         p0, p1 = aoslices[ia, 2:]
         dm1 = np.einsum('xpi,qi->xpq', mo1[ia], mocc)
 
-        g1[k] = np.einsum('pq,xqp->x', dipole, dm1)*2. # 2 for dm1
-        g1[k] += np.einsum('xpq,qp->x', dipole_d1[:,p0:p1], dm[:,p0:p1])
+        g1[k] = np.einsum('pq...,xqp->x...', dipole, dm1)*2. # 2 for dm1
+        g1[k] += np.einsum('xpq...,qp->x...', dipole_d1[:,p0:p1], dm[:,p0:p1])
 
     return 2.*np.array(g1)
 
 
 def harmonic_analysis(mol, hess, exclude_trans=True, exclude_rot=True,
-                      imaginary_freq=True, mass=None):
+                      imaginary_freq=True, mass=None, space='normal'):
     if mass is None:
         mass = mol.atom_mass_list(isotope_avg=True)
+
+    natm = mol.natm
 
     hess, g1, frequency = hess
 
     # get projected molecular hessian
     hess, bvec, force_const_au, mode = project_trans_rotation(mol, hess, exclude_trans, exclude_rot, mass)
 
-    # second dimension is for photon mode
-    g1 = np.einsum('px...,p->px...', g1, mass**-.5).reshape(len(mass)*3, -1)
-    g1 = np.einsum('ji,jc->ic', bvec, g1)
     w2 = np.einsum('...,...->...', frequency, frequency)
     if isinstance(w2, float): w2 = [w2]
+
+    if space == 'normal':
+        norm_mode = np.einsum('z,zri->izr', mass**-.5, mode.reshape(natm,3,-1))
+        # last dimension is for photon mode
+        g1 = np.einsum('zr...,izr->i...', g1, norm_mode).reshape(norm_mode.shape[0], -1)
+
+    else:
+        # last dimension is for photon mode
+        g1 = np.einsum('px...,p->px...', g1, mass**-.5).reshape(len(mass)*3, -1)
+        g1 = np.einsum('ji,jc->ic', bvec, g1)
 
     n1, n2 = g1.shape
     #print(n1, n2)
     hess2 = np.zeros((n1+n2, n1+n2))
-    hess2[:n1,:n1] += hess
     hess2[:n1,n1:] += g1
     hess2[n1:,:n1] += g1.T
     hess2[n1:,n1:] += np.diag(w2)
+    if space == 'normal':
+        hess2[:n1,:n1] += np.diag(force_const_au)
+    else:
+        hess2[:n1,:n1] += hess
     print_matrix('hess2:', hess2)
 
     force_const_au, mode0 = np.linalg.eigh(hess2)
-    mode = np.einsum('ij,jk->ik', bvec, mode0[:n1])
-    mode_c = mode0[n1:]
-    print_matrix('mode:', np.concatenate((mode, mode_c), axis=0))
+
 
     results = {}
     freq_au = np.lib.scimath.sqrt(force_const_au)
@@ -139,7 +149,10 @@ def harmonic_analysis(mol, hess, exclude_trans=True, exclude_rot=True,
     au2hz = (nist.HARTREE2J / (nist.ATOMIC_MASS * nist.BOHR_SI**2))**.5 / (2 * np.pi)
     results['freq_wavenumber'] = freq_au * au2hz / nist.LIGHT_SPEED_SI * 1e-2
 
-    norm_mode = np.einsum('z,zri->izr', mass**-.5, mode.reshape(mol.natm,3,-1))
+    if space == 'normal':
+        norm_mode = np.einsum('izr,ij->jzr', norm_mode, mode0[:n1])
+    else:
+        norm_mode = np.einsum('z,zri->izr', mass**-.5, mode.reshape(mol.natm,3,-1))
     results['norm_mode'] = norm_mode
     reduced_mass = 1./np.einsum('izr,izr->i', norm_mode, norm_mode)
     results['reduced_mass'] = reduced_mass
@@ -151,6 +164,8 @@ def harmonic_analysis(mol, hess, exclude_trans=True, exclude_rot=True,
     dyne = 1e-2 * nist.HARTREE2J / nist.BOHR_SI**2
     results['force_const_au'] = force_const_au
     results['force_const_dyne'] = reduced_mass * force_const_au * dyne  #cm^-1/a0^2
+
+    results['total_mode'] = np.concatenate((norm_mode.reshape(-1,mol.natm*3).T, mode0[n1:]), axis=0)
 
     return results
 
@@ -209,12 +224,13 @@ if __name__ == '__main__':
     hessobj = mf.Hessian()
     h = hessobj.kernel()
 
+    dip_dev = get_dipole_dev(mf, hessobj)
+
     results = thermo.harmonic_analysis(mol, h) # only molecular block
     print_matrix('freq_au:', results['freq_au'])
     print_matrix('freq_wavenumber:', results['freq_wavenumber'])
     #print_matrix('force_const_dyne:', results['force_const_dyne'])
     print_matrix('mode:', results['norm_mode'].reshape(len(results['freq_au']), -1).T)
-    dip_dev = get_dipole_dev(mf, hessobj)
     #print_matrix('dip_dev:', dip_dev, 5, 1)
     sir = infrared(dip_dev, results['norm_mode'])
     print_matrix('infrared intensity:', sir)
@@ -226,8 +242,7 @@ if __name__ == '__main__':
         results = harmonic_analysis(mol, [h, d1, frequency])
         print_matrix('freq_wavenumber:', results['freq_wavenumber'])
         #print_matrix('force_const_dyne:', results['force_const_dyne'])
-        print_matrix('mode:', results['norm_mode'].reshape(len(results['freq_au']), -1).T)
+        print_matrix('total mode:', results['total_mode'])
 
-        dip_dev = get_dipole_dev(mf, hessobj)
         sir = infrared(dip_dev, results['norm_mode'])
         print_matrix('infrared intensity:', sir)
