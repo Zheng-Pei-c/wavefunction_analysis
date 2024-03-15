@@ -8,25 +8,31 @@ websites to check the conversion:
 """
 
 PI2    = 2.*np.pi
-FS     = 41.341374575751   # fs to atomic unit time
-BOHR   = 0.529177249       # bohr to angstrom AA
-H2EV   = 27.21140795       # hartree to ev
-EV2J   = 1.602176634*1e-19 # ev=C*V to J= kg (m/s)^2
-Mole   = 6.022*1e23
-Cal2J  = 4.184             # cal to J
-EV2kJM = EV2J*Mole*1e-3    # ev to kcal/mol
-EMass  = 9.1093837*1e-31   # kg
+FS     = 41.341374575751       # fs to atomic unit time
+BOHR   = 0.529177249           # bohr to angstrom AA
+H2EV   = 27.21140795           # hartree to ev
+EV2J   = 1.602176634*1e-19     # ev=C*V to J= kg (m/s)^2
+AVOGADRO = 6.022140857e23      # https://physics.nist.gov/cgi-bin/cuu/Value?na
+CAL2J  = 4.184                 # cal to J
+E_MASS  = 9.1093837*1e-31      # kg
+EV2KJM = EV2J*AVOGADRO*1e-3    # ev to kcal/mol
+ATOMIC_MASS = 1e-3/AVOGADRO
 
-C         = 299792458        # speed of light m/s
-Boltzmann = 1.380649*1e-23   # J/K
-Planck    = 6.62607015*1e-34 # J/Hz
-#PlanckBar = Planck/PI2       # Js
+C         = 299792458               # speed of light m/s
+BOLTZMANN = 1.380649*1e-23          # J/K
+PLANCK    = 6.62607015*1e-34        # J/Hz
+#PlanckBar = Planck/PI2             # Js
+HBAR = PLANCK/(2*3.141592653589793) # https://physics.nist.gov/cgi-bin/cuu/Value?hbar
 
-WN    = EV2J/C/Planck*1e-2    # ev to wavenumber cm^-1
-EV2ns = Planck/EV2J*1e9       # ev to ns ### wikipedia use planckbar!
-EV2nm = EV2ns*C               # ev to ns
-EV2K  = EV2J/Boltzmann        # ev to temperature K
-D2kg  = 1.4924180856045*1e-10 # Dalton to kg
+WN    = EV2J/C/PLANCK*1e-2    # ev to wavenumber cm^-1
+EV2NS = PLANCK/EV2J*1e9       # ev to ns ### wikipedia use planckbar!
+EV2NM = EV2NS*C               # ev to ns
+EV2K  = EV2J/BOLTZMANN        # ev to temperature K
+D2KG  = 1.4924180856045*1e-10 # Dalton to kg
+
+BOHR_SI = BOHR * 1e-10
+HARTREE2J = HBAR**2/(E_MASS*BOHR_SI**2)
+AU2HZ = (HARTREE2J / (ATOMIC_MASS * BOHR_SI**2))**.5 / (2 * np.pi)
 
 # units of these qualities
 # milli(m), micro(u), nano(n), pico(p), femto(f), atto(a)
@@ -39,7 +45,7 @@ units_long = {
                         'micrometer', 'nanometer', 'angstrom', 'bohr', \
                         'picometer', 'femtometer', 'attometer'],
         'energy':      ['hartree', 'electronvolt', 'milliev', 'kcal/mol', 'kj/mol'],
-        'frequency':   ['terahertz', 'cm^-1', 'gigahertz', 'megahertz', 'kilohertz', 'hertz'],
+        'frequency':   ['terahertz', 'cm^-1', 'gigahertz', 'megahertz', 'kilohertz', 'hertz', 'freq_au'],
         'temperature': ['kelvin'],
         'mass':        ['kilogram', 'gram', 'dalton'],
         }
@@ -48,7 +54,7 @@ units_short = {
         'time':        ['d', 'h', 'm', 's', 'ms', 'us', 'ns', 'ps', 'fs', 'au', 'as'],
         'length':      ['m', 'dm', 'cm', 'mm', 'um', 'nm', 'aa', 'b', 'pm', 'fm', 'am'],
         'energy':      ['eh', 'ev', 'mev', 'kcal', 'kj'],
-        'frequency':   ['thz', 'cm-1', 'ghz', 'mhz', 'khz', 'hz'],
+        'frequency':   ['thz', 'cm-1', 'ghz', 'mhz', 'khz', 'hz', 's-1'],
         'temperature': ['k'],
         'mass':        ['kg', 'g', 'u'],
         }
@@ -67,12 +73,12 @@ def default_unit_index(prop):
 units_conversion = {
         'time':        np.array([8.64*1e12, 3.6*1e11, 6.*1e10, 1e9, 1e6, 1e3, 1., 1e-3, 1e-6, 1e-6/FS, 1e-9]),
         'length':      np.array([1e9, 1e8, 1e7, 1e6, 1e3, 1., .1, BOHR/10, 1e-3, 1e-6, 1e-9]),
-        'energy':      np.array([H2EV, 1., 1e-3, Cal2J/EV2kJM, 1./EV2kJM]),
-        'frequency':   np.array([1e12, C*1e2, 1e9, 1e6, 1e3, 1.]),
+        'energy':      np.array([H2EV, 1., 1e-3, CAL2J/EV2KJM, 1./EV2KJM]),
+        'frequency':   np.array([1e12, C*1e2, 1e9, 1e6, 1e3, 1., AU2HZ]),
         'temperature': np.array([1.]),
-        'mass':        np.array([1e3, 1., D2kg]),
-        'energy_to_time':           EV2ns,      # ev to ns
-        'energy_to_length':         EV2nm,      # ev to nm
+        'mass':        np.array([1e3, 1., D2KG]),
+        'energy_to_time':           EV2NS,      # ev to ns
+        'energy_to_length':         EV2NM,      # ev to nm
         'energy_to_frequency':      WN,         # ev to cm-1
         'energy_to_temperature':    EV2K,       # ev to K
         'energy_to_mass':           EV2J/C**2,  # ev to kg
