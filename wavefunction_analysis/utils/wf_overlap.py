@@ -1,33 +1,8 @@
-import sys
 import numpy as np
-import scipy
 
 from pyscf import scf, tdscf, gto
 
-#from wavefunction_analysis.utils.pyscf_parser import *
-from wavefunction_analysis.utils import convert_units, print_matrix
-
-def change_phase(x0, y0, x1, y1, mo0, mo1, ovlp):
-    nroots, no, nv = x1.shape
-    ovlp = np.einsum('mp,mn,nq->pq', mo0, ovlp, mo1)
-    idx = np.argmax(np.abs(ovlp), axis=0) # large index for each column
-    print('idx:', idx)
-    for i, j in enumerate(idx):
-        if ovlp[i,j] < 0.:
-            print(i, j)
-            mo1[:,j] *= -1
-            if j < no:
-                x1[:,j,:] *= -1.
-            else:
-                x1[:,:,j-no] *= -1.
-            if isinstance(y1, np.ndarray):
-                if j < no:
-                    y1[:,j,:] *= -1.
-                else:
-                    y1[:,:,j-no] *= -1.
-
-    return x1, y1, mo1
-
+#from wavefunction_analysis.utils import print_matrix
 
 def cal_wf_overlap(Xm, Ym, Xn, Yn, Cm, Cn, S):
     has_n = True if isinstance(Xn, np.ndarray) else False
@@ -35,15 +10,20 @@ def cal_wf_overlap(Xm, Ym, Xn, Yn, Cm, Cn, S):
 
     nroots, no, nv = Xm.shape
     smo = np.einsum('mp,mn,nq->pq', Cm, S, Cn)
-    print_matrix('smo:', smo, 5, 1)
+    #print_matrix('smo:', smo, 5, 1)
 
     smo_oo = np.copy(smo[:no,:no])
     dot_0 = np.linalg.det(smo_oo)
 
     # Cramer's rule
-    # Ax_j = b_j <=> x_j = det(A_j) / det(A) where A_j is replacing A's j-column with b_j
-    vec1 = scipy.linalg.solve(smo_oo.T, smo[no:,:no].T) # replace rows
-    vec2 = scipy.linalg.solve(smo_oo, smo[:no,no:]) # replace columns
+    # Ax_j = b_j <=> x_j = det(A_j(b_j)) / det(A) where A_j(b_j) is replacing A's j-column with b_j
+    vec1 = np.linalg.solve(smo_oo.T, smo[no:,:no].T) # replace rows
+    vec2 = np.linalg.solve(smo_oo, smo[:no,no:]) # replace columns
+
+    #vec3 = np.linalg.solve(smo_oo, Xm.transpose(1,0,2).reshape(no, -1))
+    #vec3 = vec3.reshape(no, nroots, nv).transpose(1,0,2)
+    #vec4 = smo[no:,no:] - np.einsum('ia,ib->ab', vec1, smo[:no,no:])
+    #vec4 = np.einsum('ab,kib->kia', vec4, Xn)
 
     ovlp1 = np.einsum('kia,ia->k', Xm, vec1)
     ovlp_m0 = np.copy(ovlp1)
@@ -52,10 +32,10 @@ def cal_wf_overlap(Xm, Ym, Xn, Yn, Cm, Cn, S):
         ovlp2 = np.einsum('kia,ia->k', Ym, vec2)
         ovlp_m0 += ovlp2
 
-    ovlp_m0 *= dot_0**2
+    ovlp_m0 *= 2.*dot_0**2
 
     if not has_n:
-        return np.array([dot_0**2, 2.*ovlp_m0])
+        return np.array([dot_0**2, ovlp_m0])
 
     else:
         ovlp3 = np.einsum('kia,ia->k', Xn, vec2)
@@ -64,28 +44,25 @@ def cal_wf_overlap(Xm, Ym, Xn, Yn, Cm, Cn, S):
             ovlp4 = np.einsum('kia,ia->k', Yn, vec1)
             ovlp_0n += ovlp4
 
-        ovlp_0n *= dot_0**2
+        ovlp_0n *= 2.*dot_0**2
 
-        ovlp_mn = np.zeros((nroots, nroots))
+        ovlp_mn = np.einsum('m,n->mn', ovlp1, ovlp3)
+        if has_y:
+            ovlp_mn -= np.einsum('m,n->mn', ovlp2, ovlp4)
+
         for a in range(nv):
             for i in range(no):
+                ts0 = np.copy(smo[:no,:])
+                ts0[i,:] = smo[no+a,:]
+                vec3 = np.linalg.solve(ts0[:,:no], ts0[:,no:])
+                ovlp_mn += np.einsum('m,njb,jb->mn', Xm[:,i,a], Xn, vec3) * vec1[i,a]
 
-                for b in range(nv):
-                    for j in range(no):
-                        ts0 = np.copy(smo_oo)
-                        ts0[i,:] = smo[no+a,:no]
-                        ts0[:,j] = smo[:no,no+b]
-                        ts0[i,j] = smo[no+a,no+b]
-                        dot = np.linalg.det(ts0) * dot_0
+                if has_y:
+                    ovlp_mn -= np.einsum('mjb,n,jb->mn', Ym, Yn[:,i,a], vec3) *vec1[i,a]
 
-                        ovlp_mn += np.einsum('m,n->mn', Xm[:,i,a], Xn[:,j,b]) * dot
+        ovlp_mn *= 2.*dot_0**2
 
-                        if has_y:
-                            ovlp_mn -= np.einsum('m,n->mn', Ym[:,j,b], Yn[:,i,a]) * dot
-
-        ovlp_mn += np.einsum('m,n->mn', ovlp1, ovlp3) * dot_0**2
-
-        return 2.*np.block([[dot_0**2/2., ovlp_0n.reshape(1,-1)], [ovlp_m0.reshape(-1,1), ovlp_mn]])
+        return np.block([[dot_0**2., ovlp_0n.reshape(1,-1)], [ovlp_m0.reshape(-1,1), ovlp_mn]])
 
 
 def cal_wf_overlap0(Xm, Ym, Xn, Yn, Cm, Cn, S):
@@ -164,6 +141,61 @@ def cal_wf_overlap0(Xm, Ym, Xn, Yn, Cm, Cn, S):
         return 2.*np.block([[dot_0**2/2., ovlp_0n.reshape(1,-1)], [ovlp_m0.reshape(-1,1), ovlp_mn]])
 
 
+def change_phase(x0, y0, x1, y1, mo0, mo1, ovlp):
+    nroots, no, nv = x1.shape
+    ovlp = np.einsum('mp,mn,nq->pq', mo0, ovlp, mo1)
+    idx = np.argmax(np.abs(ovlp), axis=0) # large index for each column
+    #print('idx:', idx)
+
+    for i, j in enumerate(idx):
+        if ovlp[i,j] < 0.:
+            print(i, j)
+            mo1[:,j] *= -1
+            if j < no:
+                x1[:,j,:] *= -1.
+            else:
+                x1[:,:,j-no] *= -1.
+            if isinstance(y1, np.ndarray):
+                if j < no:
+                    y1[:,j,:] *= -1.
+                else:
+                    y1[:,:,j-no] *= -1.
+
+    return x1, y1, mo1
+
+
+def sign_fixing(mat):
+    """
+    refer Zhou, Subotnik JCTC 2020, 10.1021/acs.jctc.9b00952
+    """
+    #U, s, Vt = np.linalg.svd(mat)
+    #mat = np.einsum('ij,jk->ik', U, Vt)
+
+    if np.linalg.det(mat) < 0.:
+        mat[:,0] *= -1.
+
+    nroots = mat.shape[0]
+
+    # Jacobi sweeps
+    converged = False
+    while not converged:
+        converged = True
+
+        for i in range(nroots):
+            for j in range(nroots):
+                dot  = 3.* (mat[i,i]**2 + mat[j,j]**2)
+                dot += 6.* (mat[i,j] * mat[j,i])
+                dot += 8.* (mat[i,i] + mat[j,j])
+                dot -= 3.* (np.dot(mat[i,:], mat[:,i]) + np.dot(mat[j,:], mat[:,j]))
+
+                if dot < 0.:
+                    mat[:,i] *= -1.
+                    mat[:,j] *= -1.
+                    converged = False
+
+    return mat
+
+
 
 if __name__ == '__main__':
     h2o = """
@@ -171,19 +203,15 @@ if __name__ == '__main__':
             O    0.8596350   -0.0510674   -0.1653507
             H    0.1102668   -0.0510674    0.4424329
     """
-    #h2o = """
-    #H 0.0 0.0 0.37
-    #H 0.0 0.0 -0.37
-    #"""
 
     functional = 'hf'
-    basis = 'sto-3g'
+    basis = '6-311+g*'
     spin = 0 # Nalpha - Nbeta
     charge = 0
     verbose = 0
 
-    rpa = 0
-    nroots = 3
+    rpa = 1
+    nroots = 5
 
     td_model = tdscf.TDDFT if rpa else tdscf.TDA
 
@@ -219,7 +247,7 @@ if __name__ == '__main__':
 
 
     coords = mol.atom_coords() # bohr
-    coords[0, 2] += .1 # bohr
+    #coords[0, 2] += .1 # bohr
     coords[1, 2] -= .1 # bohr
 
     mol1 = mol.set_geom_(coords, inplace=False, unit='bohr')
@@ -248,12 +276,11 @@ if __name__ == '__main__':
 
     x1, y1, mo1 = change_phase(x0, y0, x1, y1, mo0, mo1, ovlp)
 
-    print_matrix('mo0:', mo0, 5, 1)
-    print_matrix('mo1:', mo1, 5, 1)
-    print_matrix('x0:', x0.reshape(nroots, -1), 5, 1)
-    print_matrix('x1:', x1.reshape(nroots, -1), 5, 1)
+    #print_matrix('mo0:', mo0, 5, 1)
+    #print_matrix('mo1:', mo1, 5, 1)
+    #print_matrix('x0:', x0.reshape(nroots, -1), 5, 1)
+    #print_matrix('x1:', x1.reshape(nroots, -1), 5, 1)
 
-    s_s1_s1 = cal_wf_overlap(x0, y0, x1, y1, mo0, mo1, ovlp)
-    print_matrix('ovlp:\n', s_s1_s1)
-    s_s1_s1 = cal_wf_overlap0(x0, y0, x1, y1, mo0, mo1, ovlp)
-    print_matrix('ovlp:\n', s_s1_s1)
+    state_ovlp = cal_wf_overlap(x0, y0, x1, y1, mo0, mo1, ovlp)
+    state_ovlp = sign_fixing(state_ovlp)
+    print('state_ovlp:\n', state_ovlp)
