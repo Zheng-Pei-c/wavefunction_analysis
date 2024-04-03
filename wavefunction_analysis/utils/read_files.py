@@ -28,7 +28,7 @@ def read_number(filename, keyword, n=-1, o=1, dtype=int):
                     numbers.append(dtype(line.split()[n*o]))
 
     if len(numbers) == 1: numbers = numbers[0]
-    return numbers
+    return np.array(numbers, dtype=dtype)
 
 
 def read_matrix(filename, nrow, ncol, keyword, nwidth=10, nind=0, nskip=0, dtype=float):

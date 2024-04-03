@@ -9,20 +9,21 @@ from pyscf.hessian import thermo
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units, print_matrix
 
-import matplotlib.mlab as mlab
+#import matplotlib.mlab as mlab
+from scipy.stats import gaussian_kde, norm
 from wavefunction_analysis.plot import plt
 
-def broadening(heighs, cen, wid=0.0005, d=0.05, method='gaussian', min_e=0):
-    mi, ma = np.min(cen), np.max(cen)
+def broadening(centers, heighs, wid=0.0005, d=0.05, method='gaussian', min_e=0):
+    mi, ma = np.min(centers), np.max(centers)
     if min_e > 0.: mi = min_e
     x = np.arange(mi-d, ma+d, (ma-mi)/1001)
     y = 0.
     if method == 'lorentzian':
-        for n in range(len(cen)):
-            y += heighs[n] * wid**2 / ((x-cen[n])**2 + wid**2)
+        for n in range(len(centers)):
+            y += heighs[n] * wid**2 / ((x-centers[n])**2 + wid**2)
     elif method == 'gaussian':
-        for n in range(len(cen)):
-            y += np.sqrt(2*np.pi) * wid * heighs[n] * norm.pdf(x, cen[n], wid)
+        for n in range(len(centers)):
+            y += np.sqrt(2*np.pi) * wid * heighs[n] * norm.pdf(x, centers[n], wid)
     return x, y
 
 
@@ -39,7 +40,7 @@ def fit_val(positions, heighs, broaden):
     iy = 0.0
     for peak in range(0, num_vib):
         iy += 2.51225 * broaden * heighs[peak] \
-             * mlab.normpdf(ix,positions[peak],broaden)
+             * norm.pdf(ix, positions[peak], broaden)
     return (ix, iy)
 
 
@@ -105,6 +106,16 @@ def get_dipole_dev(mf, hessobj, origin=None):
         g1[i] += np.eye(3)*z[i]
 
     return g1.reshape(natm*3, 3)
+
+
+def autocorrelation(dipoles):
+    nstep = dipoles.shape[0]
+    mean = np.sum(dipoles, axis=0) / nstep
+    dipoles -= mean
+    correlation = np.einsum('ix,x->ix', dipoles, dipoles[0])
+    correlation = np.fft2(correlation)
+    print(correlation.shape)
+    return correlation
 
 
 
