@@ -37,6 +37,30 @@ def read_geometry(infile, probe=1):
     return geometry
 
 
+def read_geometries_standard(infile, screen='User input: 2 of 2'):
+    geometries = []
+    with open(infile, 'r') as infile:
+        for line in infile:
+            if screen and line.find(screen)>=0:
+                geometries = []
+
+            if line.find('Standard Nuclear Orientation (Angstroms)')>=0:
+                geometry = []
+                line = next(infile)
+                dash = next(infile)
+                line = next(infile)
+                while line != dash:
+                    geometry.append(line[8:])
+                    line = next(infile)
+
+                geometries.append(geometry)
+
+    if len(geometries) == 1:
+        geometries = geometries[0]
+
+    return geometries
+
+
 def read_symbols_coords(infile, probe=1):
     geometry = read_geometry(infile, probe)
 
@@ -126,6 +150,7 @@ def write_rem_info(infile, method='pbe0', basis='6-31g', open_file_method='a+'):
         f.write('$rem\n')
         f.write('method         %s\n' % method)
         f.write('basis          %s\n' % basis)
+        #f.write('purecart       2222\n')
         f.write('sym_ignore     true\n')
         f.write('thresh         14\n')
         f.write('$end\n')
