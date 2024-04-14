@@ -9,13 +9,14 @@ from pyscf.dft.rks import RKS
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units, print_matrix
 
-def get_scaled_lambda(c_lambda, frequency):
+def get_scaled_lambda(c_lambda, frequency, photon_coeff=1.):
     """
     return frequency-scaled coupling strength (c_lambda)
     """
     if isinstance(frequency, float):
-        frequency = [frequency]
-    return np.einsum('x,i->ix', c_lambda, np.sqrt(frequency)/np.sqrt(2.))
+        return np.sqrt(frequency/2.) * photon_coeff * c_lambda
+    else:
+        return np.einsum('ix,i,i->x', c_lambda, np.sqrt(frequency)/np.sqrt(2.), photon_coeff)
 
 
 def get_lambda2(c_lambda): # lambda square for quadrupole contraction
@@ -23,22 +24,6 @@ def get_lambda2(c_lambda): # lambda square for quadrupole contraction
     if c2.ndim == 3: # contract modes
         c2 = np.sum(c2, axis=0)
     return c2
-
-
-def get_nuclear_dipoles(mol, c_lambda, origin=None):
-    """
-    lambda cdot nuclear_dipole
-    """
-    if origin is None:
-        origin = np.zeros(3)
-    if isinstance(c_lambda, list):
-        c_lambda = np.array(c_lambda)
-
-    charges = mol.atom_charges()
-    # the subtraction is along the common axis, and already in bohr
-    coords  = np.subtract(mol.atom_coords(), origin)
-    nuc_dip = np.einsum('i,ix->x', charges, coords)
-    return np.einsum('x,...x->...', nuc_dip, c_lambda)
 
 
 def get_multipole_matrix(mol, itype='dipole', dipole=None, quadrupole=None,
@@ -77,18 +62,6 @@ def get_multipole_matrix(mol, itype='dipole', dipole=None, quadrupole=None,
     return multipoles
 
 
-def get_dse_elec_nuc(dipole, nuc_dip): # c_lambda is included
-    if isinstance(nuc_dip, float):
-        return -nuc_dip * dipole
-    else: # numpy does not sum over ellipsis
-        return -np.einsum('lpq,l->pq', dipole, nuc_dip) # l is the number of photon modes
-
-
-def get_energy_nuc_dip(nuc_dip):
-    energy = .5 * np.dot(nuc_dip, nuc_dip)
-    return energy
-
-
 def get_dse_2e(dipole, dm, with_j=False, scale_k=.5): # c_lambda is included
     # scale k by 1/2 for restricted orbital case by default
     if dipole.ndim == 2:
@@ -116,17 +89,62 @@ def get_dse_2e_xyz(dipole, dm, with_j=False, scale_k=.5): # xyz without coupling
         return [vj, vk*scale_k]
 
 
+def get_bilinear_dipole(dipole, frequency, photon_coeff):
+    # bilinear fock/energy contribution
+    # c_lambda is included in dipole
+    if isinstance(dipole, float): # nuclear dipole
+        return np.sqrt(frequency/2.) * photon_coeff * dipole
+    elif dipole.ndim == 1: # nuclear dipole
+        return np.einsum('i,i,i->', np.sqrt(frequency)/np.sqrt(2.), photon_coeff, dipole)
+    elif dipole.ndim == 2: # electronic dipole moment
+        return (np.sqrt(frequency/2.) * photon_coeff) * dipole
+    elif dipole.ndim == 3: # electronic dipole moment
+        return np.einsum('i,i,ipq->pq', np.sqrt(frequency)/np.sqrt(2.), photon_coeff, dipole)
+
+
+def get_dse_elec_nuc(dipole, nuc_dip): # c_lambda is included
+    if isinstance(nuc_dip, float):
+        return -nuc_dip * dipole
+    else: # numpy does not sum over ellipsis
+        return -np.einsum('lpq,l->pq', dipole, nuc_dip) # l is the number of photon modes
+
+
+def get_nuclear_dipoles(mol, c_lambda, origin=None):
+    """
+    lambda cdot nuclear_dipole
+    """
+    if origin is None:
+        origin = np.zeros(3)
+
+    charges = mol.atom_charges()
+    # the subtraction is along the common axis, and already in bohr
+    coords  = np.subtract(mol.atom_coords(), origin)
+    nuc_dip = np.einsum('i,ix->x', charges, coords)
+    return np.einsum('x,...x->...', nuc_dip, c_lambda)
+
+
+def get_energy_nuc_dip(nuc_dip):
+    energy = .5 * np.dot(nuc_dip, nuc_dip)
+    return energy
+
+
 
 class polariton(RKS):
     """
     QED-RKS ground state, independent of photon frequency
     """
-    def get_multipole_matrix(self, c_lambda, dipole=None, quadrupole=None, origin=None):
+    def get_multipole_matrix(self, c_lambda, dipole=None, quadrupole=None, origin=None, frequency=None, trans_coeff=None):
         multipoles = get_multipole_matrix(self.mol, 'all', dipole, quadrupole, c_lambda=c_lambda, origin=origin)
         self.origin = origin
-        self.c_lambda = c_lambda
+        self.c_lambda = np.array(c_lambda)
         self.dipole = multipoles['dipole']
         self.quadrupole = multipoles['quadrupole']
+
+        if frequency: # needed for bilinear terms
+            self.photon_freq = frequency
+            self.photon_trans_coeff = trans_coeff
+        else:
+            self.photon_freq = None
 
         # set it when needed
         #self.with_dse_response = True # dse response
@@ -222,8 +240,13 @@ class polariton_ns(polariton):
         self.nuc_dip = get_nuclear_dipoles(mol, self.c_lambda)
         hdipe = get_dse_elec_nuc(self.dipole, self.nuc_dip)
 
+        hdipole = None
+        if self.photon_freq: # bilinear term
+            hdipole = -get_bilinear_dipole(self.dipole, self.photon_freq, self.photon_trans_coeff) # electrons are negative
+            h += hdipole
+
         h += (hquad + hdipe)
-        h = lib.tag_array(h, hquad=hquad, hdipe=hdipe)
+        h = lib.tag_array(h, hquad=hquad, hdipe=hdipe, hdipole=hdipole)
         return h
 
 
@@ -256,11 +279,14 @@ class polariton_ns(polariton):
 
         equad = np.einsum('pq,...qp->', h1e.hquad, dm)
         edipe = np.einsum('pq,...qp->', h1e.hdipe, dm)
+        edipole = np.einsum('pq,...qp->', h1e.hdipole, dm) if self.photon_freq else 0.
+
         self.scf_summary['equad'] = equad.real
         self.scf_summary['edipe'] = edipe.real
+        self.scf_summary['edipole'] = edipole.real
         self.scf_summary['edse_j'] = edse_j
         self.scf_summary['edse_k'] = edse_k
-        logger.debug(self, 'Quadrupole Energy = %s  Nuclear-Electronic Dipole Energy = %s  DSE-J Energy = %s  DSE-K Energy = %s', equad, edipe, edse_j, edse_k)
+        logger.debug(self, 'Bilinear Electronic Energy = %s Quadrupole Energy = %s  Nuclear-Electronic Dipole Energy = %s  DSE-J Energy = %s  DSE-K Energy = %s', edipole, equad, edipe, edse_j, edse_k)
         return e_tot, e2
 
 
@@ -268,9 +294,14 @@ class polariton_ns(polariton):
         enuc = super().energy_nuc()
         edipn = get_energy_nuc_dip(self.nuc_dip)
 
+        elinearn = 0.
+        if self.photon_freq: # bilinear term
+            elinearn = get_bilinear_dipole(self.nuc_dip, self.photon_freq, self.photon_trans_coeff)
+
         self.scf_summary['edipn'] = edipn
-        logger.debug(self, 'Nuclear Dipole Energy = %s', edipn)
-        return (enuc+edipn)
+        self.scf_summary['elinearn'] = elinearn
+        logger.debug(self, 'Linear Nuclar Energy = %s Nuclear Dipole Energy = %s', elinearn, edipn)
+        return (enuc+edipn+elinearn)
 
 
     def get_coupling_energy(self, dm=None, unit='ev'):
@@ -279,7 +310,7 @@ class polariton_ns(polariton):
             self.energy_tot(dm=dm)
 
         e = self.scf_summary
-        e = [e['equad'], e['edipe'], e['edse_j'], e['edse_k'], e['edipn']]
+        e = [e['edipole'], e['equad'], e['edipe'], e['edse_j'], e['edse_k'], e['edipn'], e['elinearn']]
         e.append(np.sum(e))
         return convert_units(np.array(e), 'hartree', unit)
 
@@ -326,7 +357,7 @@ if __name__ == '__main__':
     """
     functional = 'pbe0'
     mol = build_single_molecule(0, 0, locals()[atom], '6-311++g**')
-    mf = scf.RKS(mol)
+    mf = RKS(mol)
 
     mf.xc = functional
     mf.grids.prune = True
@@ -342,16 +373,15 @@ if __name__ == '__main__':
     #coherent_state = False
     coherent_state = True
 
+    scf_method = polariton_cs if coherent_state else polariton_ns
+
     dse = []
     for c in np.linspace(0, 10, 21): # better to use integer here
         for x in range(2, 3):
             coupling = np.zeros(3)
             coupling[x] = c*1e-2
 
-            if coherent_state:
-                mf1 = polariton_cs(mol) # in coherent state
-            else:
-                mf1 = polariton_ns(mol) # in number (Fock) state
+            mf1 = scf_method(mol) # in number (Fock) state
 
             #mf1.verbose = 10
             mf1.xc = functional

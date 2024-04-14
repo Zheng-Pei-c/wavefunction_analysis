@@ -98,41 +98,24 @@ def get_g1_d1(mf, frequency, hessobj):
     return 2.*np.array(g1)
 
 
-def harmonic_analysis(mol, hess, exclude_trans=True, exclude_rot=True,
-                      imaginary_freq=True, mass=None, space='normal'):
+def harmonic_analysis(mol, force_const_au, norm_mode, g1, frequency,
+                      imaginary_freq=True, mass=None):
     if mass is None:
         mass = mol.atom_mass_list(isotope_avg=True)
-
-    natm = mol.natm
-
-    hess, g1, frequency = hess
-
-    # get projected molecular hessian
-    hess, bvec, force_const_au, mode = project_trans_rotation(mol, hess, exclude_trans, exclude_rot, mass)
 
     w2 = np.einsum('...,...->...', frequency, frequency)
     if isinstance(w2, float): w2 = [w2]
 
-    if space == 'normal':
-        norm_mode = np.einsum('z,zri->izr', mass**-.5, mode.reshape(natm,3,-1))
-        # last dimension is for photon mode
-        g1 = np.einsum('zr...,izr->i...', g1, norm_mode).reshape(norm_mode.shape[0], -1)
-
-    else:
-        # last dimension is for photon mode
-        g1 = np.einsum('px...,p->px...', g1, mass**-.5).reshape(len(mass)*3, -1)
-        g1 = np.einsum('ji,jc->ic', bvec, g1)
+    # last dimension is for photon mode
+    g1 = np.einsum('zr...,izr->i...', g1, norm_mode).reshape(norm_mode.shape[0], -1)
 
     n1, n2 = g1.shape
     #print(n1, n2)
     hess2 = np.zeros((n1+n2, n1+n2))
+    hess2[:n1,:n1] += np.diag(force_const_au)
     hess2[:n1,n1:] += g1
     hess2[n1:,:n1] += g1.T
     hess2[n1:,n1:] += np.diag(w2)
-    if space == 'normal':
-        hess2[:n1,:n1] += np.diag(force_const_au)
-    else:
-        hess2[:n1,:n1] += hess
     print_matrix('hess2:', hess2)
 
     force_const_au, mode0 = np.linalg.eigh(hess2)
@@ -149,11 +132,10 @@ def harmonic_analysis(mol, hess, exclude_trans=True, exclude_rot=True,
     au2hz = (nist.HARTREE2J / (nist.ATOMIC_MASS * nist.BOHR_SI**2))**.5 / (2 * np.pi)
     results['freq_wavenumber'] = freq_au * au2hz / nist.LIGHT_SPEED_SI * 1e-2
 
-    if space == 'normal':
-        norm_mode = np.einsum('izr,ij->jzr', norm_mode, mode0[:n1])
-    else:
-        norm_mode = np.einsum('z,zri->izr', mass**-.5, mode.reshape(mol.natm,3,-1))
+    norm_mode = np.einsum('izr,ij->jzr', norm_mode, mode0[:n1])
     results['norm_mode'] = norm_mode
+    results['total_mode'] = np.concatenate((norm_mode.reshape(-1,mol.natm*3).T, mode0[n1:]), axis=0)
+
     reduced_mass = 1./np.einsum('izr,izr->i', norm_mode, norm_mode)
     results['reduced_mass'] = reduced_mass
 
@@ -164,8 +146,6 @@ def harmonic_analysis(mol, hess, exclude_trans=True, exclude_rot=True,
     dyne = 1e-2 * nist.HARTREE2J / nist.BOHR_SI**2
     results['force_const_au'] = force_const_au
     results['force_const_dyne'] = reduced_mass * force_const_au * dyne  #cm^-1/a0^2
-
-    results['total_mode'] = np.concatenate((norm_mode.reshape(-1,mol.natm*3).T, mode0[n1:]), axis=0)
 
     return results
 
@@ -227,6 +207,9 @@ if __name__ == '__main__':
     dip_dev = get_dipole_dev(mf, hessobj)
 
     results = thermo.harmonic_analysis(mol, h) # only molecular block
+    force_const_au = results['force_const_au']
+    norm_mode = results['norm_mode']
+
     print_matrix('freq_au:', results['freq_au'])
     print_matrix('freq_wavenumber:', results['freq_wavenumber'])
     #print_matrix('force_const_dyne:', results['force_const_dyne'])
@@ -239,7 +222,7 @@ if __name__ == '__main__':
 
         d1 = get_g1_d1(mf, frequency, hessobj)
         #print_matrix('d1:', d1, 5, 1)
-        results = harmonic_analysis(mol, [h, d1, frequency])
+        results = harmonic_analysis(mol, force_const_au, norm_mode, d1, frequency)
         print_matrix('freq_wavenumber:', results['freq_wavenumber'])
         #print_matrix('force_const_dyne:', results['force_const_dyne'])
         print_matrix('total mode:', results['total_mode'])

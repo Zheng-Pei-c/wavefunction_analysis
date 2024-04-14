@@ -9,14 +9,18 @@ from pyscf.grad import rks as rks_grad
 
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units, print_matrix, fdiff
-from wavefunction_analysis.polariton.qed_ks import polariton_cs, get_lambda2
+from wavefunction_analysis.polariton.qed_ks import polariton_cs, polariton_ns, get_scaled_lambda, get_lambda2
 from wavefunction_analysis.utils.fdiff import change_matrix_phase_c
 
 def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
-    mo = mf.mo_coeff
+    scf_method = mf.__class__ # .__name__ to get the class name
+
     functional, prune = mf.xc, mf.grids.prune
     coupling = mf.c_lambda if hasattr(mf, 'c_lambda') else None
+    photon_freq = mf.photon_freq if hasattr(mf, 'photon_freq') else None
+    trans_coeff = mf.photon_trans_coeff if hasattr(mf, 'photon_trans_coeff') else None
 
+    mo = mf.mo_coeff
     mol = mf.mol
     natoms = mol.natm
     coords = mol.atom_coords()
@@ -30,10 +34,10 @@ def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
             g1, mo1, gs_dipole1, transp = [], [], [], []
             for k in range(coords_new.shape[0]):
                 mol_new = mol.set_geom_(coords_new[k], inplace=False, unit='bohr')
-                mf1 = polariton_cs(mol_new) # in coherent state
+                mf1 = scf_method(mol_new) # in coherent state
                 mf1.xc = functional
                 mf1.grids.prune = prune
-                mf1.get_multipole_matrix(coupling)
+                mf1.get_multipole_matrix(coupling, frequency=photon_freq, trans_coeff=trans_coeff)
 
                 e_tot = mf1.kernel()
 
@@ -182,9 +186,11 @@ def get_multipole_matrix_d1(mol, c_lambda, origin=None):
         dipole = mol.intor('int1e_irp', comp=9, hermi=0).reshape(3,3,nao,nao)
         quadrupole = mol.intor('int1e_irrp', comp=27, hermi=0).reshape(3,3,3,nao,nao)
 
-    # these derivatives don't distinguish nuclei
-    dipole = - np.einsum('mxpq,...m->xqp...', dipole, c_lambda) # move mode index to the last for convenience latter
-    quadrupole = - np.einsum('mnxpq,mn->xqp', quadrupole, get_lambda2(c_lambda))
+    if isinstance(c_lambda, np.ndarray) or isinstance(c_lambda, list):
+        # these derivatives don't distinguish nuclei
+        dipole = - np.einsum('mxpq,...m->xqp...', dipole, c_lambda) # move mode index to the last for convenience latter
+        quadrupole = - np.einsum('mnxpq,mn->xqp', quadrupole, get_lambda2(c_lambda))
+
     return dipole, quadrupole
 
 
@@ -205,6 +211,52 @@ def get_dse_2e(dipole, dipole_d1, dm, with_j=False, scale_k=.5): # c_lambda is i
         else:
             vj = np.einsum('xpq...,...rs,isr->ixpq', dipole_d1, dipole, dm)
             return [vj, vk*scale_k]
+
+
+def get_bilinear_dipole_d1(dipole_d1, frequency, photon_coeff, elec=True):
+    # bilinear fock/energy contribution
+    # lambda has combined into dipole_d1
+    if elec: # electronic dipole moment derivative
+        if dipole_d1.ndim == 3:
+            return np.sqrt(frequency/2.) * photon_coeff * dipole_d1
+        elif dipole_d1.ndim == 4: # nmode is moved to the last
+            return np.einsum('i,i,xpqi->ypq', np.sqrt(frequency)/np.sqrt(2.), photon_coeff, dipole_d1)
+    else: # nuclear dipole derivative
+        if dipole_d1.ndim == 2:
+            return np.sqrt(frequency/2.) * photon_coeff * dipole_d1
+        elif dipole_d1.ndim == 3:
+            return np.einsum('i,i,inx->nx', np.sqrt(frequency)/np.sqrt(2.), photon_coeff, dipole_d1)
+
+
+def get_dse_elec_nuc_d1(dipole_d1, nuc_dip): # c_lambda is included
+    if isinstance(nuc_dip, float):
+        return -nuc_dip * dipole_d1
+    else: # numpy does not sum over ellipsis
+        return -np.einsum('lxpq,l->xpq', dipole_d1, nuc_dip) # l is the number of photon modes
+
+
+def get_dse_elec_nuc_grad(dipole, nuc_dip_d1, dm): # c_lambda is included
+    dipole = np.einsum('...pq,qp->...', dipole, dm)
+    if isinstance(dipole, float):
+        return -nuc_dip_d1 * dipole
+    else: # numpy does not sum over ellipsis
+        return -np.einsum('l,lnx->nx', dipole, nuc_dip_d1) # l is the number of photon modes
+
+
+def get_nuclear_dipoles_d1(charges, c_lambda):
+    g1 = []
+    for i in range(len(charges)):
+        g1.append(np.eye(3)*charges[i])
+
+    return np.einsum('nxy,...x->...ny', g1, c_lambda)
+
+
+def get_grad_nuc_dip(nuc_dip, nuc_dip_d1):
+    if isinstance(nuc_dip, float):
+        return nuc_dip * nuc_dip_d1
+    else: # numpy does not sum over ellipsis
+        grad = np.einsum('i,iny->ny', nuc_dip, nuc_dip)
+    return grad
 
 
 
@@ -235,6 +287,42 @@ polariton_cs.Gradients = lib.class_as_method(Gradients)
 
 
 
+class Gradients2(Gradients):
+    def dse_fock_d1(self, mol, dm, dipole_d1=None, quadrupole_d1=None):
+        mf = self.base
+        # here the dipoles and quadrupoles have aleady combined with coupling
+        if not isinstance(dipole_d1, np.ndarray):
+            dipole_d1, quadrupole_d1 = get_multipole_matrix_d1(mol, mf.c_lambda, mf.origin)
+
+        hdip = get_dse_elec_nuc_d1(dipole_d1, mf.nuc_dip)
+        hdip += .5 * quadrupole_d1
+
+        if mf.photon_freq:
+            hdip -= get_bilinear_dipole_d1(dipole_d1, mf.photon_freq, mf.photon_trans_coeff)
+
+        vdse_j, vdse_k = get_dse_2e(mf.dipole, dipole_d1, dm, with_j=True)
+        return (hdip + vdse_j - vdse_k)
+
+
+    def grad_nuc(self, mol=None, atmlst=None):
+        if mol is None: mol = self.mol
+        g1 = super().grad_nuc(mol, atmlst)
+
+        mf = self.base
+        nuc_dip_d1 = get_nuclear_dipoles_d1(mol.atom_charges(), mf.c_lambda)
+        g1 += get_dse_elec_nuc_grad(mf.dipole, nuc_dip_d1, mf.make_rdm1())
+        g1 += get_grad_nuc_dip(mf.nuc_dip, nuc_dip_d1)
+
+        if mf.photon_freq:
+            g1 += get_bilinear_dipole_d1(nuc_dip_d1, mf.photon_freq, mf.photon_trans_coeff, elec=False)
+
+        return g1
+
+
+polariton_ns.Gradients = lib.class_as_method(Gradients2)
+
+
+
 if __name__ == '__main__':
     #infile = 'h2o.in'
     #parameters = parser(infile)
@@ -258,12 +346,18 @@ if __name__ == '__main__':
     mol = build_single_molecule(0, 0, atom, '3-21g')
 
     frequency = 0.42978 # gs doesn't depend on frequency
+    trans_coeff = 1.
     coupling = np.array([0, 0, .05])
 
-    mf = polariton_cs(mol) # in coherent state
+    coherent_state = False
+    #coherent_state = True
+
+    scf_method = polariton_cs if coherent_state else polariton_ns
+
+    mf = scf_method(mol)
     mf.xc = functional
     mf.grids.prune = True
-    mf.get_multipole_matrix(coupling)
+    mf.get_multipole_matrix(coupling, frequency=frequency, trans_coeff=trans_coeff)
 
     e_tot = mf.kernel()
     print('scf energy:', e_tot)
@@ -274,8 +368,8 @@ if __name__ == '__main__':
     de1 = g.kernel()
     print_matrix('de1:', de1)
 
-    norder, step_size = 2, 1e-4
 
+    norder, step_size = 2, 1e-4
 
     fde = finite_difference(mf, norder, step_size, ideriv=1)[0]
     fde = fde.reshape(-1, 3)
