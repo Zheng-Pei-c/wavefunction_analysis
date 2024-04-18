@@ -1,6 +1,4 @@
-import os, sys
 import numpy as np
-
 
 def read_geometry(infile, probe=1):
     geometry = []
@@ -63,6 +61,13 @@ def read_geometries_standard(infile, screen='User input: 2 of 2'):
 
 def read_symbols_coords(infile, probe=1):
     geometry = read_geometry(infile, probe)
+
+    return get_symbols_coords(geometry)
+
+
+def get_symbols_coords(geometry, string=False):
+    if string:
+        geometry = [atom.split() for atom in geometry]
 
     natom = int(len(geometry)/4)
     symbols, coords = [], np.zeros((natom, 3))

@@ -31,6 +31,18 @@ def read_number(filename, keyword, n=-1, o=1, dtype=int):
     return np.array(numbers, dtype=dtype)
 
 
+def read_array(filename, ncol=4, nrange=[0,4], dtype=float):
+    array = []
+    with open(filename, 'r') as infile:
+        for line in infile:
+            data = line.split()
+            if len(data) == ncol:
+                for i in range(nrange[0], nrange[1]):
+                    array.append(float(data[i]))
+
+    return array
+
+
 def read_matrix(filename, nrow, ncol, keyword, nwidth=10, nind=0, nskip=0, dtype=float):
     if nwidth == -1: nwidth = ncol
 
