@@ -133,7 +133,7 @@ def harmonic_analysis(mol, force_const_au, norm_mode, g1, frequency,
     results['freq_wavenumber'] = freq_au * au2hz / nist.LIGHT_SPEED_SI * 1e-2
 
     norm_mode = np.einsum('izr,ij->jzr', norm_mode, mode0[:n1])
-    results['norm_mode'] = norm_mode
+    results['norm_mode'] = norm_mode # (mode, atom, xyz)
     results['total_mode'] = np.concatenate((norm_mode.reshape(-1,mol.natm*3).T, mode0[n1:]), axis=0)
 
     reduced_mass = 1./np.einsum('izr,izr->i', norm_mode, norm_mode)
@@ -205,6 +205,7 @@ if __name__ == '__main__':
     h = hessobj.kernel()
 
     dip_dev = get_dipole_dev(mf, hessobj)
+    print_matrix('dip_dev:', dip_dev, 5, 1)
 
     results = thermo.harmonic_analysis(mol, h) # only molecular block
     force_const_au = results['force_const_au']
@@ -214,7 +215,6 @@ if __name__ == '__main__':
     print_matrix('freq_wavenumber:', results['freq_wavenumber'])
     #print_matrix('force_const_dyne:', results['force_const_dyne'])
     print_matrix('mode:', results['norm_mode'].reshape(len(results['freq_au']), -1).T)
-    #print_matrix('dip_dev:', dip_dev, 5, 1)
     sir = infrared(dip_dev, results['norm_mode'])
     print_matrix('infrared intensity:', sir)
 
