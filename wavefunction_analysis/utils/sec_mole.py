@@ -1,5 +1,7 @@
 import numpy as np
 
+from wavefunction_analysis.utils import print_matrix
+
 def read_geometry(infile, probe=1):
     geometry = []
 
@@ -160,3 +162,153 @@ def write_rem_info(infile, method='pbe0', basis='6-31g', open_file_method='a+'):
         f.write('thresh         14\n')
         f.write('$end\n')
 
+
+def get_rotation_matrix(theta, axis='x'):
+    """
+    [cos -sin]
+    [sin  cos]
+    """
+    #i, j = 0, 0
+    if axis == 'x' or axis == 0:
+        i, j = 1, 2
+    elif axis == 'y' or axis == 1:
+        i, j = 2, 0
+    elif axis == 'z' or axis == 2:
+        i, j = 0, 1
+
+    rot = np.eye(3)
+    cos, sin = np.cos(theta), np.sin(theta)
+
+    rot[i,i] = rot[j,j] = cos
+    rot[i,j] = -sin
+    rot[j,i] = sin
+
+    return rot
+
+
+def get_moment_of_inertia(weights, coords, fix_sign=False):
+    # weights is charges or masses
+    U = np.zeros((3,3))
+    for i in range(len(weights)):
+        m = weights[i]
+        x, y, z = coords[i]
+
+        U[0,0] += m * (y*y+z*z)
+        U[1,1] += m * (x*x+z*z)
+        U[2,2] += m * (x*x+y*y)
+        U[1,0] -= m * x*y
+        U[2,0] -= m * x*z
+        U[2,1] -= m * y*z
+
+    U[0,1] = U[1,0]
+    U[0,2] = U[2,0]
+    U[1,2] = U[2,1]
+
+    if fix_sign:
+        d, _ = np.linalg.eigh(U)
+
+        if d[0]*d[1]*d[2] < 0.:
+            #if abs(d[2] - d[0]) < 1e-6:
+            #    u *= -1.
+            if abs(d[2] - d[1]) < 1e-6:
+                for i in range(3):
+                    U[i,1], U[i,2] = U[i,2], U[i,1]
+            elif abs(d[1] - d[0]) < 1e-6:
+                for i in range(3):
+                    U[i,0], U[i,1] = U[i,1], U[i,0]
+            else:
+                U *= -1.
+
+    return U
+
+
+def get_charge_or_mass(symbols, itype='charge', isotope_avg=True):
+    from pyscf.data.elements import charge, MASSES, ISOTOPE_MAIN
+    chgs = []
+    for i in range(len(symbols)):
+        chgs.append(charge(symbols[i]))
+
+    if itype == 'mass':
+        mass_table = MASSES if isotope_avg else ISOTOPE_MAIN
+        mass = []
+        for i in range(len(symbols)):
+            mass.append(mass_table[chgs[i]])
+        chgs = mass
+
+    return chgs
+
+
+def get_molecular_center(weights, coords, itype='charge'):
+    # weights is charges or masses
+    if isinstance(weights[0], str): # atom symbols
+        weights = get_charge_or_mass(weights, itype)
+
+    return np.einsum('z,zx->x', weights, coords) / np.sum(weights)
+
+
+def translate_molecule(symbols, coords, origin=None, itype='charge'):
+    # default origin is the center of charges/masses of the molecule
+    if origin is None:
+        weights = get_charge_or_mass(symbols, itype)
+        origin = get_molecular_center(weights, coords)
+        return (coords - origin), weights
+    else:
+        return (coords - origin)
+
+
+def align_principal_axes(charges, coords):
+    U = get_moment_of_inertia(charges, coords, True)
+
+    return np.einsum('nx,xy->ny', coords, U)
+
+
+def standard_orientation(symbols, coords, tol=4):
+    tol = np.power(10, -float(tol)) #1e-tol
+
+    def rotation(coords, a, b, axis):
+        r = np.sqrt(a*a+b*b)
+        if r < 1e-10:
+            return coords
+
+        theta = np.arccos(a/r)
+        if b < 0.: theta *= -1.
+        rot = get_rotation_matrix(theta, axis)
+        coords = np.einsum('nx,xy->ny', coords, rot)
+        return coords
+
+
+    # translate to center of charge
+    coords, chgs = translate_molecule(symbols, coords, itype='charge')
+
+    natoms = len(symbols)
+    for i in range(natoms):
+        x, y, z = coords[i]
+        if abs(x) > tol or abs(y) > tol:
+            coords = rotation(coords, x, y, 'z') # rotate to X axis
+            x, y, z = coords[i]
+            coords = rotation(coords, z, x, 'y') # rotate to +Z axis
+
+            for j in range(i+1, natoms):
+                x, y, z = coords[j]
+                if np.sqrt(x*x+y*y) > tol: # rotate second atom to +X semi-plane
+                    return rotation(coords, x, y, 'z')
+
+            x, y, z = coords[natoms-1]
+            return rotation(coords, x, y, 'z')
+
+        if z > tol: # rotate to XZ plane
+            for j in range(i+1, natoms):
+                x, y, z = coords[j]
+                if np.sqrt(x*x+y*y) > tol: # rotate second atom to +X semi-plane
+                    return rotation(coords, x, y, 'z')
+
+            x, y, z = coords[natoms-1]
+            return rotation(coords, x, y, 'z')
+
+        if z < tol: # rotate to +Z axis
+            x, y, z = coords[i]
+            coords = rotation(coords, z, x, 'y')
+
+    #coords = align_principal_axes(chgs, coords)
+
+    return coords
