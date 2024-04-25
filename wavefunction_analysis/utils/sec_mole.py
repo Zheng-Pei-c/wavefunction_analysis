@@ -1,6 +1,6 @@
 import numpy as np
 
-from wavefunction_analysis.utils import print_matrix
+#from wavefunction_analysis.utils import print_matrix
 
 def read_geometry(infile, probe=1):
     geometry = []
@@ -205,7 +205,9 @@ def get_moment_of_inertia(weights, coords, fix_sign=False):
     U[1,2] = U[2,1]
 
     if fix_sign:
-        d, _ = np.linalg.eigh(U)
+        d, U = np.linalg.eigh(U)
+        for i in range(3):
+            if -np.min(U[:,i]) > np.max(U[:,i]): U[:,i] *= -1.
 
         if d[0]*d[1]*d[2] < 0.:
             #if abs(d[2] - d[0]) < 1e-6:
@@ -263,6 +265,15 @@ def align_principal_axes(charges, coords):
 
 
 def standard_orientation(symbols, coords, tol=4):
+    # translate to center of charge
+    coords, chgs = translate_molecule(symbols, coords, itype='charge')
+    coords = _standard_orientation(coords, tol)
+    coords = align_principal_axes(chgs, coords)
+
+    return coords
+
+
+def _standard_orientation(coords, tol=4):
     tol = np.power(10, -float(tol)) #1e-tol
 
     def rotation(coords, a, b, axis):
@@ -276,39 +287,32 @@ def standard_orientation(symbols, coords, tol=4):
         coords = np.einsum('nx,xy->ny', coords, rot)
         return coords
 
-
-    # translate to center of charge
-    coords, chgs = translate_molecule(symbols, coords, itype='charge')
-
-    natoms = len(symbols)
-    for i in range(natoms):
-        x, y, z = coords[i]
-        if abs(x) > tol or abs(y) > tol:
+    def kernel(coords, i, x, y, z, level):
+        if level >= 3:
             coords = rotation(coords, x, y, 'z') # rotate to X axis
+
+        if level >= 2:
             x, y, z = coords[i]
             coords = rotation(coords, z, x, 'y') # rotate to +Z axis
 
+        if level >= 1:
             for j in range(i+1, natoms):
                 x, y, z = coords[j]
                 if np.sqrt(x*x+y*y) > tol: # rotate second atom to +X semi-plane
                     return rotation(coords, x, y, 'z')
 
-            x, y, z = coords[natoms-1]
-            return rotation(coords, x, y, 'z')
+        return coords
 
-        if z > tol: # rotate to XZ plane
-            for j in range(i+1, natoms):
-                x, y, z = coords[j]
-                if np.sqrt(x*x+y*y) > tol: # rotate second atom to +X semi-plane
-                    return rotation(coords, x, y, 'z')
 
-            x, y, z = coords[natoms-1]
-            return rotation(coords, x, y, 'z')
+    natoms = coords.shape[0]
+    for i in range(natoms):
+        x, y, z = coords[i]
+        if abs(x) > tol or abs(y) > tol:
+            return kernel(coords, i, x, y, z, 3)
 
-        if z < tol: # rotate to +Z axis
-            x, y, z = coords[i]
-            coords = rotation(coords, z, x, 'y')
-
-    #coords = align_principal_axes(chgs, coords)
+        if z < tol:
+            return kernel(coords, i, x, y, z, 2)
+        elif z > tol:
+            return kernel(coords, i, x, y, z, 1)
 
     return coords
