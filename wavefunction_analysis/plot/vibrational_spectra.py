@@ -10,6 +10,7 @@ from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units, print_matrix
 
 #import matplotlib.mlab as mlab
+from scipy import signal, fftpack
 from scipy.stats import gaussian_kde, norm
 from wavefunction_analysis.plot import plt
 
@@ -108,14 +109,51 @@ def get_dipole_dev(mf, hessobj, origin=None):
     return g1.reshape(natm*3, 3)
 
 
-def autocorrelation(dipoles):
-    nstep = dipoles.shape[0]
-    mean = np.sum(dipoles, axis=0) / nstep
-    dipoles -= mean
-    correlation = np.einsum('ix,x->ix', dipoles, dipoles[0])
-    correlation = np.fft2(correlation)
-    print(correlation.shape)
-    return correlation
+def autocorrelation(arrays, dt, window='gaussian', domain='freq'):
+    # C(t) = < \int A(\tau) B(t-\tau) \dd \tau >
+    # Wiener-Khintchine theorem
+    # first index is along time
+    nstep = arrays.shape[0]
+    arrays = np.gradient(arrays, edge_order=2, axis=0) / dt
+    arrays -= np.average(arrays, axis=0)
+    norm = np.einsum('ix,ix->x', arrays, arrays)
+
+    correlation = np.zeros(arrays.shape)
+    for i in range(3):
+        correlation[:,i] = signal.convolve(arrays[:,i], arrays[::-1,i], mode='full')[nstep-1:] / norm[i]
+
+    #window = 'none'
+    if window == 'gaussian':
+        sigma = 2. * np.sqrt(2. * np.log(2.))
+        window = signal.gaussian(nstep, std=4000./sigma, sym=False)
+    elif hasattr(signal, window): # hann, hamming, blackmanharris
+        window = getattr(signal, window)(nstep, sym=False)
+
+    if isinstance(window, np.ndarray):
+        wf = window / np.sum(window) * nstep
+        correlation = correlation * wf[:,None]
+
+    if domain == 'time':
+        return correlation
+    elif domain == 'freq':
+        return fft_acf(correlation, dt)
+
+
+def fft_acf(arrays, dt, unit='au'):
+    nstep = arrays.shape[0]
+
+    if unit != 's':
+        dt = convert_units(dt, unit, 's')
+    freq = np.fft.fftfreq(nstep, dt)[:nstep//2]
+    freq = convert_units(freq, 'hz', 'cm-1')
+
+    #N = 2**int(np.log2(nstep*2-1))
+    sigma = np.fft.fft2(arrays)[:nstep//2] / nstep
+    sigma = np.mean(sigma, axis=1)
+
+    sigma = np.abs(sigma.imag)
+
+    return freq, sigma
 
 
 
@@ -125,7 +163,7 @@ if __name__ == '__main__':
 
     #charge, spin, atom = parameters.get(section_names[0])[1:4]
     #functional, basis = get_rem_info(parameters.get(section_names[1]))[:2]
-    #mol = build_single_molecule(charge, spin, atom, basis, verbose=0)
+    #mol = build_molecule(atom, basis, charge, spin, verbose=0)
 
     hf = """
             H    0. 0. -0.459
@@ -144,7 +182,7 @@ if __name__ == '__main__':
     atom = locals()[sys.argv[1]] if len(sys.argv) > 1 else hf
 
     functional = 'hf'
-    mol = build_single_molecule(0, 0, atom, 'sto-3g')
+    mol = build_molecule(atom, 'sto-3g')
 
     mf = RKS(mol) # in coherent state
     mf.xc = functional

@@ -6,6 +6,7 @@ from pyscf import scf, gto, grad
 from wavefunction_analysis.polariton import polariton_ns
 from wavefunction_analysis.utils import print_matrix, convert_units
 from wavefunction_analysis.utils.ortho_ao_basis import get_ortho_basis
+from wavefunction_analysis.utils.pyscf_parser import build_atom, build_molecule
 
 
 def cal_idempotency(P, S=None):
@@ -164,18 +165,6 @@ def cal_pulay_force(mf, F, P, Fao, Pao, Z, method='lowdin'):
     return (-de)
 
 
-def set_pyscf_mol(atom, basis, charge, unit='bohr', max_memory=60000, verbose=1):
-    mol = gto.M(
-            atom = atom,
-            unit = unit,
-            basis = basis,
-            charge = charge,
-            max_memory = max_memory,
-            verbose = verbose
-            )
-    return mol
-
-
 def run_pyscf_gs(scf_method, mol, functional, *args, **kwargs):
     # ground-state
     mf = scf_method(mol)
@@ -210,6 +199,7 @@ class ElectronicDynamicsStep():
         key.setdefault('basis', 'sto-3g')
         key.setdefault('atmsym', None)
         key.setdefault('charge', 0)
+        key.setdefault('spin', 0)
 
         key.setdefault('electronic_dt', 0)
         key.setdefault('electronic_update_method', 'velocity_verlet')
@@ -248,16 +238,11 @@ class ElectronicDynamicsStep():
 
     def setup_electronic_basis(self, coords, *args, **kwargs):
         # construct atom
-        atom = ''
-        for i in range(len(self.atmsym)):
-            atom += str(self.atmsym[i]) + ' '
-            for x in range(3):
-                atom += str(coords[i,x]) + ' '
-            atom += ';  '
+        atom = build_atom(self.atmsym, coords)
         #print('current coords in ED:\n', atom)
 
-        mol = set_pyscf_mol(atom, self.basis, self.charge, self.unit,
-                            self.max_memory, self.verbose)
+        mol = build_molecule(atom, self.basis, self.charge, self.spin,
+                                    self.unit, self.max_memory, self.verbose)
         self.mf = run_pyscf_gs(self.scf_method, mol, self.functional, *args, **kwargs)
 
 

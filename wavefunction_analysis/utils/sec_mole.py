@@ -240,18 +240,18 @@ def get_charge_or_mass(symbols, itype='charge', isotope_avg=True):
     return chgs
 
 
-def get_molecular_center(weights, coords, itype='charge'):
+def get_molecular_center(weights, coords, itype='charge', isotope_avg=True):
     # weights is charges or masses
     if isinstance(weights[0], str): # atom symbols
-        weights = get_charge_or_mass(weights, itype)
+        weights = get_charge_or_mass(weights, itype, isotope_avg)
 
     return np.einsum('z,zx->x', weights, coords) / np.sum(weights)
 
 
-def translate_molecule(symbols, coords, origin=None, itype='charge'):
+def translate_molecule(symbols, coords, origin=None, itype='charge', isotope_avg=True):
     # default origin is the center of charges/masses of the molecule
     if origin is None:
-        weights = get_charge_or_mass(symbols, itype)
+        weights = get_charge_or_mass(symbols, itype, isotope_avg)
         origin = get_molecular_center(weights, coords)
         return (coords - origin), weights
     else:
@@ -267,16 +267,36 @@ def align_principal_axes(charges, coords):
 def standard_orientation(symbols, coords, tol=4):
     # translate to center of charge
     coords, chgs = translate_molecule(symbols, coords, itype='charge')
-    coords = _standard_orientation(coords, tol)
+    coords, _ = _standard_orientation(coords, None, tol)
     coords = align_principal_axes(chgs, coords)
 
     return coords
 
 
-def _standard_orientation(coords, tol=4):
+def standard_orientation2(symbols, coords, var, tol=4):
+    """we need the intermediate translation and principal matrices"""
+    # translate to center of charge
+    chgs = get_charge_or_mass(symbols, itype='charge')
+    origin = get_molecular_center(chgs, coords)
+
+    coords, var = _standard_orientation((coords-origin), (var-origin), tol)
+    coords, _ = _standard_orientation(coords, None, tol)
+
+    U = get_moment_of_inertia(chgs, coords, True)
+    coords = np.einsum('nx,xy->ny', coords, U)
+    var = np.einsum('...x,xy->...y', var, U)
+
+    return coords, var
+
+
+def _standard_orientation(coords, var=None, tol=4):
     tol = np.power(10, -float(tol)) #1e-tol
 
-    def rotation(coords, a, b, axis):
+    # var is a geometry-dependent object (vector/matrix)
+    if isinstance(var, type(None)):
+        var = np.zeros(coords.shape)
+
+    def rotation(coords, var, a, b, axis):
         r = np.sqrt(a*a+b*b)
         if r < 1e-10:
             return coords
@@ -285,34 +305,35 @@ def _standard_orientation(coords, tol=4):
         if b < 0.: theta *= -1.
         rot = get_rotation_matrix(theta, axis)
         coords = np.einsum('nx,xy->ny', coords, rot)
-        return coords
+        var = np.einsum('...x,xy->...y', var, rot)
+        return coords, var
 
-    def kernel(coords, i, x, y, z, level):
+    def kernel(coords, var, i, x, y, z, level):
         if level >= 3:
-            coords = rotation(coords, x, y, 'z') # rotate to X axis
+            coords, var = rotation(coords, var, x, y, 'z') # rotate to X axis
 
         if level >= 2:
             x, y, z = coords[i]
-            coords = rotation(coords, z, x, 'y') # rotate to +Z axis
+            coords, var = rotation(coords, var, z, x, 'y') # rotate to +Z axis
 
         if level >= 1:
             for j in range(i+1, natoms):
                 x, y, z = coords[j]
                 if np.sqrt(x*x+y*y) > tol: # rotate second atom to +X semi-plane
-                    return rotation(coords, x, y, 'z')
+                    return rotation(coords, var, x, y, 'z')
 
-        return coords
+        return coords, var
 
 
     natoms = coords.shape[0]
     for i in range(natoms):
         x, y, z = coords[i]
         if abs(x) > tol or abs(y) > tol:
-            return kernel(coords, i, x, y, z, 3)
+            return kernel(coords, var, i, x, y, z, 3)
 
         if z < tol:
-            return kernel(coords, i, x, y, z, 2)
+            return kernel(coords, var, i, x, y, z, 2)
         elif z > tol:
-            return kernel(coords, i, x, y, z, 1)
+            return kernel(coords, var, i, x, y, z, 1)
 
-    return coords
+    return coords, var

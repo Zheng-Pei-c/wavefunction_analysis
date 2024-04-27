@@ -69,13 +69,9 @@ class PhotonDynamicsStep():
             energy[i] = self.photon_frequency[i] * np.dot(range(ntot), np.diag(self.photon_density[i]))
 
         kwargs = {}
-        #if self.nmode == 1:
-        #    kwargs['trans_coeff'] = photon_trans[0]
-        #    kwargs['photon_energy'] = energy[0]
-        #else:
         kwargs['trans_coeff'] = photon_trans
         kwargs['photon_energy'] = np.sum(energy)
 
-        #print('photon_trans:', photon_trans)
+        print('photon_trans:', photon_trans)
         #print('photon_energy:', np.sum(energy))
         return kwargs

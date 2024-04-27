@@ -67,7 +67,7 @@ class NuclearDynamicsStep():
 
         if isinstance(init_velocity, np.ndarray):
             self.nuclear_velocities = init_velocity
-            self.remove_trans_rotat_velocity()
+            #self.remove_trans_rotat_velocity()
             self.get_nuclear_kinetic_energy(self.nuclear_velocities)
         else:
             self.nuclear_velocities = np.zeros((self.natoms, 3))
@@ -133,7 +133,7 @@ class NuclearDynamicsStep():
         if self.nuclear_update_method == 'velocity_verlet':
             self.velocity_verlet_step(nuclear_force, 2)
 
-        self.remove_trans_rotat_velocity()
+        self.remove_trans_rotat(nuclear_force)
 
 
     def euler_step(self, nuclear_force):
@@ -167,17 +167,17 @@ class NuclearDynamicsStep():
         self.nuclear_temperature = self.nuclear_kinetic * 2. / (velocities.size)
 
 
-    def remove_trans_rotat_velocity(self):
+    def remove_trans_rotat(self, nuclear_force):
         return
         # translational part
-        v0 = np.einsum('i,ix->x', self.nuclear_mass, self.nuclear_velocities)
+        v0 = np.einsum('i,ix->x', self.nuclear_mass, nuclear_force)
         #v0 /= np.sum(self.nuclear_mass)
-        #self.nuclear_velocities[:] -= v0
-        self.nuclear_velocities -= np.einsum('x,i->ix', v0/self.natoms, 1./self.nuclear_mass)
+        #nuclear_force[:] -= v0
+        nuclear_force -= np.einsum('x,i->ix', v0/self.natoms, 1./self.nuclear_mass)
 
         # rotational part
         # total angular momentum
-        L = np.einsum('i,ix->x', self.nuclear_mass, np.cross(self.nuclear_coordinates, self.nuclear_velocities))
+        L = np.einsum('i,ix->x', self.nuclear_mass, np.cross(self.nuclear_coordinates, nuclear_force))
         # total moment of inertia tensor
         x2 = np.einsum('i,ix,iy->xy', self.nuclear_mass, self.nuclear_coordinates, self.nuclear_coordinates)
         I = -np.copy(x2) # off-diagonal
@@ -195,8 +195,9 @@ class NuclearDynamicsStep():
         #L = np.zeros((self.natoms, 3)) # debug
         #for i in range(self.natoms):
         #    L[i] = np.cross(W, self.nuclear_coordinates[i])
-        self.nuclear_velocities -= np.cross(W, self.nuclear_coordinates)
+        nuclear_force -= np.cross(W, self.nuclear_coordinates)
 
+        return nuclear_force
 
 
 class MolecularDynamics():
@@ -241,7 +242,7 @@ class MolecularDynamics():
             return ExtendedLagElectronicDynamicsStep(key)
         elif self.ed_method == 'curvy':
             key['electronic_dt'] = nuclear_dt
-            key['electronic_update_method'] = nuclear_update_method
+            key['electronic_update_method'] = key.get('nuclear_update_method', 'velocity_verlet')
             return CurvyElectronicDynamicsStep(key)
         elif self.ed_method == 'grassmann':
             return GrassmannElectronicDynamicsStep(key)
@@ -320,7 +321,7 @@ class MolecularDynamics():
         energy = convert_units(self.md_time_total_energies, 'hartree', 'kcal')
 
         ax[0].plot(time_line, coords[:,1,-1]-coords[:,0,-1])
-        ax[0].set_ylabel('He--H$^+$ ($\AA$)')
+        ax[0].set_ylabel('He--H$^+$ ($\\AA$)')
         ax[1].plot(time_line, energy-energy[0])
         ax[1].set_xlabel('Time (fs)')
         ax[1].set_ylabel('$\\Delta$E (kcal/mol)')
@@ -343,7 +344,7 @@ def plot_time_variables(total_time, nuclear_nsteps, dists, energies):
     fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(11,6), sharex=True)
     for i in range(dists.shape[0]):
         ax[0].plot(time_line, dists[i], label=method[i])
-        ax[0].set_ylabel('He--H$^+$ Length ($\AA$)')
+        ax[0].set_ylabel('He--H$^+$ Length ($\\AA$)')
         ax[0].legend()
 
     for i in range(energies.shape[0]):

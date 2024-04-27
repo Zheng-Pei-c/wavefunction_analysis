@@ -103,13 +103,27 @@ def parser(file_name):
     return parameters
 
 
-def build_single_molecule(charge, spin, atom, basis, verbose=0):
+def build_atom(atmsym, coords):
+    atom = ''
+    for i in range(len(atmsym)):
+        atom += str(atmsym[i]) + ' '
+        for x in range(3):
+            atom += str(coords[i,x]) + ' '
+        atom += ';  '
+
+    return atom
+
+
+def build_molecule(atom, basis, charge=0, spin=0, unit='angstrom',
+                          max_memory=60000, verbose=0):
     mol = gto.M(
-        atom    = atom,
-        basis   = basis,
-        spin    = spin,
-        charge  = charge,
-        verbose = verbose
+        atom       = atom,
+        unit       = unit,
+        basis      = basis,
+        spin       = spin,
+        charge     = charge,
+        max_memory = max_memory,
+        verbose    = verbose
     )
 
     return mol
@@ -162,7 +176,7 @@ def get_center_of_mass(mol, nfrag=1):
 
 
 def _run_pyscf_dft(charge, spin, atom, basis, functional, verbose=0, h=None):
-    mol = build_single_molecule(charge, spin, atom, basis, verbose)
+    mol = build_molecule(atom, basis, charge, spin, verbose=verbose)
     mf = scf.RKS(mol)
     if h:
         h = h + mol.intor('cint1e_kin_sph') + mol.intor('cint1e_nuc_sph')

@@ -329,7 +329,7 @@ if __name__ == '__main__':
 
     #charge, spin, atom = parameters.get(section_names[0])[1:4]
     #functional, basis = get_rem_info(parameters.get(section_names[1]))[:2]
-    #mol = build_single_molecule(charge, spin, atom, basis, verbose=0)
+    #mol = build_molecule(atom, basis, charge, spin, verbose=0)
 
     hf = """
             H    0. 0. -0.459
@@ -343,7 +343,7 @@ if __name__ == '__main__':
     atom = locals()[sys.argv[1]] if len(sys.argv) > 1 else hf
 
     functional = 'hf'
-    mol = build_single_molecule(0, 0, atom, '3-21g')
+    mol = build_molecule(atom, '3-21g')
 
     frequency = 0.42978 # gs doesn't depend on frequency
     trans_coeff = 1.

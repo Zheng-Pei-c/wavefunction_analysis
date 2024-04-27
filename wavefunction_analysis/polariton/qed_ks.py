@@ -340,7 +340,7 @@ if __name__ == '__main__':
 
     #charge, spin, atom = parameters.get(section_names[0])[1:4]
     #functional, basis = get_rem_info(parameters.get(section_names[1]))[:2]
-    #mol = build_single_molecule(charge, spin, atom, basis, verbose=0)
+    #mol = build_molecule(atom, basis, charge, spin, verbose=0)
 
     atom = sys.argv[1]
     h2 = """
@@ -356,7 +356,7 @@ if __name__ == '__main__':
             F    0. 0.  0.791
     """
     functional = 'pbe0'
-    mol = build_single_molecule(0, 0, locals()[atom], '6-311++g**')
+    mol = build_molecule(locals()[atom], '6-311++g**')
     mf = RKS(mol)
 
     mf.xc = functional
