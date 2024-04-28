@@ -140,7 +140,7 @@ class polariton(RKS):
         self.dipole = multipoles['dipole']
         self.quadrupole = multipoles['quadrupole']
 
-        if frequency: # needed for bilinear terms
+        if frequency: # needed for bilinear terms # assume hartree unit!
             self.photon_freq = frequency
             self.photon_trans_coeff = trans_coeff
         else:
@@ -279,14 +279,14 @@ class polariton_ns(polariton):
 
         equad = np.einsum('pq,...qp->', h1e.hquad, dm)
         edipe = np.einsum('pq,...qp->', h1e.hdipe, dm)
-        edipole = np.einsum('pq,...qp->', h1e.hdipole, dm) if self.photon_freq else 0.
+        elineare = np.einsum('pq,...qp->', h1e.hdipole, dm) if self.photon_freq else 0.
 
         self.scf_summary['equad'] = equad.real
         self.scf_summary['edipe'] = edipe.real
-        self.scf_summary['edipole'] = edipole.real
+        self.scf_summary['elineare'] = elineare.real
         self.scf_summary['edse_j'] = edse_j
         self.scf_summary['edse_k'] = edse_k
-        logger.debug(self, 'Bilinear Electronic Energy = %s Quadrupole Energy = %s  Nuclear-Electronic Dipole Energy = %s  DSE-J Energy = %s  DSE-K Energy = %s', edipole, equad, edipe, edse_j, edse_k)
+        logger.debug(self, 'Bilinear Electronic Energy = %s Quadrupole Energy = %s  Nuclear-Electronic Dipole Energy = %s  DSE-J Energy = %s  DSE-K Energy = %s', elineare, equad, edipe, edse_j, edse_k)
         return e_tot, e2
 
 
@@ -310,7 +310,7 @@ class polariton_ns(polariton):
             self.energy_tot(dm=dm)
 
         e = self.scf_summary
-        e = [e['edipole'], e['equad'], e['edipe'], e['edse_j'], e['edse_k'], e['edipn'], e['elinearn']]
+        e = [e['elineare'], e['equad'], e['edipe'], e['edse_j'], e['edse_k'], e['edipn'], e['elinearn']]
         e.append(np.sum(e))
         return convert_units(np.array(e), 'hartree', unit)
 

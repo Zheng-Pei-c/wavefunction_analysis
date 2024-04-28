@@ -26,7 +26,7 @@ class PhotonDynamicsStep():
         for name, value in key.items(): # put all the variables in the class
             setattr(self, name, value)
 
-        if self.freq_unit != 'hartree':
+        if self.freq_unit != 'hartree' or self.freq_unit != 'eh':
             self.photon_frequency = convert_units(self.photon_frequency, self.freq_unit, 'hartree')
             self.freq_unit = 'hartree'
 
