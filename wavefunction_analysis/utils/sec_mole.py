@@ -248,6 +248,14 @@ def get_molecular_center(weights, coords, itype='charge', isotope_avg=True):
     return np.einsum('z,zx->x', weights, coords) / np.sum(weights)
 
 
+def get_center_property(weights, props, itype='charge', isotope_avg=True):
+    # weights is charges or masses
+    if isinstance(weights[0], str): # atom symbols
+        weights = get_charge_or_mass(weights, itype, isotope_avg)
+
+    return np.einsum('z,z...->...', weights, props) / len(weights)
+
+
 def translate_molecule(symbols, coords, origin=None, itype='charge', isotope_avg=True):
     # default origin is the center of charges/masses of the molecule
     if origin is None:

@@ -3,6 +3,7 @@ import numpy as np
 
 from wavefunction_analysis.dynamics import ElectronicDynamicsStep, GrassmannElectronicDynamicsStep, CurvyElectronicDynamicsStep, ExtendedLagElectronicDynamicsStep, PhotonDynamicsStep
 from wavefunction_analysis.utils import print_matrix, convert_units
+from wavefunction_analysis.utils.sec_mole import get_molecular_center, get_moment_of_inertia
 from wavefunction_analysis.plot import plt
 
 
@@ -12,11 +13,58 @@ kT_AU_to_Kelvin = 0.25 * 9.1093826e-31 * (1.60217653e-19*1.60217653e-19 * 8.8541
 
 #FS = 1.0e15
 BOHR = 0.52917721067121
-ELECTRON_MASS_IN_AMU = 5.4857990945e-04
+ELECTRON_MASS_IN_AMU = 5.4857990945e-04 # from qchem
 
 def get_boltzmann_beta(temperature):
     from pyscf.data.nist import HARTREE2J, BOLTZMANN
     return HARTREE2J / (BOLTZMANN * temperature)
+
+
+def angular_property(mass, coords, props):
+    # props is for example force or velocity
+    inertia = get_moment_of_inertia(mass, coords)
+
+    # total angular property I^-1 * L
+    U, s, Vt = np.linalg.svd(inertia)
+    idx = np.where(s[np.abs(s)>1e-10])[0]
+    s, U, Vt = 1./s[idx], U[:,idx], Vt[:,idx]
+    ang_prop = np.einsum('ij,j,kj,k->i', Vt, s, U, props)
+
+    return ang_prop
+
+
+def remove_trans_rotat_velocity(velocity, mass, coords):
+    # remove translation (ie. center of mass velocity)
+    p_com = np.einsum('i,ix->x', mass, velocity) / len(mass)
+    velocity -= np.einsum('i,x->ix', 1./mass, p_com)
+
+    # move coords to com
+    com = get_molecular_center(mass, coords)
+    coords -= com
+
+    # remove rotation
+    ang_mom = np.einsum('i,ix->x', mass, np.cross(coords, velocity)) # r x v
+    ang_vec = angular_property(mass, coords, ang_mom)
+
+    velocity -= np.cross(ang_vec, coords)
+    return velocity
+
+
+def remove_trans_rotat_force(force, mass, coords):
+    # remove translation (ie. center of mass force)
+    f_com = np.sum(force, axis=0) / np.sum(mass)
+    force -= np.einsum('i,x->ix', mass, f_com)
+
+    # move coords to com
+    com = get_molecular_center(mass, coords)
+    coords -= com
+
+    # remove rotation
+    torque = np.sum(np.cross(coords, force), axis=0) # r x f
+    ang_f = angular_property(mass, coords, torque)
+
+    force -= np.einsum('i,ix->ix', mass, np.cross(ang_f[None,:], coords))
+    return force
 
 
 class NuclearDynamicsStep():
@@ -54,9 +102,9 @@ class NuclearDynamicsStep():
 
         self.nuclear_save_nframe = nuclear_save_nframe
 
-        self.nuclear_coordinates = np.reshape(np.copy(init_coords), (self.natoms, 3)) # copy!
-        # change to A.U.
-        self.nuclear_coordinates /= BOHR
+        self.nuclear_coordinate = np.reshape(np.copy(init_coords), (self.natoms, 3)) # copy!
+        # assume init_coords in AA and change it to A.U.
+        self.nuclear_coordinate /= BOHR
 
         if isinstance(init_velocity, list):
             init_velocity = np.reshape(init_velocity, (self.natoms, 3))
@@ -66,17 +114,18 @@ class NuclearDynamicsStep():
             init_velocity = self.init_velocity_thermo(float(init_velocity.split('_')[1]))
 
         if isinstance(init_velocity, np.ndarray):
-            self.nuclear_velocities = init_velocity
-            #self.remove_trans_rotat_velocity()
-            self.get_nuclear_kinetic_energy(self.nuclear_velocities)
-        else:
-            self.nuclear_velocities = np.zeros((self.natoms, 3))
+            self.project_velocity(init_velocity)
+            self.get_nuclear_kinetic_energy(self.nuclear_velocity)
+        else: # no initial velocity
+            self.nuclear_velocity = np.zeros((self.natoms, 3))
             self.nuclear_kinetic = 0.
             self.nuclear_temperature = 0.
 
         if init_kick:
-            self.nuclear_forces = np.reshape(init_kick, (self.natoms, 3))
-        else: self.nuclear_forces = np.zeros((self.natoms, 3))
+            init_kick = np.reshape(init_kick, (self.natoms, 3))
+            self.project_force(init_kick)
+        else: # no initial force
+            self.nuclear_force = np.zeros((self.natoms, 3))
 
 
     def init_velocity_random(self, etrans, sigma=1e-4, scale=.1, seed=12345):
@@ -105,10 +154,9 @@ class NuclearDynamicsStep():
         """
         random velocity following Boltzmann distribution
         """
-        #etrans = unit_conversion(temp, 'k', 'eh')
-        #sigma = np.sqrt(etrans/self.nuclear_mass)
         beta_b = get_boltzmann_beta(temp)
         sigma = np.sqrt(1./beta_b/self.nuclear_mass)
+
         velocity = np.zeros((self.natoms, 3))
 
         rng = np.random.default_rng(seed)
@@ -133,71 +181,57 @@ class NuclearDynamicsStep():
         if self.nuclear_update_method == 'velocity_verlet':
             self.velocity_verlet_step(nuclear_force, 2)
 
-        self.remove_trans_rotat(nuclear_force)
+        self.project_velocity(self.nuclear_velocity)
+        nuclear_force = self.project_force(nuclear_force)
+
+        return nuclear_force
 
 
     def euler_step(self, nuclear_force):
-        self.nuclear_velocities += self.nuclear_dt * np.einsum('ix,i->ix', nuclear_force, 1./self.nuclear_mass)
-        self.nuclear_coordinates += self.nuclear_dt * self.nuclear_velocities
-        self.get_nuclear_kinetic_energy(self.nuclear_velocities)
+        self.nuclear_velocity += self.nuclear_dt * np.einsum('ix,i->ix', nuclear_force, 1./self.nuclear_mass)
+        self.nuclear_coordinate += self.nuclear_dt * self.nuclear_velocity
+        self.get_nuclear_kinetic_energy(self.nuclear_velocity)
 
 
     def leapfrog_step(self, nuclear_force):
-        old_nuclear_velocities = np.copy(self.nuclear_velocities)
-        self.nuclear_velocities += self.nuclear_dt * np.einsum('ix,i->ix', nuclear_force, 1./self.nuclear_mass)
-        self.nuclear_coordinates += self.nuclear_dt * self.nuclear_velocities
+        old_nuclear_velocity = np.copy(self.nuclear_velocity)
+        self.nuclear_velocity += self.nuclear_dt * np.einsum('ix,i->ix', nuclear_force, 1./self.nuclear_mass)
+        self.nuclear_coordinate += self.nuclear_dt * self.nuclear_velocity
 
-        average_nuclear_velocities = .5 * (old_nuclear_velocities + self.nuclear_velocities)
-        self.get_nuclear_kinetic_energy(average_nuclear_velocities)
+        average_nuclear_velocity = .5 * (old_nuclear_velocity + self.nuclear_velocity)
+        self.get_nuclear_kinetic_energy(average_nuclear_velocity)
 
 
     def velocity_verlet_step(self, nuclear_force, half):
-        self.nuclear_velocities += .5 * self.nuclear_dt * np.einsum('ix,i->ix', nuclear_force, 1./self.nuclear_mass)
+        self.nuclear_velocity += .5 * self.nuclear_dt * np.einsum('ix,i->ix', nuclear_force, 1./self.nuclear_mass)
         if half == 1:
-            self.nuclear_coordinates += self.nuclear_dt * self.nuclear_velocities
+            self.nuclear_coordinate += self.nuclear_dt * self.nuclear_velocity
         if half == 2:
-            self.get_nuclear_kinetic_energy(self.nuclear_velocities)
+            self.get_nuclear_kinetic_energy(self.nuclear_velocity)
 
 
-    def get_nuclear_kinetic_energy(self, velocities, mass=None):
+    def get_nuclear_kinetic_energy(self, velocity, mass=None):
         if mass is None: mass = self.nuclear_mass
 
-        v2 = np.einsum('ix,ix->i', velocities, velocities)
+        v2 = np.einsum('ix,ix->i', velocity, velocity)
         self.nuclear_kinetic = .5* np.einsum('i,i', mass, v2)
-        self.nuclear_temperature = self.nuclear_kinetic * 2. / (velocities.size)
+        self.nuclear_temperature = self.nuclear_kinetic * 2. / (velocity.size)
 
 
-    def remove_trans_rotat(self, nuclear_force):
-        return
-        # translational part
-        v0 = np.einsum('i,ix->x', self.nuclear_mass, nuclear_force)
-        #v0 /= np.sum(self.nuclear_mass)
-        #nuclear_force[:] -= v0
-        nuclear_force -= np.einsum('x,i->ix', v0/self.natoms, 1./self.nuclear_mass)
+    def project_velocity(self, velocity, mass=None, coords=None):
+        if mass is None: mass = self.nuclear_mass
+        if coords is None: coords = self.nuclear_coordinate
 
-        # rotational part
-        # total angular momentum
-        L = np.einsum('i,ix->x', self.nuclear_mass, np.cross(self.nuclear_coordinates, nuclear_force))
-        # total moment of inertia tensor
-        x2 = np.einsum('i,ix,iy->xy', self.nuclear_mass, self.nuclear_coordinates, self.nuclear_coordinates)
-        I = -np.copy(x2) # off-diagonal
-        for i in range(3): # diagonal
-            j, k = (i+1)%3, (i+2)%3
-            I[i,i] = (x2[j,j]+x2[k,k])
+        self.nuclear_velocity = remove_trans_rotat_velocity(velocity, mass, coords)
 
-        print_matrix('I', I)
-        print_matrix('L', L)
-        # total angular velocity I^-1 * L
-        U, s, Vt = np.linalg.svd(I)
-        idx = np.where(s[np.abs(s)>1e-10])[0]
-        s, U, Vt = 1./s[idx], U[:,idx], Vt[:,idx]
-        W = np.einsum('ij,j,kj,k->i', Vt, s, U, L)
-        #L = np.zeros((self.natoms, 3)) # debug
-        #for i in range(self.natoms):
-        #    L[i] = np.cross(W, self.nuclear_coordinates[i])
-        nuclear_force -= np.cross(W, self.nuclear_coordinates)
 
-        return nuclear_force
+    def project_force(self, nuclear_force, mass=None, coords=None):
+        if mass is None: mass = self.nuclear_mass
+        if coords is None: coords = self.nuclear_coordinate
+
+        self.nuclear_force = remove_trans_rotat_force(nuclear_force, mass, coords)
+        return self.nuclear_force
+
 
 
 class MolecularDynamics():
@@ -207,7 +241,7 @@ class MolecularDynamics():
             raise AttributeError('no molecule symbols given')
         init_coords           = key.get('init_coords', None)
         if init_coords is None:
-            raise ValueError('no initial molecule coordinates given')
+            raise ValueError('no initial molecule coordinate given')
 
         self.ed_method        = key.get('ed_method', 'normal')
         self.ph_method        = key.get('ph_method', None)
@@ -233,7 +267,7 @@ class MolecularDynamics():
         self.phstep = self.set_photon_step(key, self.ph_method)
 
         self.md_time_total_energies = np.zeros(self.nuclear_nsteps)
-        self.md_time_coordinates = np.zeros((self.nuclear_nsteps, self.ndstep.natoms, 3))
+        self.md_time_coordinate = np.zeros((self.nuclear_nsteps, self.ndstep.natoms, 3))
         self.md_time_dipoles = np.zeros((self.nuclear_nsteps, 3))
 
 
@@ -259,14 +293,15 @@ class MolecularDynamics():
 
     def run_dynamics(self):
         print('current time:%7.3f fs' % 0.0)
-        coords = self.ndstep.nuclear_coordinates # equal sign used here as a pointer
-        # coords will change when self.ndstep.nuclear_coordinates changes!
+        coords = self.ndstep.nuclear_coordinate # equal sign used here as a pointer
+        # coords will change when self.ndstep.nuclear_coordinate changes!
 
         kwargs = {}
         if self.phstep:
             kwargs['c_lambda'] = self.phstep.coupling_strength
 
         et, electronic_force = self.edstep.init_electronic_density_static(coords, **kwargs)
+        electronic_force = self.ndstep.project_force(electronic_force)
 
         if self.phstep:
             kwargs['frequency'] = self.phstep.photon_frequency
@@ -274,14 +309,14 @@ class MolecularDynamics():
             kwargs.update(self.phstep.update_photon_density(self.md_time_dipoles[0], self.ndstep.nuclear_dt))
         photon_energy = kwargs.get('photon_energy', 0.)
 
-        self.md_time_coordinates[0] = coords
+        self.md_time_coordinate[0] = coords
         self.md_time_total_energies[0] = et + self.ndstep.nuclear_kinetic + photon_energy
 
         print('temperature: %4.2f K' % float(self.ndstep.nuclear_temperature * kT_AU_to_Kelvin))
         print('potential energy: %15.10f  kinetic energy: %15.10f  total energy: %15.10f' % (et, self.ndstep.nuclear_kinetic, self.md_time_total_energies[0]))
-        print_matrix('forces:\n', self.edstep.electronic_forces)
-        print_matrix('velocities:\n', self.ndstep.nuclear_velocities)
-        print_matrix('current nuclear coordinates:\n', coords*BOHR)
+        print_matrix('force:\n', self.edstep.electronic_force)
+        print_matrix('velocity:\n', self.ndstep.nuclear_velocity)
+        print_matrix('current nuclear coordinate:\n', coords*BOHR)
 
 
         # loop times
@@ -295,29 +330,29 @@ class MolecularDynamics():
             photon_energy = kwargs.get('photon_energy', 0.)
 
             print('current time:%7.3f fs' % convert_units(ti*self.nuclear_dt, 'au', 'fs'))
-            #coords = self.ndstep.nuclear_coordinates # dont need to reassign
-            print_matrix('current nuclear coordinates:\n', coords*BOHR)
+            #coords = self.ndstep.nuclear_coordinate # dont need to reassign
+            print_matrix('current nuclear coordinate:\n', coords*BOHR)
 
             # velocity_verlet is cumbersome
-            self.ndstep.update_nuclear_coords_velocity2(electronic_force)
+            electronic_force = self.ndstep.update_nuclear_coords_velocity2(electronic_force)
 
             if self.ed_method == 'curvy':
                 et, electronic_force = self.edstep.update_electronic_density_static2(coords, **kwargs)
 
-            self.md_time_coordinates[ti] = coords
+            self.md_time_coordinate[ti] = coords
             self.md_time_total_energies[ti] = et + self.ndstep.nuclear_kinetic + photon_energy #+ self.edstep.electronic_kinetic
 
             print('temperature: %4.2f K' % float(self.ndstep.nuclear_temperature * kT_AU_to_Kelvin))
             print('potential energy: %15.10f  kinetic energy: %15.10f  total energy %15.10f' % (et, self.ndstep.nuclear_kinetic, self.md_time_total_energies[ti]))
-            print_matrix('forces:\n', self.edstep.electronic_forces)
-            print_matrix('velocities:\n', self.ndstep.nuclear_velocities)
+            print_matrix('force:\n', self.edstep.electronic_force)
+            print_matrix('velocity:\n', self.ndstep.nuclear_velocity)
 
 
     def plot_time_variables(self, fig_name=None):
         time_line = np.linspace(0, convert_units(self.total_time, 'au', 'fs'), self.nuclear_nsteps)
         fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(11,6), sharex=True)
 
-        coords = self.md_time_coordinates * BOHR
+        coords = self.md_time_coordinate * BOHR
         energy = convert_units(self.md_time_total_energies, 'hartree', 'kcal')
 
         ax[0].plot(time_line, coords[:,1,-1]-coords[:,0,-1])
@@ -412,7 +447,7 @@ if __name__ == '__main__':
         md = MolecularDynamics(key)
         md.run_dynamics()
 
-        dists.append( md.md_time_coordinates[:,1,-1] - md.md_time_coordinates[:,0,-1])
+        dists.append( md.md_time_coordinate[:,1,-1] - md.md_time_coordinate[:,0,-1])
         energies.append( md.md_time_total_energies)
 
         key['ed_method'] = 'extended_lag'
@@ -422,7 +457,7 @@ if __name__ == '__main__':
             md = MolecularDynamics(key)
             md.run_dynamics()
 
-            dists.append( md.md_time_coordinates[:,1,-1] - md.md_time_coordinates[:,0,-1])
+            dists.append( md.md_time_coordinate[:,1,-1] - md.md_time_coordinate[:,0,-1])
             energies.append( md.md_time_total_energies)
             energies.append( md.md_time_total_energies2)
 
@@ -431,14 +466,14 @@ if __name__ == '__main__':
 #        key['ortho_method'] = 'cholesky'
 #        md = MolecularDynamics(key)
 #        md.run_dynamics()
-#        dists.append( md.md_time_coordinates[:,1,-1] - md.md_time_coordinates[:,0,-1])
+#        dists.append( md.md_time_coordinate[:,1,-1] - md.md_time_coordinate[:,0,-1])
 #        energies.append( md.md_time_total_energies)
 
         key['ed_method'] = 'grassmann'
         key['ortho_method'] = 'lowdin'
         md = MolecularDynamics(key)
         md.run_dynamics()
-        dists.append( md.md_time_coordinates[:,1,-1] - md.md_time_coordinates[:,0,-1])
+        dists.append( md.md_time_coordinate[:,1,-1] - md.md_time_coordinate[:,0,-1])
         energies.append( md.md_time_total_energies)
 
 

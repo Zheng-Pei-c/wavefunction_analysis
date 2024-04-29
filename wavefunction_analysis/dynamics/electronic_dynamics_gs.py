@@ -103,10 +103,10 @@ def cal_electronic_force(mf, P1, P2=None, P3=None, F=None, Z=None, method='lowdi
         #        de[k] -= 2 * ovlp_deriv[:,m,n] * FP[m,n]
 
     de += grad.rhf.grad_nuc(mf.mol)
-    electronic_forces = -de
+    electronic_force = -de
 
-    #print_matrix('electronic_forces:\n', electronic_forces)
-    return electronic_forces
+    #print_matrix('electronic_force:\n', electronic_force)
+    return electronic_force
 
 
 def cal_pulay_force(mf, F, P, Fao, Pao, Z, method='lowdin'):
@@ -230,7 +230,7 @@ class ElectronicDynamicsStep():
         self.energy_tot = self.mf.scf()
         self.cal_electronic_force()
 
-        return self.energy_tot, self.electronic_forces
+        return self.energy_tot, self.electronic_force
 
 
     init_electronic_density_static = update_electronic_density_static
@@ -249,9 +249,9 @@ class ElectronicDynamicsStep():
     def cal_electronic_force(self):
         if self.electron_software == 'pyscf':
             g = self.mf.Gradients()
-            self.electronic_forces = - g.grad()
+            self.electronic_force = - g.grad()
 
-        return self.electronic_forces
+        return self.electronic_force
 
 
     # electronic dynamics
@@ -315,7 +315,7 @@ class ExtendedLagElectronicDynamicsStep(ElectronicDynamicsStep):
         super().init_electronic_density_static(coords)
         self.init_xl_variables()
 
-        return self.energy_tot, self.electronic_forces
+        return self.energy_tot, self.electronic_force
 
 
     def update_electronic_density_static(self, coords):
@@ -326,7 +326,7 @@ class ExtendedLagElectronicDynamicsStep(ElectronicDynamicsStep):
             self.xl_build_fock_init(coords, self.ncall)
             self.ncall += 1
 
-        return self.energy_tot, self.electronic_forces
+        return self.energy_tot, self.electronic_force
 
 
     def static_extended_lagrange(self):
@@ -353,13 +353,13 @@ class ExtendedLagElectronicDynamicsStep(ElectronicDynamicsStep):
 
         # energy and force
         self.energy_tot, P2, P3, F = cal_electronic_energy2(self.mf, self.Pao, Z)
-        self.electronic_forces = cal_electronic_force(self.mf, self.Pao, P2, P3, F, Z)
+        self.electronic_force = cal_electronic_force(self.mf, self.Pao, P2, P3, F, Z)
 
         # calculate the second derivatives of xl_auxiliary_density
         self.xl_Xdotdot = np.einsum('ij,jk->ik', P2, ovlp) - self.xl_auxiliary_density[self.xl_nk]
         #self.xl_Xdotdot = np.einsum('ji,jk,kl->il', L, P2, L) - self.xl_auxiliary_density[self.xl_nk]
 
-        return self.energy_tot, self.electronic_forces
+        return self.energy_tot, self.electronic_force
 
 
     def xl_build_fock_init(self, coords, k):
@@ -369,7 +369,7 @@ class ExtendedLagElectronicDynamicsStep(ElectronicDynamicsStep):
         DS = np.einsum('ij,jk->ik', self.Pao, self.mf.get_ovlp())
         self.xl_auxiliary_density[k] = DS
 
-        return self.energy_tot, self.electronic_forces
+        return self.energy_tot, self.electronic_force
 
 
     def xl_auxiliary_density_dotdot(self):
@@ -475,7 +475,7 @@ class CurvyElectronicDynamicsStep(ElectronicDynamicsStep):
         self.cy_delta_dot = np.zeros((self.nao, self.nao))
         self.cy_delta = np.zeros((self.nao, self.nao))
 
-        return self.energy_tot, self.electronic_forces
+        return self.energy_tot, self.electronic_force
 
 
     def update_electronic_density_static(self, coords):
@@ -490,7 +490,7 @@ class CurvyElectronicDynamicsStep(ElectronicDynamicsStep):
         self.cal_electronic_energy_force(F, P, Z)
         P = self.cy_update_density(P, Z)
 
-        return self.energy_tot, self.electronic_forces
+        return self.energy_tot, self.electronic_force
 
 
     def update_electronic_density_static2(self, coords):
@@ -503,7 +503,7 @@ class CurvyElectronicDynamicsStep(ElectronicDynamicsStep):
             cal_idempotency(P*.5)
 
         self.energy_tot += self.electronic_kinetic
-        return self.energy_tot, self.electronic_forces
+        return self.energy_tot, self.electronic_force
 
 
     def cy_get_mass_on_basis(self, F):
@@ -524,11 +524,11 @@ class CurvyElectronicDynamicsStep(ElectronicDynamicsStep):
 
     def cal_electronic_energy_force(self, F, P, Z):
         self.energy_tot, Fao = cal_electronic_energy1(self.mf, self.Pao, Z)
-        #self.electronic_forces = cal_electronic_force(self.mf, self.Pao, Z=Z)
+        #self.electronic_force = cal_electronic_force(self.mf, self.Pao, Z=Z)
         #self.cal_electronic_force()
-        self.electronic_forces = cal_pulay_force(self.mf, F, P, Fao, self.Pao, Z, self.ortho_method)
+        self.electronic_force = cal_pulay_force(self.mf, F, P, Fao, self.Pao, Z, self.ortho_method)
 
-        return self.energy_tot, self.electronic_forces
+        return self.energy_tot, self.electronic_force
 
 
     def cy_orbital_response(self):
@@ -624,7 +624,7 @@ class GrassmannElectronicDynamicsStep(ElectronicDynamicsStep):
 
         self.update_gamma_lagrange(coords)
 
-        return self.energy_tot, self.electronic_forces
+        return self.energy_tot, self.electronic_force
 
 
     def update_electronic_density_static(self, coords):
@@ -638,14 +638,14 @@ class GrassmannElectronicDynamicsStep(ElectronicDynamicsStep):
             P, Z = self.interpolation(coords)
             self.energy_tot, Fao = cal_electronic_energy1(self.mf, self.Pao, Z)
             F = np.einsum('ij,jk,lk->il', Z, Fao, Z)
-            self.electronic_forces = cal_pulay_force(self.mf, F, P, Fao, self.Pao, Z, self.ortho_method)
+            self.electronic_force = cal_pulay_force(self.mf, F, P, Fao, self.Pao, Z, self.ortho_method)
 
             energy0 = self.mf.scf()
             Pao0 = self.mf.make_rdm1()
             print('energy:', energy0, self.energy_tot, energy0-self.energy_tot)
             print('Pao:', Pao0, self.Pao, np.linalg.norm(Pao0-self.Pao))
 
-        return self.energy_tot, self.electronic_forces
+        return self.energy_tot, self.electronic_force
 
 
     def update_gamma_lagrange(self, coords):
