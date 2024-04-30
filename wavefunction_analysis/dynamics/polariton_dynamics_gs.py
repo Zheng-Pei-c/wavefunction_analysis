@@ -1,6 +1,5 @@
 import numpy as np
 
-from wavefunction_analysis.dynamics import ElectronicDynamicsStep
 from wavefunction_analysis.utils import print_matrix, convert_units
 
 def get_photon_trans_amplitude(ntot, scaling=1., energy=None):
@@ -62,7 +61,7 @@ class PhotonDynamicsStep():
             transp = np.einsum('pi,i,qi->pq', v, np.exp(1j*e*dt), v)
             #transm = np.einsum('pi,i,qi->pq', v, np.exp(-1j*e*dt), v)
             transm = transp.conjugate()
-            self.photon_density[i] = np.einsum('ij,jk,kl->il', transp, self.photon_density[i], transm)
+            self.photon_density[i] = np.einsum('ij,jk,kl->il', transp, self.photon_density[i], transm).real
             print_matrix('diagonal of photon_density:', np.diag(self.photon_density[i]))
 
             photon_trans[i] = np.einsum('ij,ji->', trans, self.photon_density[i])
@@ -72,6 +71,6 @@ class PhotonDynamicsStep():
         kwargs['trans_coeff'] = photon_trans
         kwargs['photon_energy'] = np.sum(energy)
 
-        print('photon_trans:', photon_trans)
+        #print('photon_trans:', photon_trans)
         #print('photon_energy:', np.sum(energy))
         return kwargs

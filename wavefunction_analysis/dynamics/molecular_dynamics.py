@@ -7,12 +7,8 @@ from wavefunction_analysis.utils.sec_mole import get_molecular_center, get_momen
 from wavefunction_analysis.plot import plt
 
 
-#AU_TIME_IN_SEC = 2.0 * 6.6260693e-34 * 8.854187817e-12 * 5.291772108e-11 \
-#                    / 1.60217653e-19 / 1.60217653e-19
-kT_AU_to_Kelvin = 0.25 * 9.1093826e-31 * (1.60217653e-19*1.60217653e-19 * 8.854187817e-12 * 6.6260693e-34)**2 / 1.3806505e-23
+kT_AU_to_Kelvin = 0.25 * 9.1093826e-31 * (1.60217653e-19**2 / 8.854187817e-12 / 6.6260693e-34)**2 / 1.3806505e-23
 
-#FS = 1.0e15
-BOHR = 0.52917721067121
 ELECTRON_MASS_IN_AMU = 5.4857990945e-04 # from qchem
 
 def get_boltzmann_beta(temperature):
@@ -26,10 +22,11 @@ def angular_property(mass, coords, props):
 
     # total angular property I^-1 * L
     U, s, Vt = np.linalg.svd(inertia)
-    idx = np.where(s[np.abs(s)>1e-10])[0]
-    s, U, Vt = 1./s[idx], U[:,idx], Vt[:,idx]
-    ang_prop = np.einsum('ij,j,kj,k->i', Vt, s, U, props)
+    idx = np.where(s[s>1e-10])[0] # singular values are non-negative
+    s, U, Vt = 1./s[idx], U[:,idx], Vt[idx]
+    #Iinv = np.einsum('ji,j,kj->ik', Vt, s, U) # be careful to the index
 
+    ang_prop = np.einsum('ji,j,kj,k->i', Vt, s, U, props)
     return ang_prop
 
 
@@ -51,19 +48,23 @@ def remove_trans_rotat_velocity(velocity, mass, coords):
 
 
 def remove_trans_rotat_force(force, mass, coords):
+    print_matrix('force:', force, digits=[10,5,'e'])
     # remove translation (ie. center of mass force)
     f_com = np.sum(force, axis=0) / np.sum(mass)
     force -= np.einsum('i,x->ix', mass, f_com)
 
-    # move coords to com
-    com = get_molecular_center(mass, coords)
-    coords -= com
+    ## move coords to com
+    #com = get_molecular_center(mass, coords)
+    #coords -= com
 
     # remove rotation
     torque = np.sum(np.cross(coords, force), axis=0) # r x f
+    print('torque:', torque)
     ang_f = angular_property(mass, coords, torque)
+    print('ang_f:', ang_f)
 
     force -= np.einsum('i,ix->ix', mass, np.cross(ang_f[None,:], coords))
+    print_matrix('projected force:', force, digits=[10,5,'e'])
     return force
 
 
@@ -102,9 +103,8 @@ class NuclearDynamicsStep():
 
         self.nuclear_save_nframe = nuclear_save_nframe
 
-        self.nuclear_coordinate = np.reshape(np.copy(init_coords), (self.natoms, 3)) # copy!
         # assume init_coords in AA and change it to A.U.
-        self.nuclear_coordinate /= BOHR
+        self.nuclear_coordinate = convert_units(np.reshape(init_coords, (-1, 3)), 'angstrom', 'bohr')
 
         if isinstance(init_velocity, list):
             init_velocity = np.reshape(init_velocity, (self.natoms, 3))
@@ -181,7 +181,7 @@ class NuclearDynamicsStep():
         if self.nuclear_update_method == 'velocity_verlet':
             self.velocity_verlet_step(nuclear_force, 2)
 
-        self.project_velocity(self.nuclear_velocity)
+        #self.project_velocity(self.nuclear_velocity)
         nuclear_force = self.project_force(nuclear_force)
 
         return nuclear_force
@@ -215,7 +215,7 @@ class NuclearDynamicsStep():
 
         v2 = np.einsum('ix,ix->i', velocity, velocity)
         self.nuclear_kinetic = .5* np.einsum('i,i', mass, v2)
-        self.nuclear_temperature = self.nuclear_kinetic * 2. / (velocity.size)
+        self.nuclear_temperature = 2.* self.nuclear_kinetic / (velocity.size)
 
 
     def project_velocity(self, velocity, mass=None, coords=None):
@@ -292,18 +292,18 @@ class MolecularDynamics():
 
 
     def run_dynamics(self):
-        print('current time:%7.3f fs' % 0.0)
-        coords = self.ndstep.nuclear_coordinate # equal sign used here as a pointer
+        coords = self.ndstep.nuclear_coordinate # equal sign used here as a pointer!
         # coords will change when self.ndstep.nuclear_coordinate changes!
 
         kwargs = {}
         if self.phstep:
             kwargs['c_lambda'] = self.phstep.coupling_strength
 
-        et, electronic_force = self.edstep.init_electronic_density_static(coords, **kwargs)
-        electronic_force = self.ndstep.project_force(electronic_force)
+        et, force = self.edstep.init_electronic_density_static(coords, **kwargs)
+        force = self.ndstep.project_force(force)
 
         if self.phstep:
+            print('photon frequency (au) is:', self.phstep.photon_frequency)
             kwargs['frequency'] = self.phstep.photon_frequency
             self.md_time_dipoles[0] = self.edstep.mf.dip_moment(unit='au')
             kwargs.update(self.phstep.update_photon_density(self.md_time_dipoles[0], self.ndstep.nuclear_dt))
@@ -312,50 +312,51 @@ class MolecularDynamics():
         self.md_time_coordinate[0] = coords
         self.md_time_total_energies[0] = et + self.ndstep.nuclear_kinetic + photon_energy
 
+        print('current time:%7.3f fs' % 0.0, end='  ')
         print('temperature: %4.2f K' % float(self.ndstep.nuclear_temperature * kT_AU_to_Kelvin))
         print('potential energy: %15.10f  kinetic energy: %15.10f  total energy: %15.10f' % (et, self.ndstep.nuclear_kinetic, self.md_time_total_energies[0]))
-        print_matrix('force:\n', self.edstep.electronic_force)
+        print_matrix('force:\n', self.ndstep.nuclear_force)
         print_matrix('velocity:\n', self.ndstep.nuclear_velocity)
-        print_matrix('current nuclear coordinate:\n', coords*BOHR)
+        print_matrix('current nuclear coordinate:\n', convert_units(coords, 'bohr', 'angstrom'))
 
 
         # loop times
         for ti in range(1, self.nuclear_nsteps):
-            self.ndstep.update_nuclear_coords_velocity(electronic_force)
-            et, electronic_force = self.edstep.update_electronic_density_static(coords, **kwargs)
+            self.ndstep.update_nuclear_coords_velocity(force)
+            et, force = self.edstep.update_electronic_density_static(coords, **kwargs)
 
             if self.phstep:
                 self.md_time_dipoles[ti] = self.edstep.mf.dip_moment(unit='au')
                 kwargs.update(self.phstep.update_photon_density(self.md_time_dipoles[ti], self.ndstep.nuclear_dt))
             photon_energy = kwargs.get('photon_energy', 0.)
 
-            print('current time:%7.3f fs' % convert_units(ti*self.nuclear_dt, 'au', 'fs'))
-            #coords = self.ndstep.nuclear_coordinate # dont need to reassign
-            print_matrix('current nuclear coordinate:\n', coords*BOHR)
-
-            # velocity_verlet is cumbersome
-            electronic_force = self.ndstep.update_nuclear_coords_velocity2(electronic_force)
+            #coords = self.ndstep.nuclear_coordinate # dont need to reassign!
 
             if self.ed_method == 'curvy':
-                et, electronic_force = self.edstep.update_electronic_density_static2(coords, **kwargs)
+                et, force = self.edstep.update_electronic_density_static2(coords, **kwargs)
+
+            # velocity_verlet is cumbersome
+            force = self.ndstep.update_nuclear_coords_velocity2(force)
 
             self.md_time_coordinate[ti] = coords
             self.md_time_total_energies[ti] = et + self.ndstep.nuclear_kinetic + photon_energy #+ self.edstep.electronic_kinetic
 
+            print('current time:%7.3f fs' % convert_units(ti*self.nuclear_dt, 'au', 'fs'), end='  ')
             print('temperature: %4.2f K' % float(self.ndstep.nuclear_temperature * kT_AU_to_Kelvin))
             print('potential energy: %15.10f  kinetic energy: %15.10f  total energy %15.10f' % (et, self.ndstep.nuclear_kinetic, self.md_time_total_energies[ti]))
-            print_matrix('force:\n', self.edstep.electronic_force)
+            print_matrix('force:\n', self.ndstep.nuclear_force)
             print_matrix('velocity:\n', self.ndstep.nuclear_velocity)
+            print_matrix('current nuclear coordinate:\n', convert_units(coords, 'bohr', 'angstrom'))
 
 
     def plot_time_variables(self, fig_name=None):
         time_line = np.linspace(0, convert_units(self.total_time, 'au', 'fs'), self.nuclear_nsteps)
         fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(11,6), sharex=True)
 
-        coords = self.md_time_coordinate * BOHR
+        coords = convert_units(self.md_time_coordinate, 'bohr', 'angstrom')
         energy = convert_units(self.md_time_total_energies, 'hartree', 'kcal')
 
-        ax[0].plot(time_line, coords[:,1,-1]-coords[:,0,-1])
+        ax[0].plot(time_line, np.linalg.norm(coords[:,1]-coords[:,0], axis=1))
         ax[0].set_ylabel('He--H$^+$ ($\\AA$)')
         ax[1].plot(time_line, energy-energy[0])
         ax[1].set_xlabel('Time (fs)')
@@ -372,7 +373,7 @@ def plot_time_variables(total_time, nuclear_nsteps, dists, energies):
     time_line = np.linspace(0, convert_units(total_time, 'au', 'fs'), nuclear_nsteps)
     method = ['BO', 'XL-3', 'XL-6', 'XL-9', 'Curvy']
 
-    dists = np.array(dists) * BOHR
+    dists = convert_units(np.array(dists), 'bohr', 'angstrom')
     energies = np.array(energies)
     energies -= energies[0,0]
 

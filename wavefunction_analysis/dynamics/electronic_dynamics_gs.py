@@ -242,7 +242,7 @@ class ElectronicDynamicsStep():
         #print('current coords in ED:\n', atom)
 
         mol = build_molecule(atom, self.basis, self.charge, self.spin,
-                                    self.unit, self.max_memory, self.verbose)
+                             self.unit, self.max_memory, self.verbose)
         self.mf = run_pyscf_gs(self.scf_method, mol, self.functional, *args, **kwargs)
 
 
