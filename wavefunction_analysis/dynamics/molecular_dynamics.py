@@ -12,6 +12,7 @@ kT_AU_to_Kelvin = 0.25 * 9.1093826e-31 * (1.60217653e-19**2 / 8.854187817e-12 / 
 ELECTRON_MASS_IN_AMU = 5.4857990945e-04 # from qchem
 
 def get_boltzmann_beta(temperature):
+    # temperature in Kelvin
     from pyscf.data.nist import HARTREE2J, BOLTZMANN
     return HARTREE2J / (BOLTZMANN * temperature)
 
@@ -48,7 +49,6 @@ def remove_trans_rotat_velocity(velocity, mass, coords):
 
 
 def remove_trans_rotat_force(force, mass, coords):
-    print_matrix('force:', force, digits=[10,5,'e'])
     # remove translation (ie. center of mass force)
     f_com = np.sum(force, axis=0) / np.sum(mass)
     force -= np.einsum('i,x->ix', mass, f_com)
@@ -59,12 +59,9 @@ def remove_trans_rotat_force(force, mass, coords):
 
     # remove rotation
     torque = np.sum(np.cross(coords, force), axis=0) # r x f
-    print('torque:', torque)
     ang_f = angular_property(mass, coords, torque)
-    print('ang_f:', ang_f)
 
     force -= np.einsum('i,ix->ix', mass, np.cross(ang_f[None,:], coords))
-    print_matrix('projected force:', force, digits=[10,5,'e'])
     return force
 
 
@@ -150,12 +147,12 @@ class NuclearDynamicsStep():
         return velocity
 
 
-    def init_velocity_thermo(self, temp, seed=12345):
+    def init_velocity_thermo(self, temp, seed=1385448536):
         """
         random velocity following Boltzmann distribution
         """
         beta_b = get_boltzmann_beta(temp)
-        sigma = np.sqrt(1./beta_b/self.nuclear_mass)
+        sigma = np.sqrt(1./beta_b/self.nuclear_mass) # standard deviation
 
         velocity = np.zeros((self.natoms, 3))
 
@@ -163,6 +160,7 @@ class NuclearDynamicsStep():
         for i in range(self.natoms):
             velocity[i] = rng.normal(loc=0., scale=sigma[i], size=3)
 
+        print_matrix('init velocity:', velocity, digits=[10,5,'e'])
         return velocity
 
 
