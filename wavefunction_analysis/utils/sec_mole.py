@@ -70,6 +70,7 @@ def read_symbols_coords(infile, probe=1):
 def get_symbols_coords(geometry, string=False):
     if string:
         geometry = [atom.split() for atom in geometry]
+        geometry = sum(geometry, []) # convert to 1d list
 
     natom = int(len(geometry)/4)
     symbols, coords = [], np.zeros((natom, 3))
@@ -77,7 +78,7 @@ def get_symbols_coords(geometry, string=False):
     for atom in range(natom):
         symbols.append(geometry[4*atom])
         for x in range(3):
-            coords[atom, x] = geometry[4*atom+1+x]
+            coords[atom, x] = geometry[4*atom+1+x] # convert to float automatically by np
 
     return symbols, coords
 
