@@ -249,6 +249,7 @@ class ElectronicDynamicsStep():
     def cal_electronic_force(self):
         if self.electron_software == 'pyscf':
             g = self.mf.Gradients()
+            g.grid_response = True
             self.electronic_force = - g.grad()
 
         return self.electronic_force

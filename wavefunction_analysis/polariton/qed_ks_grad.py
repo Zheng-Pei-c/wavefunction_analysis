@@ -9,7 +9,8 @@ from pyscf.grad import rks as rks_grad
 
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units, print_matrix, fdiff
-from wavefunction_analysis.polariton.qed_ks import polariton_cs, polariton_ns, get_lambda2
+from wavefunction_analysis.polariton import polariton_cs, polariton_ns
+from wavefunction_analysis.polariton.qed_ks import get_lambda2
 from wavefunction_analysis.utils.fdiff import change_matrix_phase_c
 
 def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
@@ -37,7 +38,8 @@ def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
                 mf1 = scf_method(mol_new) # in coherent state
                 mf1.xc = functional
                 mf1.grids.prune = prune
-                mf1.get_multipole_matrix(coupling, frequency=photon_freq, trans_coeff=trans_coeff)
+                if isinstance(coupling, np.ndarray) or isinstance(coupling, list):
+                    mf1.get_multipole_matrix(coupling, frequency=photon_freq, trans_coeff=trans_coeff)
 
                 e_tot = mf1.kernel()
 
