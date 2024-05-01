@@ -303,11 +303,11 @@ class MolecularDynamics():
         if self.phstep:
             print('photon frequency (au) is:', self.phstep.photon_frequency)
             kwargs['frequency'] = self.phstep.photon_frequency
-            self.md_time_dipoles[0] = self.edstep.mf.dip_moment(unit='au')
             kwargs.update(self.phstep.update_photon_density(self.md_time_dipoles[0], self.ndstep.nuclear_dt))
         photon_energy = kwargs.get('photon_energy', 0.)
 
         self.md_time_coordinate[0] = coords
+        self.md_time_dipoles[0] = self.edstep.mf.dip_moment(unit='au')
         self.md_time_total_energies[0] = et + self.ndstep.nuclear_kinetic + photon_energy
 
         print('current time:%7.3f fs' % 0.0, end='  ')
@@ -324,7 +324,6 @@ class MolecularDynamics():
             et, force = self.edstep.update_electronic_density_static(coords, **kwargs)
 
             if self.phstep:
-                self.md_time_dipoles[ti] = self.edstep.mf.dip_moment(unit='au')
                 kwargs.update(self.phstep.update_photon_density(self.md_time_dipoles[ti], self.ndstep.nuclear_dt))
             photon_energy = kwargs.get('photon_energy', 0.)
 
@@ -337,6 +336,7 @@ class MolecularDynamics():
             force = self.ndstep.update_nuclear_coords_velocity2(force)
 
             self.md_time_coordinate[ti] = coords
+            self.md_time_dipoles[ti] = self.edstep.mf.dip_moment(unit='au')
             self.md_time_total_energies[ti] = et + self.ndstep.nuclear_kinetic + photon_energy #+ self.edstep.electronic_kinetic
 
             print('current time:%7.3f fs' % convert_units(ti*self.nuclear_dt, 'au', 'fs'), end='  ')

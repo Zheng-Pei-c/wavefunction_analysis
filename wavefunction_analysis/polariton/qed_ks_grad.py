@@ -9,7 +9,7 @@ from pyscf.grad import rks as rks_grad
 
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import convert_units, print_matrix, fdiff
-from wavefunction_analysis.polariton.qed_ks import polariton_cs, polariton_ns, get_scaled_lambda, get_lambda2
+from wavefunction_analysis.polariton.qed_ks import polariton_cs, polariton_ns, get_lambda2
 from wavefunction_analysis.utils.fdiff import change_matrix_phase_c
 
 def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
@@ -197,20 +197,37 @@ def get_multipole_matrix_d1(mol, c_lambda, origin=None):
 def get_dse_2e(dipole, dipole_d1, dm, with_j=False, scale_k=.5): # c_lambda is included
     # scale k by 1/2 for restricted orbital case by default
     # we moved the mode index for lambda-dipole derivative to the last
-    if dm.ndim == 2:
-        vk = np.einsum('xpq...,...rs,qr->xps', dipole_d1, dipole, dm)
-        if with_j is False:
-            return vk*scale_k
-        else:
-            vj = np.einsum('xpq...,...rs,sr->xpq', dipole_d1, dipole, dm)
-            return [vj, vk*scale_k]
-    else: # multiple density matrices, ie uhf
-        vk = np.einsum('xpq...,...rs,iqr->ixps', dipole_d1, dipole, dm)
-        if with_j is False:
-            return vk*scale_k
-        else:
-            vj = np.einsum('xpq...,...rs,isr->ixpq', dipole_d1, dipole, dm)
-            return [vj, vk*scale_k]
+    if dipole.ndim == 2:
+        if dm.ndim == 2:
+            vk = np.einsum('xpq,rs,qr->xps', dipole_d1, dipole, dm)
+            if with_j is False:
+                return vk*scale_k
+            else:
+                vj = np.einsum('xpq,rs,sr->xpq', dipole_d1, dipole, dm)
+                return [vj, vk*scale_k]
+        else: # multiple density matrices, ie uhf
+            vk = np.einsum('xpq,rs,iqr->ixps', dipole_d1, dipole, dm)
+            if with_j is False:
+                return vk*scale_k
+            else:
+                vj = np.einsum('xpq,rs,isr->ixpq', dipole_d1, dipole, dm)
+                return [vj, vk*scale_k]
+
+    elif dipole.ndim == 3:
+        if dm.ndim == 2:
+            vk = np.einsum('xpql,lrs,qr->xps', dipole_d1, dipole, dm)
+            if with_j is False:
+                return vk*scale_k
+            else:
+                vj = np.einsum('xpql,lrs,sr->xpq', dipole_d1, dipole, dm)
+                return [vj, vk*scale_k]
+        else: # multiple density matrices, ie uhf
+            vk = np.einsum('xpql,lrs,iqr->ixps', dipole_d1, dipole, dm)
+            if with_j is False:
+                return vk*scale_k
+            else:
+                vj = np.einsum('xpql,lrs,isr->ixpq', dipole_d1, dipole, dm)
+                return [vj, vk*scale_k]
 
 
 def get_bilinear_dipole_d1(dipole_d1, frequency, photon_coeff, elec=True):
@@ -220,7 +237,7 @@ def get_bilinear_dipole_d1(dipole_d1, frequency, photon_coeff, elec=True):
         if dipole_d1.ndim == 3:
             return np.sqrt(frequency/2.) * photon_coeff * dipole_d1
         elif dipole_d1.ndim == 4: # nmode is moved to the last
-            return np.einsum('i,i,xpqi->ypq', np.sqrt(frequency)/np.sqrt(2.), photon_coeff, dipole_d1)
+            return np.einsum('i,i,xpqi->xpq', np.sqrt(frequency)/np.sqrt(2.), photon_coeff, dipole_d1)
     else: # nuclear dipole derivative
         if dipole_d1.ndim == 2:
             return np.sqrt(frequency/2.) * photon_coeff * dipole_d1
@@ -232,7 +249,7 @@ def get_dse_elec_nuc_d1(dipole_d1, nuc_dip): # c_lambda is included
     if isinstance(nuc_dip, float):
         return -nuc_dip * dipole_d1
     else: # numpy does not sum over ellipsis
-        return -np.einsum('lxpq,l->xpq', dipole_d1, nuc_dip) # l is the number of photon modes
+        return -np.einsum('xpql,l->xpq', dipole_d1, nuc_dip) # l is the number of photon modes
 
 
 def get_dse_elec_nuc_grad(dipole, nuc_dip_d1, dm): # c_lambda is included
@@ -255,7 +272,7 @@ def get_grad_nuc_dip(nuc_dip, nuc_dip_d1):
     if isinstance(nuc_dip, float):
         return nuc_dip * nuc_dip_d1
     else: # numpy does not sum over ellipsis
-        grad = np.einsum('i,iny->ny', nuc_dip, nuc_dip)
+        grad = np.einsum('i,iny->ny', nuc_dip, nuc_dip_d1)
     return grad
 
 
