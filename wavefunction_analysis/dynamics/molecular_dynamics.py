@@ -298,7 +298,7 @@ class MolecularDynamics():
             kwargs['c_lambda'] = self.phstep.coupling_strength
 
         et, force = self.edstep.init_electronic_density_static(coords, **kwargs)
-        #force = self.ndstep.project_force(force)
+        force = self.ndstep.project_force(force)
 
         if self.phstep:
             print('photon frequency (au) is:', self.phstep.photon_frequency)
