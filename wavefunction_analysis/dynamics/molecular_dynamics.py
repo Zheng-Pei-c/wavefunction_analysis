@@ -324,7 +324,7 @@ class MolecularDynamics():
             et, force = self.edstep.update_electronic_density_static(coords, **kwargs)
 
             if self.phstep:
-                kwargs.update(self.phstep.update_photon_density(self.md_time_dipoles[ti], self.ndstep.nuclear_dt))
+                kwargs.update(self.phstep.update_photon_density(self.md_time_dipoles[ti-1], self.ndstep.nuclear_dt))
             photon_energy = kwargs.get('photon_energy', 0.)
 
             #coords = self.ndstep.nuclear_coordinate # dont need to reassign!
