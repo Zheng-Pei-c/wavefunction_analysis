@@ -113,25 +113,32 @@ def autocorrelation(arrays, dt, window='gaussian', domain='freq'):
     # C(t) = < \int A(\tau) B(t-\tau) \dd \tau >
     # Wiener-Khintchine theorem
     # first index is along time
+    if arrays.ndim == 1:
+        arrays = arrays.reshape(-1, 1)
+
     nstep = arrays.shape[0]
-    arrays = np.gradient(arrays, edge_order=2, axis=0) / dt
-    arrays -= np.average(arrays, axis=0)
+    #arrays = np.gradient(arrays, edge_order=2, axis=0) / dt
+    arrays -= np.mean(arrays, axis=0)
     norm = np.einsum('ix,ix->x', arrays, arrays)
 
+    #n = nstep*2 if nstep%2==0 else nstep*2-1
     correlation = np.zeros(arrays.shape)
-    for i in range(3):
+    for i in np.where(norm>1e-8)[0]:
         correlation[:,i] = signal.convolve(arrays[:,i], arrays[::-1,i], mode='full')[nstep-1:] / norm[i]
+        #tmp = np.zeros(n)
+        #tmp[nstep//2:nstep//2+nstep] = np.copy(arrays[:,i])
+        #correlation[:,i] = signal.fftconvolve(tmp, arrays[::-1,i], mode='same')[-nstep:]/ np.arange(nstep, 0, -1)
 
     #window = 'none'
-    if window == 'gaussian':
-        sigma = 2. * np.sqrt(2. * np.log(2.))
-        window = signal.gaussian(nstep, std=4000./sigma, sym=False)
-    elif hasattr(signal, window): # hann, hamming, blackmanharris
-        window = getattr(signal, window)(nstep, sym=False)
+    #if window == 'gaussian':
+    #    sigma = 2. * np.sqrt(2. * np.log(2.))
+    #    window = signal.gaussian(nstep, std=4000./sigma, sym=False)
+    #elif hasattr(signal, window): # hann, hamming, blackmanharris
+    #    window = getattr(signal, window)(nstep, sym=False)
 
-    if isinstance(window, np.ndarray):
-        wf = window / np.sum(window) * nstep
-        correlation = correlation * wf[:,None]
+    #if isinstance(window, np.ndarray):
+    #    wf = window / np.sum(window) * nstep
+    #    correlation = correlation * wf[:,None]
 
     if domain == 'time':
         return correlation
@@ -145,15 +152,34 @@ def fft_acf(arrays, dt, unit='au'):
     if unit != 's':
         dt = convert_units(dt, unit, 's')
     freq = np.fft.fftfreq(nstep, dt)[:nstep//2]
+
+    #sigma = np.fft.fft2(arrays)[:nstep//2] / nstep
+    sigma = fftpack.dct(arrays[:nstep//2], type=1, axis=0)
+    sigma = np.mean(sigma, axis=1) * freq**2
+    sigma = smooth(sigma)
+
+    #sigma = np.abs(sigma.imag)
+
     freq = convert_units(freq, 'hz', 'cm-1')
-
-    #N = 2**int(np.log2(nstep*2-1))
-    sigma = np.fft.fft2(arrays)[:nstep//2] / nstep
-    sigma = np.mean(sigma, axis=1)
-
-    sigma = np.abs(sigma.imag)
-
     return freq, sigma
+
+
+def smooth(x, window='hanning', window_len=11):
+    """
+    window: flat, hanning, hamming, bartlett, blackman
+    """
+    if window_len < 3:
+        return x
+
+    s = np.r_[x[window_len-1:0:-1], x, x[-2:-window_len-1:-1]]
+
+    if window == 'flat':
+        w = np.ones(window_len, 'd')
+    else:
+        w = eval('np.'+window+'(window_len)')
+
+    y = np.convolve(w/w.sum(), s, mode='valid')
+    return y[window_len//2-1:-window_len//2]
 
 
 
