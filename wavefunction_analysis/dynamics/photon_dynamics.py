@@ -98,7 +98,7 @@ class PhotonDynamicsStep2(harmonic_oscillator):
         force = -np.einsum('i,ix,x->ix', self.frequency, self.c_lambda, molecular_dipole)
         self.update_coordinate_velocity(force)
 
-        trans_coeff = 2. * np.dot(self.frequency, self.coordinate)
+        trans_coeff = np.sum(self.coordinate, axis=1) #2. * np.dot(self.frequency, self.coordinate)
         energy = self.energy
 
         kwargs = {}
