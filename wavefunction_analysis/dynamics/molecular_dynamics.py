@@ -186,27 +186,27 @@ if __name__ == '__main__':
     mdtype = int(sys.argv[1])
 
     key = {}
-    key['functional'] = 'hf'
-    #key['basis'] = '3-21g'
-    #key['charge'] = 0
-    #key['atmsym'] = [1, 1]
-    #key['init_coords'] = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.5]]
-    key['basis'] = 'sto-3g'
-    key['charge'] = 1
     key['atmsym'] = ['H', 'He']
-    key['init_coords'] = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.929352]]
-    key['init_velocity'] = [[0.0, 0.0, 0.0008], [0.0, 0.0, -0.0008]]
+    key['coordinate'] = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.929352]]
+    key['velocity'] = [[0.0, 0.0, 0.0008], [0.0, 0.0, -0.0008]]
 
     key['dt'] = 10
     #key['total_time'] = 120
     key['total_time'] = 4000
     key['update_method'] = 'velocity_verlet'
-    key['ortho_method'] = 'lowdin' # 'cholesky'
+
+    ed_key = {}
+    ed_key['functional'] = 'hf'
+    #ed_key['basis'] = '3-21g'
+    #ed_key['charge'] = 0
+    ed_key['basis'] = 'sto-3g'
+    ed_key['charge'] = 1
+    ed_key['ortho_method'] = 'lowdin' # 'cholesky'
 
     if mdtype == 0:
-        md = MolecularDynamics(key)
+        md = MolecularDynamics(key, ed_key)
         md.run_dynamics()
-        md.plot_time_variables(fig_name='normal_time_coords')
+#        md.plot_time_variables(fig_name='normal_time_coords')
 
     elif mdtype == 1:
         print('run extended_lag')
