@@ -5,7 +5,7 @@ from pyscf.data.nist import HARTREE2J, HARTREE2EV, BOLTZMANN, PROTON_MASS_AU, BO
 from pyscf import lib
 
 from wavefunction_analysis.utils import print_matrix
-from wavefunction_analysis.utils.sec_rem import put_kwargs_keys_to_object, put_kwargs_to_keys
+from wavefunction_analysis.utils import put_keys_kwargs_to_object, put_kwargs_to_keys
 from wavefunction_analysis.dynamics.dimers_in_crystal import add_molecules_cell
 
 
@@ -48,7 +48,7 @@ class OscillatorDynamicsStep():
         # vibrational frequency in meV
         self.nuclear_omega = 0
 
-        put_kwargs_keys_to_object(self, key, **kwargs)
+        put_keys_kwargs_to_object(self, key, **kwargs)
 
         self.check_sanity()
         # convert the input parameters into atomic unit for the calculations
@@ -226,7 +226,7 @@ class ExcitonDynamicsStep():
 
         self.dimer_label = None
 
-        put_kwargs_keys_to_object(self, key, **kwargs)
+        put_keys_kwargs_to_object(self, key, **kwargs)
 
         self.check_sanity()
         # convert the input parameters into atomic unit for the calculations

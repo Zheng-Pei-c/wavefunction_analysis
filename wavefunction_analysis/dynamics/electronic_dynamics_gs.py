@@ -5,6 +5,7 @@ from pyscf import scf, gto, grad
 
 from wavefunction_analysis.polariton import polariton_ns
 from wavefunction_analysis.utils import print_matrix, convert_units
+from wavefunction_analysis.utils import put_keys_kwargs_to_object
 from wavefunction_analysis.utils.ortho_ao_basis import get_ortho_basis
 from wavefunction_analysis.utils.pyscf_parser import build_atom, build_molecule
 
@@ -191,7 +192,7 @@ def run_pyscf_gs(scf_method, mol, functional, *args, **kwargs):
 
 
 class ElectronicDynamicsStep():
-    def __init__(self, key):
+    def __init__(self, key, **kwargs):
         # default values
         key.setdefault('electron_software', 'pyscf')
         key.setdefault('scf_method', scf.RKS)
@@ -211,8 +212,7 @@ class ElectronicDynamicsStep():
         key.setdefault('verbose', 1)
         key.setdefault('unit', 'Bohr') # for coordinates
 
-        for name, value in key.items(): # put all the variables in the class
-            setattr(self, name, value)
+        put_keys_kwargs_to_object(self, key, **kwargs)
 
         self.electronic_kinetic = 0.
 

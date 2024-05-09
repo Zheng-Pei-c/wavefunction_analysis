@@ -1,6 +1,5 @@
-import os, sys
+import sys
 import numpy as np
-np.set_printoptions(precision=4, linewidth=200, suppress=True,)
 from scipy.linalg import expm
 
 import pyscf
@@ -8,6 +7,8 @@ from pyscf import lib, gto, scf
 
 from wavefunction_analysis.utils import print_matrix
 from wavefunction_analysis.utils.ortho_ao_basis import get_ortho_basis
+
+np.set_printoptions(precision=4, linewidth=200, suppress=True,)
 
 def geodesic_exp(T, full=True, scale=1.):
     from scipy.linalg import expm
@@ -68,8 +69,9 @@ def geodesic_svd_compact(Y, T):
     return Y1
 
 
+
 class Grassmann(object):
-    def __init__(self, mf=None, S=None, Q=None, Y=None, P=None, method='steepest_descent'):
+    def __init__(self, mf=None, S=None, Q=None, Y=None, P=None, update_method='steepest_descent'):
         self._mf = mf
         nocc = mf.mol.nelectron // 2
 
@@ -80,7 +82,7 @@ class Grassmann(object):
         if P is None: P = mf.make_rdm1() *.5
 
         self.nocc = nocc
-        self.nvir = Q.shape[0] - nocc
+        self.nvir = Q.shape[1] - nocc
         print('nocc:', self.nocc, 'nvir:', self.nvir)
 
         self.S = S
@@ -89,13 +91,13 @@ class Grassmann(object):
         self._P = P
         self.L, self.Z, self.sinv = get_ortho_basis(S)
 
-        self.method = method
-
-        self.energy_tot = mf.energy_tot
-        self.get_fock = mf.get_fock
+        self.update_method = update_method
 
         self.max_cycle = 50 # default
         self.debug = 1
+
+        self.energy_tot = mf.energy_tot # object function
+        self.get_fock = mf.get_fock     # function gradient
 
 
     def barzilai_borwein_step(self, G0, G1, T0):
@@ -110,8 +112,15 @@ class Grassmann(object):
         return (beta*T0) - G1
 
 
-    def kernel(self):
-        C = self.init_guess()
+    def init_guess(self):
+        raise NotImplementedError
+
+
+    def kernel(self, C=None, tol=8):
+        tol = np.power(1, -float(tol))
+
+        if C is None:
+            C = self.init_guess()
         print_matrix('C initial:\n', C)
 
         #P = np.einsum('ij,jk,lk->il', C, self.I, C)
@@ -120,7 +129,7 @@ class Grassmann(object):
         energy = self.energy_tot(dm=P*2)
 
         gradient = self.get_fock(dm=P*2) *0.5
-        G = self.gradient_on_tangent_space(gradient, C)
+        G = self.project_tangent_space(C, gradient)
         T = -np.copy(G)
         C, P = self.update(C, T)
 
@@ -130,12 +139,12 @@ class Grassmann(object):
             energy_old = np.copy(energy)
 
             gradient = self.get_fock(dm=P*2) *0.5
-            G = self.gradient_on_tangent_space(gradient, C)
+            G = self.project_tangent_space(C, gradient)
             print_matrix('tangent:\n', G)
 
-            if self.method == 'barzilai_borwein':
+            if self.update_method == 'barzilai_borwein':
                 T = self.barzilai_borwein_step(G_old, G, T)
-            elif self.method == 'conjugate_gradient':
+            elif self.update_method == 'conjugate_gradient':
                 T = self.conjugate_gradient_step(C, G_old, G, T)
             C, P = self.update(C, T)
 
@@ -143,17 +152,21 @@ class Grassmann(object):
             error = np.linalg.norm(C-C_old)
             print('i:', i+1, 'error:', error, 'energy:', energy, energy-energy_old)
 
-            if error < 1e-8:
+            if error < tol:
                 break
 
 
 
 class Projection_Grassmann(Grassmann):
-    def gradient_on_tangent_space(self, P, gradient):
-        PG = np.einsum('ij,jk->ik', P, gradient)
-        GP = np.einsum('ij,jk->ik', gradient, P)
+    def init_guess(self):
+        return self._P
+
+
+    def project_tangent_space(self, P, G):
+        # [P, [P, G]] at point P, where P^2=P and G is a symmetric matrix
+        PG = np.einsum('ij,jk->ik', P, G)
+        GP = np.einsum('ij,jk->ik', G, P)
         return PG + GP - 2.*np.einsum('ij,jk->ik', P, GP)
-        #return gradient - np.einsum('ij,jk->ik', P, gradient)
 
 
 
@@ -164,11 +177,11 @@ class Quotient_Grassmann(Grassmann):
         return Y
 
 
-    def gradient_on_tangent_space(self, gradient, Y):
+    def project_tangent_space(self, Y, G):
+        # (I - YY^T) G Y
         P = np.einsum('ij,kj->ik', Y, Y)
-        gradient = np.einsum('ij,jk->ik', gradient, Y)
-        #return np.einsum('ij,jk->ik', (self.sinv - self._P), gradient)
-        return np.einsum('ij,jk->ik', (np.eye(P.shape[0]) - P), gradient)
+        G = np.einsum('ij,jk->ik', G, Y)
+        return np.einsum('ij,jk->ik', (np.eye(P.shape[0]) - P), G)
 
 
     def tangent_parallel_transport(self, Y, G, T):
@@ -210,9 +223,9 @@ class Involution_Grassmann(Grassmann):
         return C
 
 
-    def gradient_on_tangent_space(self, gradient, V):
-        gradient = np.einsum('ij,jk,lk->il', self.Z, gradient, self.Z)
-        return np.einsum('ji,jk,kl->il', V, gradient, V)[self.nocc:, :self.nocc]
+    def project_tangent_space(self, V, G):
+        G = np.einsum('ij,jk,lk->il', self.Z, G, self.Z)
+        return np.einsum('ji,jk,kl->il', V, G, V)[self.nocc:, :self.nocc]
 
 
     #def armijo_linesearch(self, G, Q):
@@ -269,16 +282,16 @@ if __name__ == '__main__':
     mf.kernel()
 
     models = ['projection', 'quotient', 'involution']
-    methods = ['barzilai_borwein', 'conjugate_gradient']
+    update_methods = ['barzilai_borwein', 'conjugate_gradient']
 
-    model, method = models[int(sys.argv[1])], methods[int(sys.argv[2])]
+    model, update_method = models[int(sys.argv[1])], update_methods[int(sys.argv[2])]
 
     if model == 'projection':
         grass = Projection_Grassmann(mf=mf)
     elif model == 'quotient':
-        grass = Quotient_Grassmann(mf=mf, method=method)
+        grass = Quotient_Grassmann(mf=mf, update_method=update_method)
     elif model == 'involution':
-        grass = Involution_Grassmann(mf=mf, method=method)
+        grass = Involution_Grassmann(mf=mf, update_method=update_method)
 
 #    grass.max_cycle = 1
     grass.kernel()
