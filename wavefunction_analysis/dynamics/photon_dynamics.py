@@ -94,9 +94,10 @@ class PhotonDynamicsStep2(harmonic_oscillator):
         self.mass = np.ones(len(self.frequency))
 
 
-    def update_density(self, molecular_dipole, dt):
+    def update_density(self, molecular_dipole, dt, half=1):
         force = -np.einsum('i,ix,x->ix', self.frequency, self.c_lambda, molecular_dipole)
-        self.update_coordinate_velocity(force)
+
+        self.update_coordinate_velocity(force, half)
 
         trans_coeff = np.sum(self.coordinate, axis=1) #2. * np.dot(self.frequency, self.coordinate)
         energy = self.energy
@@ -106,7 +107,6 @@ class PhotonDynamicsStep2(harmonic_oscillator):
         kwargs['photon_energy'] = energy
         kwargs['frequency'] = 8.*self.frequency**2
         return kwargs
-
 
 
 if __name__ == '__main__':

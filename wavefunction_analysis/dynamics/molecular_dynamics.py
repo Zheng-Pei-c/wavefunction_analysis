@@ -1,8 +1,6 @@
 import sys
 import numpy as np
 
-from wavefunction_analysis.utils import print_matrix, convert_units
-#from wavefunction_analysis.utils.sec_mole import get_molecular_center, get_moment_of_inertia
 from wavefunction_analysis.dynamics import (
         ElectronicDynamicsStep,
         GrassmannElectronicDynamicsStep,
@@ -14,10 +12,11 @@ from wavefunction_analysis.dynamics import (
         NuclearDynamicsStep,
         OscillatorDynamicsStep,
         )
+from wavefunction_analysis.utils import print_matrix, convert_units
 from wavefunction_analysis.plot import plt
 
-
 kT_AU_to_Kelvin = 0.25 * 9.1093826e-31 * (1.60217653e-19**2 / 8.854187817e-12 / 6.6260693e-34)**2 / 1.3806505e-23
+
 
 class MolecularDynamics():
     def __init__(self, key, ed_key={}, ph_key={}, **kwargs):
@@ -30,9 +29,6 @@ class MolecularDynamics():
         self.nsteps = int(self.total_time/self.dt) + 1
         print('running molecular dynamics in %5d steps and total time %6.3f fs\n' % (self.nsteps, convert_units(self.total_time, 'au', 'fs')))
 
-        #self.ndstep = NuclearDynamicsStep(atmsym, init_coords, self.nuclear_dt,
-        #                                  nuclear_update_method, nuclear_save_nframe,
-        #                                  init_velocity, init_kick)
         self.ndstep = self.set_nuclear_step(key)
         self.edstep = self.set_electronic_step(ed_key, atmsym=key['atmsym'], **kwargs)
         self.phstep = self.set_photon_step(ph_key, dt=self.dt)
@@ -106,14 +102,12 @@ class MolecularDynamics():
 
         # loop times
         for ti in range(1, self.nsteps):
-            self.ndstep.update_coordinate_velocity(force)
+            self.ndstep.update_coordinate_velocity(force, 1)
             et, force = self.edstep.update_electronic_density_static(coords, **kwargs)
             dipole = self.edstep.mf.dip_moment(unit='au')
 
             if self.phstep:
-                kwargs.update(self.phstep.update_density(self.md_time_dipoles[ti-1], self.ndstep.dt))
-            photon_energy = kwargs.get('photon_energy', 0.)
-            etot = et + self.ndstep.kinetic + photon_energy
+                kwargs.update(self.phstep.update_density(self.md_time_dipoles[ti-1], self.ndstep.dt, 1))
 
             #coords = self.ndstep.coordinate # dont need to reassign!
 
@@ -121,7 +115,12 @@ class MolecularDynamics():
                 et, force = self.edstep.update_electronic_density_static2(coords, **kwargs)
 
             # velocity_verlet is cumbersome
-            force = self.ndstep.update_coordinate_velocity2(force)
+            force = self.ndstep.update_coordinate_velocity(force, 2)
+
+            if self.phstep:
+                kwargs.update(self.phstep.update_density(self.md_time_dipoles[ti-1], self.ndstep.dt, 2))
+            photon_energy = kwargs.get('photon_energy', 0.)
+            etot = et + self.ndstep.kinetic + photon_energy
 
             self.md_time_coordinate[ti] = coords
             self.md_time_dipoles[ti] = dipole

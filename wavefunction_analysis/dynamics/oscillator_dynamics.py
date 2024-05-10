@@ -82,29 +82,29 @@ class harmonic_oscillator():
                 self.velocity[i] = get_gaussian_distribution(variance[i], n_site)
 
 
-    def update_coordinate_velocity(self, force):
+    def update_coordinate_velocity(self, force, half=1):
         if self.frequency: # add oscillator force first
             force -= np.einsum('i,i,ix->ix', self.mass, self.omega2, self.coordinate)
 
-        if self.update_method == 'euler':
-            self.euler_step(force)
-        elif self.update_method == 'leapfrog':
-            self.leapfrog_step(force)
-        elif self.update_method == 'velocity_verlet':
-            self.velocity_verlet_step(force, 1)
-            # we will finish the last falf after electronic step
+        if half == 1:
+            if self.update_method == 'euler':
+                self.euler_step(force)
+            elif self.update_method == 'leapfrog':
+                self.leapfrog_step(force)
+            elif self.update_method == 'velocity_verlet':
+                self.velocity_verlet_step(force, 1)
+                # we will finish the last falf after electronic step
 
+        elif half == 2:
+            # velocity_verlet is cumbersome: energy is calculated here
+            if self.update_method == 'velocity_verlet':
+                self.velocity_verlet_step(force, 2)
 
-    def update_coordinate_velocity2(self, force):
-        # velocity_verlet is cumbersome
-        if self.update_method == 'velocity_verlet':
-            self.velocity_verlet_step(force, 2)
-
-        # no need to project at every step
-        #self.project_velocity(self.velocity)
-        #return self.project_force(force)
-        self.force = force # save to class
-        return force
+            # no need to project at every step
+            #self.project_velocity(self.velocity)
+            #return self.project_force(force)
+            self.force = force # save to class
+            return force
 
 
     def euler_step(self, force):
