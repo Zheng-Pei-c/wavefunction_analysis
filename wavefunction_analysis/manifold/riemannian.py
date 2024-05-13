@@ -86,15 +86,18 @@ class Riemannian():
     to_tangent_space = projection
 
 
-    def transport(self, x0, x1, v0):
+    def transport(self, x1, v0):
         """
         transport tangent vector v0 at point x0 to point x1
         """
         return self.projection(x1, v0)
 
 
-    def weingarten(self, x, v, normal):
-        return
+    def weingarten(self, x, v, *args, **kwargs):
+        """
+        connection between tangent vectors
+        """
+        raise NotImplementedError('actural connection is not implemented')
 
 
     def riemannian_gradient(self, x, grad):
@@ -104,12 +107,12 @@ class Riemannian():
         return self.projection(x, grad)
 
 
-    def riemannian_hessian(self, x, v, grad, normal, hess):
-        if isinstance(normal, type(None)):
+    def riemannian_hessian(self, x, v, grad, hess, normal=None):
+        if normal is None:
             # euclidean_gradient - riemannian_gradient
             normal = grad - self.projection(x, grad)
 
-        return self.projection(x, hess) + self.weingarten(x, v, normal)
+        return self.projection(x, hess) - self.weingarten(x, v, grad, normal)
 
 
     def gradient_descent(self, method=None, nmax=50, thresh=1e-8,
@@ -120,8 +123,22 @@ class Riemannian():
         if kwargs.get('ymin') == 'eigenvalue':
             kwargs['ymin'] = self.eigenvalue[0]
 
-        return gradient_descent(self.func, self.func_grad, self.retraction, self.x0,
-                                method, nmax, thresh, *args, **kwargs)
+        return gradient_descent(self.func, self.func_grad, self.retraction,
+                                self.x0, method, nmax, thresh, *args, **kwargs)
+
+
+    def conjugate_gradient(self, method=None, cg_method='fletcher_reeves',
+                           nmax=50, thresh=1e-8, *args, **kwargs):
+        if method is None: # assign a fixed suitable size by default
+            method = 1. / (2. * np.linalg.norm(self.A))
+
+        if not hasattr(self, 'preconditioner'):
+            self.preconditioner = None
+
+        return conjugate_gradient(self.func, self.func_grad, self.retraction,
+                                self.transport, self.preconditioner,
+                                self.x0, method, cg_method, nmax, thresh,
+                                *args, **kwargs)
 
 
 
@@ -215,10 +232,79 @@ class Stiefel(OrthogonalGroup):
         return u @ vt
 
 
+    def weingarten(self, x, v, grad, normal):
+        # grad is not used
+        tmp = v.T @ normal
+        tmp = .5 * (tmp + tmp.T)
+
+        w = v @ x.T @ normal
+        w += x @ tmp
+        return w
+
+
+    def exp(self, x, v):
+        pt_tv = x.T @ v
+        identity = np.eye(self.ndim[1]) # column dimension
+
+        a = np.block([x, v])
+        b = np.block([[pt_tv, -v.T @ v,],
+                      [identity, pt_tv],])
+        b = scipy.linalg.expm(b)[..., : self._p]
+        c = scipy.linalg.expm(-pt_tv)
+        return a @ (b @ c)
+
+
 
 class Grassmann(OrthogonalGroup):
+    def projection(self, x, v):
+        p = x @ x.T # projector
+        return (v - p @ v)
+
+
+    def dist(self, v1, v2):
+        s = np.linalg.svd((v1.T @ v2), compute_uv=False)
+        s[s > 1] = 1
+        s = np.arccos(s)
+        return np.linalg.norm(s)
+
+
     def retraction_qr(self, x, v):
         return
+
+
+    def retraction_polar(self, x, v): # same as stiefel
+        x = x + v
+        u, s, vt = np.linalg.svd(x+v, full_matrices=False)
+        #return np.einsum('mn,nl->ml', u, vt)
+        return u @ vt
+
+
+    def weingarten(self, x, v, grad, normal):
+        # normal is not used
+        return v @ x.T @ grad
+
+
+    def exp(self, x, v):
+        u, s, vt = np.linalg.svd(v, full_matrices=False)
+        cos = np.expand_dims(np.cos(s), -2)
+        sin = np.expand_dims(np.sin(s), -2)
+
+        Y = x @ (vt.T * cos) @ vt + (u * sin) @ vt
+
+        # it seems necessary to re-orthonormalize numerically
+        # even though it is quite expensive.
+        q, _ = pymanopt.tools.multi.multiqr(Y)
+        return q
+
+
+    def log(self, x1, x2):
+        ytx = x2.T @ x1
+        At = x2.T - ytx @ x1.T
+
+        Bt = np.linalg.solve(ytx, At)
+        u, s, vt = np.linalg.svd(Bt.T, full_matrices=False)
+        arctan = np.expand_dims(np.arctan(s), -2)
+        return (u * arctan) @ vt
 
 
 
@@ -229,7 +315,9 @@ if __name__ == '__main__':
     nmax = 60
 
     itype = 'sphere'
-    itype = 'stiefel'
+    #itype = 'stiefel'
+
+    cg_method = 'fletcher_reeves'
 
     if itype == 'sphere':
         x0 = get_random_matrix([ndim])
@@ -256,11 +344,14 @@ if __name__ == '__main__':
     #print('x:', xs[-1])
     #print('norm:', np.einsum('ji,jk->ik', xs[-1], xs[-1]).diagonal())
 
+    xs, ys = surf_obj.conjugate_gradient(method='backtracking', cg_method=cg_method, nmax=nmax)
+
     problem = pymanopt.Problem(surf_obj2, cost)
 
-    optimizer_name = 'SteepestDescent'
+    #optimizer_name = 'SteepestDescent'
+    optimizer_name = 'ConjugateGradient'
     optimizer = getattr(pymanopt.optimizers, optimizer_name)(
-                        max_iterations=nmax, verbosity=0)
+                        max_iterations=nmax, verbosity=0, beta_rule='FletcherReeves')
     result = optimizer.run(problem, initial_point=surf_obj.x0)
     print('result:', result)
     #point = result.point

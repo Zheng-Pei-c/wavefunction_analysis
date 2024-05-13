@@ -2,10 +2,15 @@ import sys
 
 import numpy as np
 
+"""
+keep the walking direction along the gradient vector
+while using line search scheme to determine the step size
+"""
 def gradient_descent(func, gradf, retraction, x0,
-                     method='armijo', nmax=50, thresh=1e-8,
+                     ls_method='armijo', nmax=50, thresh=1e-8,
                      *args, **kwargs):
-    print('%s line search method is used in gradient descent' % method)
+    print('%s line search method is used in gradient descent' % ls_method)
+    ls_method = line_search(ls_method)
 
     xi = x0
     y0 = func(x0)
@@ -15,7 +20,7 @@ def gradient_descent(func, gradf, retraction, x0,
     ymin = kwargs.get('ymin', None)
 
     for i in range(nmax):
-        step_size = line_search(func, gradf, retraction, xi, method, *args, **kwargs)
+        step_size = ls_method(func, gradf, retraction, xi, *args, **kwargs)
 
         dx = -step_size * gradf(xi)
         xi = retraction(xi, dx)
@@ -41,25 +46,26 @@ def gradient_descent(func, gradf, retraction, x0,
     return np.array(xs), np.array(ys)
 
 
-def line_search(func, gradf, retraction, x0, method='armijo', *args, **kwargs):
+def line_search(method='armijo'):
     """
     method options: float, newton, backtracking, armijo, steepest
     """
     if isinstance(method, float): # step size is a given constant
-        return method
+        return ls_steepest(method).kernel
 
     ls_method = eval('ls_'+method) # get the working function
     if callable(ls_method):
         #print('ls_method:', ls_method, callable(ls_method))
-        return ls_method(func, gradf, retraction, x0, *args, **kwargs)
+        return ls_method
     else:
         raise NotImplementedError('line search method %s' % method)
 
 
-def ls_newton_raphson(func, gradf, retraction, x0, **kwargs):
-    hessf = kwargs.get('hessf')
-    inv = np.linalg.inv(hessf)
-    return
+def ls_steepest(step=1.):
+    # we need a function
+    def kernel(*args, **kwargs):
+        return step
+    return kernel
 
 
 def ls_backtracking(func, gradf, retraction, x0,
@@ -94,23 +100,40 @@ def ls_backtracking(func, gradf, retraction, x0,
 ls_armijo = ls_backtracking
 
 
-def ls_steepest(func, gradf, retraction, x0,
-                tau=.5, r=1e-4, alpha=1000.):
-    return 1.
+def ls_newton_raphson(func, gradf, retraction, x0, **kwargs):
+    hessf = kwargs.get('hessf')
+    inv = np.linalg.inv(hessf)
+    return
 
 
-def conjugate_gradient(func, gradf, retraction, x0,
-                       method='cg_polak_ribiere', nmax=50, thresh=1e-8,
+"""
+conjugate gradient algorithm would change the search direction as well
+"""
+def conjugate_gradient(func, gradf, retraction, transport, preconditioner, x0,
+                       ls_method='armijo', cg_method='fletcher_reeves',
+                       nmax=50, thresh=1e-8,
                        *args, **kwargs):
+    print('%s line search and %s update are used in conjugate gradient' % (ls_method, cg_method))
+    ls_method = line_search(ls_method)
+    cg_method = choose_direction(cg_method)
+
+    def _preconditioner(v): # do nothing
+        return v
+    if preconditioner is None:
+        preconditioner = _preconditioner
+
     xi = x0
     y0 = func(x0)
+    g0 = gradf(x0)
 
     xs, ys = [x0], [y0]
 
-    for i in range(nmax):
-        step_size = method(func, gradf, retraction, xi, method, *args, **kwargs)
+    direction = -g0 # initial search direction
 
-        dx = -step_size * gradf(xi)
+    for i in range(nmax):
+        step_size = ls_method(func, gradf, retraction, xi, *args, **kwargs)
+
+        dx = step_size * direction
         xi = retraction(xi, dx)
         yi = func(xi)
 
@@ -118,48 +141,43 @@ def conjugate_gradient(func, gradf, retraction, x0,
         ys.append(yi)
 
         error = abs(yi - y0)
-        print('i:%3d error: %8.4e  y:%10.5f' % (i, error, yi))
-        if error < thresh: break
+
+        print('i:%3d  value:%12.8f  error: %8.4e' % (i, yi, error), end=' ')
+        if error > thresh:
+            print('')
+        else:
+            print('optimization converged!')
+            break
+
+        gi = gradf(xi)
+        beta = cg_method(transport, preconditioner, dx, g0, gi,
+                         *args, **kwargs)
+        direction = beta * transport(dx, direction) - gi
 
         y0 = yi
+        g0 = gi
 
     return np.array(xs), np.array(ys)
 
 
-def cg_exact(hessf, g1, d0):
-    """
-    f is the quadratic function xAx/2
-    hessf is the hessian multiplies a vector as Ax
-    """
-    g0 = hessf(d0)
-    return np.dot(g1, g0) / np.dot(d0, g0)
+def choose_direction(method='fletcher_reeves'):
+    cg_method = eval('cg_'+method)
+
+    if callable(cg_method):
+        return cg_method
+    else:
+        raise NotImplementedError('conjugate gradient %s beta scheme' % method)
 
 
-def cg_barzilai_borwein_1(g0, g1, t0):
-    dg = g1 - g0
-    return np.dot(t0, t0) / np.dot(dg, t0)
+def cg_fletcher_reeves(transport, preconditioner, x1, g0, g1):
+    pg0, pg1 = preconditioner(g0), preconditioner(g1)
+
+    return np.dot(g1, pg1) / np.dot(g0, pg0)
 
 
-def cg_barzilai_borwein_2(g0, g1, t0):
-    dg = g1 - g0
-    return np.dot(dg, t0) / np.dot(dg, dg)
+def cg_polak_ribiere(transport, preconditioner, x1, g0, g1):
+    dg = g1 - transport(x1, g0)
+    g1 = preconditioner(g1)
 
-
-def cg_polak_ribiere(g0, g1):
-    dg = g1 - g0
     return abs(np.dot(g1, dg)) / np.dot(g0, g0)
-
-
-def cg_fletcher_reeves(g0, g1):
-    return np.dot(g1, g1) / np.dot(g0, g0)
-
-
-def cg_dai_yuan(g0, g1, t0):
-    dg = g1 - g0
-    return np.dot(g1, g1) / np.dot(t0, dg)
-
-
-def cg_hestenes_stiefel(g0, g1, t0):
-    dg = g1 - g0
-    return np.dot(g1, dg) / np.dot(t0, dg)
 
