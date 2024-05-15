@@ -2,6 +2,7 @@ import numpy as np
 from scipy.linalg import expm
 
 from wavefunction_analysis.utils import print_matrix, convert_units
+from wavefunction_analysis.utils import put_keys_kwargs_to_object
 from wavefunction_analysis.dynamics import harmonic_oscillator
 
 def get_trans_amplitude(ntot, scaling=1., energy=None):
@@ -17,15 +18,14 @@ def get_trans_amplitude(ntot, scaling=1., energy=None):
 
 
 class PhotonDynamicsStep():
-    def __init__(self, **kwargs):
-        kwargs.setdefault('frequency', 0.05)
-        kwargs.setdefault('freq_unit', 'hartree')
-        kwargs.setdefault('c_lambda', np.array([0.,0.,0.1]))
-        kwargs.setdefault('number', 1)
-        kwargs.setdefault('basis_size', 10)
+    def __init__(self, key, **kwargs):
+        key.setdefault('frequency', 0.05)
+        key.setdefault('freq_unit', 'hartree')
+        key.setdefault('c_lambda', np.array([0.,0.,0.1]))
+        key.setdefault('number', 1)
+        key.setdefault('basis_size', 10)
 
-        for name, value in kwargs.items(): # put all the variables in the class
-            setattr(self, name, value)
+        put_keys_kwargs_to_object(self, key, **kwargs)
 
         if self.freq_unit != 'hartree' or self.freq_unit != 'eh':
             self.frequency = convert_units(self.frequency, self.freq_unit, 'hartree')
@@ -46,14 +46,19 @@ class PhotonDynamicsStep():
 
     def get_initial_density(self, n, ntot):
         init_density = np.zeros((ntot,ntot))
-        init_density[n,n] = n
+        #init_density[n,n] = n
+        for i in range(n+1):
+            init_density[i,i] = 1./(n+1)
         #init_density = np.ones((ntot,ntot))/ntot
         return init_density
 
 
-    def update_density(self, molecular_dipole, dt):
+    def update_density(self, molecular_dipole, dt, half=1):
+        if half == 2:
+            kwargs = {}
+            return kwargs
+
         coupling = np.einsum('i,ix,x->i', np.sqrt(self.frequency/2.), self.c_lambda, molecular_dipole)
-        print('coupling:', coupling)
 
         trans_coeff, energy = np.zeros(self.nmode), np.zeros(self.nmode)
         for i in range(self.nmode):
@@ -67,7 +72,7 @@ class PhotonDynamicsStep():
             #transm = np.einsum('pi,i,qi->pq', v, np.exp(-1j*e*dt), v)
             transm = transp.conjugate()
             self.density[i] = np.einsum('ij,jk,kl->il', transp, self.density[i], transm)#.real
-            print_matrix('diagonal of density:', self.density[i][:5,:5])
+            print_matrix('diagonal of density:', self.density[i])
 
             trans = get_trans_amplitude(ntot)
             trans_coeff[i] = np.einsum('ij,ji->', trans, self.density[i])
@@ -75,10 +80,10 @@ class PhotonDynamicsStep():
 
         kwargs = {}
         kwargs['trans_coeff'] = trans_coeff
-        kwargs['photon_energy'] = np.sum(energy)
+        kwargs['photon_energy'] = np.array([np.sum(energy), 0.])
 
-        print('trans:', trans_coeff)
-        print('photon_energy:', np.sum(energy))
+        #print('trans:', trans_coeff)
+        #print('photon_energy:', np.sum(energy))
         return kwargs
 
 
@@ -93,6 +98,8 @@ class PhotonDynamicsStep2(harmonic_oscillator):
 
         self.mass = np.ones(len(self.frequency))
 
+        self.init_method = 'all_zeros'
+
 
     def update_density(self, molecular_dipole, dt, half=1):
         force = -np.einsum('i,ix,x->ix', self.frequency, self.c_lambda, molecular_dipole)
@@ -102,7 +109,8 @@ class PhotonDynamicsStep2(harmonic_oscillator):
         self.update_coordinate_velocity(force, half)
 
         trans_coeff = np.sum(self.coordinate, axis=1) #2. * np.dot(self.frequency, self.coordinate)
-        energy = self.energy
+        #energy = self.energy
+        energy = np.array([self.potential, self.kinetic])
 
         kwargs = {}
         kwargs['trans_coeff'] = trans_coeff

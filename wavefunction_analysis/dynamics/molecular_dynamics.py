@@ -84,7 +84,7 @@ class MolecularDynamics():
             kwargs['frequency'] = self.phstep.frequency
             kwargs.update(self.phstep.update_density(dipole, self.ndstep.dt))
         photon_energy = kwargs.get('photon_energy', 0.)
-        etot = et + self.ndstep.kinetic + photon_energy
+        etot = et + self.ndstep.kinetic + np.sum(photon_energy)
 
         self.md_time_coordinate[0] = coords
         self.md_time_dipoles[0] = dipole
@@ -93,7 +93,7 @@ class MolecularDynamics():
         print('current time:%7.3f fs' % 0.0, end='  ')
         print('temperature: %4.2f K' % float(self.ndstep.temperature * kT_AU_to_Kelvin))
         print('total energy (au): %15.10f  potential: %15.10f  kinetic: %15.10f' % (etot, et, self.ndstep.kinetic), end='  ')
-        if self.phstep: print('photon: %15.10f' % photon_energy)
+        if self.phstep: print('photon: %15.10f %15.10f' % (photon_energy[0], photon_energy[1]))
         else: print('')
         print_matrix('force:\n', self.ndstep.force)
         print_matrix('velocity:\n', self.ndstep.velocity)
@@ -120,7 +120,7 @@ class MolecularDynamics():
             if self.phstep:
                 kwargs.update(self.phstep.update_density(self.md_time_dipoles[ti-1], self.ndstep.dt, 2))
             photon_energy = kwargs.get('photon_energy', 0.)
-            etot = et + self.ndstep.kinetic + photon_energy
+            etot = et + self.ndstep.kinetic + np.sum(photon_energy)
 
             self.md_time_coordinate[ti] = coords
             self.md_time_dipoles[ti] = dipole
@@ -129,7 +129,8 @@ class MolecularDynamics():
             print('current time:%7.3f fs' % convert_units(ti*self.dt, 'au', 'fs'), end='  ')
             print('temperature: %4.2f K' % float(self.ndstep.temperature * kT_AU_to_Kelvin))
             print('total energy (au): %15.10f  potential: %15.10f  kinetic: %15.10f' % (etot, et, self.ndstep.kinetic), end='  ')
-            if self.phstep: print('photon: %15.10f' % photon_energy)
+            #if self.phstep: print('photon: %15.10f' % photon_energy)
+            if self.phstep: print('photon: %15.10f %15.10f' % (photon_energy[0], photon_energy[1]))
             else: print('')
             print_matrix('force:\n', self.ndstep.force)
             print_matrix('velocity:\n', self.ndstep.velocity)
