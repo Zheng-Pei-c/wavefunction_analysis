@@ -84,7 +84,7 @@ class PhotonDynamicsStep():
 
 class PhotonDynamicsStep2(harmonic_oscillator):
     def convert_parameter_units(self, unit_dict):
-        self.n_site = 3 #xyz
+        self.n_site = 1 #xyz
         self.frequency = convert_units(self.frequency, self.freq_unit, 'hartree')
 
         if isinstance(self.frequency, float):
@@ -96,6 +96,8 @@ class PhotonDynamicsStep2(harmonic_oscillator):
 
     def update_density(self, molecular_dipole, dt, half=1):
         force = -np.einsum('i,ix,x->ix', self.frequency, self.c_lambda, molecular_dipole)
+        if self.n_site == 1:
+            force = np.sum(force, axis=1).reshape(-1, 1)
 
         self.update_coordinate_velocity(force, half)
 

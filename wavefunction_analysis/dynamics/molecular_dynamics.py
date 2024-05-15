@@ -124,7 +124,7 @@ class MolecularDynamics():
 
             self.md_time_coordinate[ti] = coords
             self.md_time_dipoles[ti] = dipole
-            self.md_time_total_energy[ti] = et + self.ndstep.kinetic + photon_energy #+ self.edstep.electronic_kinetic
+            self.md_time_total_energy[ti] = etot
 
             print('current time:%7.3f fs' % convert_units(ti*self.dt, 'au', 'fs'), end='  ')
             print('temperature: %4.2f K' % float(self.ndstep.temperature * kT_AU_to_Kelvin))
