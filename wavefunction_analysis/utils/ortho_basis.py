@@ -5,7 +5,7 @@ from pyscf import gto
 
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import print_matrix
-from wavefunction_analysis.utils.fdiff import fdiff
+from wavefunction_analysis.utils import fdiff
 from wavefunction_analysis.utils.unit_conversion import BOHR
 
 def get_ortho_basis(S, method='lowdin', eigen=False):

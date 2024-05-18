@@ -6,7 +6,7 @@ from pyscf import scf, gto, grad
 from wavefunction_analysis.polariton import polariton_ns
 from wavefunction_analysis.utils import print_matrix, convert_units
 from wavefunction_analysis.utils import put_keys_kwargs_to_object
-from wavefunction_analysis.utils.ortho_ao_basis import get_ortho_basis
+from wavefunction_analysis.utils import get_ortho_basis
 from wavefunction_analysis.utils.pyscf_parser import build_atom, build_molecule
 
 

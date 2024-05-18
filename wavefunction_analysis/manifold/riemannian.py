@@ -2,9 +2,16 @@ import sys
 import numpy as np
 import scipy
 
-from wavefunction_analysis.manifold import gradient_descent, conjugate_gradient
+from wavefunction_analysis.manifold import gradient_descent, conjugate_gradient, newton_2nd
+from wavefunction_analysis.utils import get_ortho_basis
 
 import pymanopt
+
+"""
+the manifold code refers to Alan Edelman, Tomas, Arias, and Steven Smith,
+                            SIAM J. Matrix Anal. Appl. 1998
+as well as `pymanopt` package on github https://github.com/pymanopt/pymanopt
+"""
 
 def get_random_matrix(ndim, seed=None, sym=True):
     rng = np.random.default_rng(seed)
@@ -26,9 +33,37 @@ def get_random_matrix(ndim, seed=None, sym=True):
     return A
 
 
+def solve_sylvester(A, B, C):
+    # AX + XB = C,
+    # return X
+    n = A.shape[0]
+    I = np.eye(n)
+    A = np.kron(I, A) + np.kron(B, I)
+
+    def kernel(A, y):
+        x = np.linalg.solve(A, y.flatten(order='F'))
+        return x.reshape((n,-1), order='F')
+
+    if C.ndim == 2:
+        return kernel(A, C)
+
+    elif C.ndim == 3:
+        for i in range(C.shape[0]):
+            x = []
+            x.append(kernel(A, C[i]))
+
+        return np.array(x)
+
+
 
 class Riemannian():
-    def __init__(self, ndim=None, x0=None, A=None, retraction='qr', **kwargs):
+    def __init__(self, ndim=None, x0=None, A=None, B=None,
+                 retraction='qr', **kwargs):
+        """
+        A: the quadratic function kernel
+        B: orthogonal metric, default is I
+        x0: initial point on the manifold
+        """
         if isinstance(ndim, float):
             self.ndim = np.array([ndim], dtype=int)
         elif isinstance(x0, np.ndarray):
@@ -44,10 +79,18 @@ class Riemannian():
                 print('required retraction is not appliable and changed to qr')
 
         if isinstance(A, np.ndarray): # get a random symmetric matrix
-            self.A = A
+            self._A = A
         else:
             seed = kwargs.get('seed', 12345)
-            self.get_random_kernel(x0.shape[0], seed)
+            self.get_random_kernel(self.ndim[0], seed)
+
+        if isinstance(B, np.ndarray):
+            self._B = B
+            # B^1/2, B^-1/2, B^-1
+            self._L, self._Z, self._Binv = get_ortho_basis(self._B, method='lowdinn')
+        else: # identity matrix
+            self._B = np.eye(self.ndim[0])
+            self._L, self._Z, self._Binv = np.copy(self._B), np.copy(self._B), np.copy(self._B)
 
 
         try: # get the actural retraction method
@@ -118,7 +161,7 @@ class Riemannian():
     def gradient_descent(self, method=None, nmax=50, thresh=1e-8,
                          *args, **kwargs):
         if method is None: # assign a fixed suitable size by default
-            method = 1. / (2. * np.linalg.norm(self.A))
+            method = 1. / (2. * np.linalg.norm(self._A))
 
         if kwargs.get('ymin') == 'eigenvalue':
             kwargs['ymin'] = self.eigenvalue[0]
@@ -130,7 +173,7 @@ class Riemannian():
     def conjugate_gradient(self, method=None, cg_method='fletcher_reeves',
                            nmax=50, thresh=1e-8, *args, **kwargs):
         if method is None: # assign a fixed suitable size by default
-            method = 1. / (2. * np.linalg.norm(self.A))
+            method = 1. / (2. * np.linalg.norm(self._A))
 
         if not hasattr(self, 'preconditioner'):
             self.preconditioner = None
@@ -144,6 +187,9 @@ class Riemannian():
 
 # TODO: fix the N*N case
 class OrthogonalGroup(Riemannian): # orthogonal group manifold
+    """
+    the points are n*n square matrix, n-dimensions and n-planes
+    """
     def check_sanity(self):
         ndim = self.ndim
         if len(ndim)==2 and ndim[0]!=ndim[1]:
@@ -151,7 +197,7 @@ class OrthogonalGroup(Riemannian): # orthogonal group manifold
 
     @property
     def eigenvalue(self):
-        A = self.A
+        A = self._A
         e, v = np.linalg.eigh(A)
 
         arg = np.argsort(e)
@@ -162,21 +208,22 @@ class OrthogonalGroup(Riemannian): # orthogonal group manifold
     # x0 is nd square matrix
     def func(self, x): # <x|A|x> / <x|x>
         """assume x is normalized"""
-        A = self.A
+        A = self._A
         return np.sum(np.einsum('m...,mn,n...->...', x, A, x))
 
 
     def func_grad(self, x): # 2 (I - |x><x|) A|x> = 2 (A - <x|A|x>I ) |x>
         # the returned grad has been projected on the tangent space
         """assume x is normalized"""
-        A = self.A
+        A = self._A
         #x /= np.linalg.norm(x) # put it on sphere
-        Ax = 2.* np.einsum('mn,n...->m...', A, x)
+        Ax = 2.* (A @ x) #np.einsum('mn,n...->m...', A, x)
         return self.projection(x, Ax)
 
 
     def projection(self, x, v):
-        return (v - x * np.sum(np.einsum('m...,m...->...', x, v)))
+        #return (v - x * np.sum(np.einsum('m...,m...->...', x, v)))
+        return (v - x * np.dot(x, v))
 
 
     def retraction_norm(self, x, v):
@@ -209,6 +256,10 @@ class OrthogonalGroup(Riemannian): # orthogonal group manifold
 
 
 class Stiefel(OrthogonalGroup):
+    """
+    the points are n*p matrix, n-dimensions and p-planes
+    quotient space from OrthogonalGroup
+    """
     def check_sanity(self):
         ndim = self.ndim
         if len(ndim)==1 or (len(ndim)==2 and ndim[0]<=ndim[1]):
@@ -255,10 +306,16 @@ class Stiefel(OrthogonalGroup):
 
 
 
-class Grassmann(OrthogonalGroup):
+class Grassmann(Stiefel):
+    """
+    quotient space from Stiefel
+    """
     def projection(self, x, v):
-        p = x @ x.T # projector
-        return (v - p @ v)
+        """
+        the resulted tangent vector is perpendicular to BX, <\Delta, BX> = 0
+        """
+        p = x @ x.T # projector, aka `density matrix`
+        return (self._Binv - p) @ v
 
 
     def dist(self, v1, v2):
@@ -281,15 +338,18 @@ class Grassmann(OrthogonalGroup):
 
     def weingarten(self, x, v, grad, normal):
         # normal is not used
-        return v @ x.T @ grad
+        # grad is euclidean gradient
+        return v @ (x.T @ grad)
 
 
-    def exp(self, x, v):
+    def exp(self, x, v, dt=1.):
         u, s, vt = np.linalg.svd(v, full_matrices=False)
+
+        s *= dt
         cos = np.expand_dims(np.cos(s), -2)
         sin = np.expand_dims(np.sin(s), -2)
 
-        Y = x @ (vt.T * cos) @ vt + (u * sin) @ vt
+        Y = (x @ (vt.T * cos) + (u * sin)) @ vt
 
         # it seems necessary to re-orthonormalize numerically
         # even though it is quite expensive.
@@ -297,15 +357,35 @@ class Grassmann(OrthogonalGroup):
         return q
 
 
-    def log(self, x1, x2):
+    geodesic = exp
+
+
+    def log(self, x1, x2, dt=1.):
         ytx = x2.T @ x1
         At = x2.T - ytx @ x1.T
 
         Bt = np.linalg.solve(ytx, At)
         u, s, vt = np.linalg.svd(Bt.T, full_matrices=False)
+
+        s *= dt
         arctan = np.expand_dims(np.arctan(s), -2)
         return (u * arctan) @ vt
 
+
+    def tangent_solver(self, x, grad, hess, method='direct'):
+        if method == 'direct':
+            v = solve_sylvester(hess, (-x.T@grad), -self.projection(grad))
+            return v
+
+
+    def newton_2nd(self, gradf, hessf, x0, dt=1., nmax=50, thresh=1e-8):
+        def gradf(x):
+            return 2.* (self._A @ x)
+        def hessf():
+            return self._A
+
+        return newton_2nd(self.func, gradf, hessf, self.tangent_solver,
+                          self.geodesic, x0, dt, nmax, thresh)
 
 
 if __name__ == '__main__':

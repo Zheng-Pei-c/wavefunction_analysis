@@ -6,7 +6,7 @@ import pyscf
 from pyscf import lib, gto, scf
 
 from wavefunction_analysis.utils import print_matrix
-from wavefunction_analysis.utils.ortho_ao_basis import get_ortho_basis
+from wavefunction_analysis.utils import get_ortho_basis
 
 np.set_printoptions(precision=4, linewidth=200, suppress=True,)
 

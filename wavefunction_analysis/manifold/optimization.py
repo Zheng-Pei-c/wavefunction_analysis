@@ -22,6 +22,7 @@ def gradient_descent(func, gradf, retraction, x0,
     for i in range(nmax):
         step_size = ls_method(func, gradf, retraction, xi, *args, **kwargs)
 
+        # -gradf is the search direction
         dx = -step_size * gradf(xi)
         xi = retraction(xi, dx)
         yi = func(xi)
@@ -152,6 +153,7 @@ def conjugate_gradient(func, gradf, retraction, transport, preconditioner, x0,
         gi = gradf(xi)
         beta = cg_method(transport, preconditioner, dx, g0, gi,
                          *args, **kwargs)
+        # < T_dx (direction), G> = 0
         direction = beta * transport(dx, direction) - gi
 
         y0 = yi
@@ -181,3 +183,32 @@ def cg_polak_ribiere(transport, preconditioner, x1, g0, g1):
 
     return abs(np.dot(g1, dg)) / np.dot(g0, g0)
 
+
+def newton_2nd(func, gradf, hessf, tangent_solver, geodesic, x0, dt=1.,
+               nmax=50, thresh=1e-8, *args, **kwargs):
+    xi = x0
+    y0 = func(x0)
+
+    xs, ys = [x0], [y0]
+
+    for i in range(nmax):
+        v = tangent_solver(xi, gradf, hessf)
+
+        xi = geodesic(xi, v, dt)
+        yi = func(xi)
+
+        xs.append(xi)
+        ys.append(yi)
+
+        error = abs(yi - y0)
+
+        print('i:%3d  value:%12.8f  error: %8.4e' % (i, yi, error), end=' ')
+        if error > thresh:
+            print('')
+        else:
+            print('optimization converged!')
+            break
+
+        y0 = yi
+
+    return np.array(xs), np.array(ys)

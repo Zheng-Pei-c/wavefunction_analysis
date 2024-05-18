@@ -8,7 +8,7 @@ from pyscf.scf.hf import dot_eri_dm
 
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.entanglement.mol_lo_tools import partition_lo_to_imps
-from wavefunction_analysis.utils.ortho_ao_basis import get_ortho_basis
+from wavefunction_analysis.utils import get_ortho_basis
 
 def get_localized_orbital(mol, coeff, method='pipek_mezey'):
     if method == 'pipek_mezey':
