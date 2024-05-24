@@ -33,7 +33,7 @@ def cphf_with_freq(mf, h1, mo_energy=None, mo_coeff=None, mo_occ=None,
     nao = nocc + nvir
     h1 = h1.reshape(-1, nao, nao)
 
-    e_ia = lib.direct_sum('a-i->ia', mo_energy[viridx], mo_energy[occidx])
+    e_ia = mo_energy[viridx] - mo_energy[occidx,None]
     # e_ia - freq may produce very small elements which can cause numerical
     # issue in krylov solver
     level_shift = 0.1
@@ -85,7 +85,7 @@ def cphf_with_freq(mf, h1, mo_energy=None, mo_coeff=None, mo_occ=None,
     return mo1, mo_e1, dms
 
 
-def get_polarizability(mol, mf, dipole=None, freq=0., scale=False, method=1):
+def get_polarizability(mol, mf, h1=None, freq=0., scale=False, method=1):
     # polarizability atomic unit is bohr**3
     print('freq:'+str(freq), end=' ')
     if method == 0:
@@ -98,8 +98,6 @@ def get_polarizability(mol, mf, dipole=None, freq=0., scale=False, method=1):
     mo_energy = mf.mo_energy
     mo_coeff = mf.mo_coeff
     mo_occ = mf.mo_occ
-    occidx = np.where(mo_occ==2)[0]
-    viridx = np.where(mo_occ==0)[0]
 
     if method == 0:
         td = tdscf.TDDFT(mf)
@@ -110,12 +108,19 @@ def get_polarizability(mol, mf, dipole=None, freq=0., scale=False, method=1):
         h1 = td.transition_dipole()
 
     else:
-        if dipole is None:
+        if h1 is None:
             h1 = mol.intor('int1e_r', comp=3, hermi=0)
 
         if method == 2:
+            occidx = np.where(mo_occ==2)[0]
+            viridx = np.where(mo_occ==0)[0]
+
             e_ia = mo_energy[viridx] - mo_energy[occidx,None]
-            omega = e_ia.T.ravel()
+            omega = e_ia.ravel() #ov
+
+            orbo = mo_coeff[:,occidx]
+            orbv = mo_coeff[:,viridx]
+            h1 = np.einsum('xpq,po,qv->xov', h1, orbo.conj(), orbv) #ov
             h1 = h1.reshape(-1, len(omega)).T
 
 
@@ -175,7 +180,7 @@ if __name__ == '__main__':
     for freq in [0, 0.4]:
         alpha = get_polarizability(mol, mf, freq=freq, method=0)
         alpha = get_polarizability(mol, mf, freq=freq, method=1)
-        #alpha = get_polarizability(mol, mf, freq=freq, method=2)
+        alpha = get_polarizability(mol, mf, freq=freq, method=2)
 
 
 #    scf_method = polariton_cs
