@@ -143,11 +143,11 @@ class polariton(RKS):
 
         # needed for bilinear terms # assume hartree unit!
         self.photon_freq = frequency
-        self.photon_trans_coeff = trans_coeff
-        if self.photon_freq: # scale photon_freq with frequency
+        self.freq_scaled_lambda = None
+        if isinstance(self.photon_freq, float) or isinstance(self.photon_freq, list) or isinstance(self.photon_freq, np.ndarray): # scale photon_freq with frequency
             self.freq_scaled_lambda = get_scaled_lambda(self.c_lambda, self.photon_freq, self.photon_trans_coeff)
-        elif self.photon_trans_coeff:
-            self.freq_scaled_lambda = self.photon_trans_coeff
+        elif isinstance(trans_coeff, list) or isinstance(trans_coeff, np.ndarray):
+            self.freq_scaled_lambda = trans_coeff
 
         # set it when needed
         #self.with_dse_response = True # dse response
