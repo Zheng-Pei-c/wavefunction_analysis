@@ -329,9 +329,7 @@ class Gradients2(Gradients):
 
         if isinstance(mf.freq_scaled_lambda, np.ndarray): # bilinear term
             # dipole derivative with scaled coupling
-            hlinear = -get_multipole_matrix_d1(mol, mf.freq_scaled_lambda, 'dipole', mf.origin)[0]
-            if hlinear.ndim == 4: hlinear = np.sum(hlinear, axis=3) # mode is the last index
-            hdip += hlinear
+            hdip -= get_multipole_matrix_d1(mol, mf.freq_scaled_lambda, 'dipole', mf.origin)[0]
 
         vdse_j, vdse_k = get_dse_2e(mf.dipole, dipole_d1, dm, with_j=True)
         return (hdip + vdse_j - vdse_k)
@@ -347,9 +345,7 @@ class Gradients2(Gradients):
         g1 += get_grad_nuc_dip(mf.nuc_dip, nuc_dip_d1)
 
         if isinstance(mf.freq_scaled_lambda, np.ndarray): # bilinear term
-            gnuc = get_nuclear_dipoles_d1(mol.atom_charges(), mf.freq_scaled_lambda)
-            if gnuc.ndim == 3: gnuc = np.sum(gnuc, axis=0)
-            g1 += gnuc
+            g1 += get_nuclear_dipoles_d1(mol.atom_charges(), mf.freq_scaled_lambda)
 
         return g1
 

@@ -246,7 +246,6 @@ class polariton_ns(polariton):
         hdipole = None
         if isinstance(self.freq_scaled_lambda, np.ndarray): # bilinear term
             hdipole = -get_multipole_matrix(mol, 'dipole', c_lambda=self.freq_scaled_lambda, origin=self.origin)['dipole'] # electrons are negative
-            if hdipole.ndim == 3: hdipole = np.sum(hdipole, axis=0)
             h += hdipole
 
         h += (hquad + hdipe)

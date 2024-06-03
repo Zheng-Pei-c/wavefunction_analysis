@@ -81,7 +81,7 @@ class PhotonDynamicsStep():
             energy[i] = self.frequency[i] * np.dot(range(ntot), np.diag(self.density[i]))
 
         kwargs = {}
-        kwargs['trans_coeff'] = np.einsum('i,i,ix->ix', self.scaled_freq, trans_coeff, self.c_lambda)
+        kwargs['trans_coeff'] = np.einsum('i,i,ix->x', self.scaled_freq, trans_coeff, self.c_lambda)
         kwargs['photon_energy'] = np.array([np.sum(energy), 0.])
 
         #print('trans:', trans_coeff)
@@ -111,7 +111,7 @@ class PhotonDynamicsStep2(harmonic_oscillator):
         self.update_coordinate_velocity(force, half)
 
         kwargs = {}
-        kwargs['trans_coeff'] = np.einsum('i,ix,ix->ix', self.frequency, self.coordinate, self.c_lambda)
+        kwargs['trans_coeff'] = np.einsum('i,ix,ix->x', self.frequency, self.coordinate, self.c_lambda)
         #energy = self.energy
         kwargs['photon_energy'] = np.array([self.potential, self.kinetic])
 
