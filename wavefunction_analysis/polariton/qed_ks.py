@@ -14,9 +14,9 @@ def get_scaled_lambda(c_lambda, frequency, photon_coeff=1.):
     return frequency-scaled coupling strength (c_lambda)
     """
     if isinstance(frequency, float):
-        return np.sqrt(frequency/2.) * photon_coeff * c_lambda
+        return np.sqrt(frequency/2.) * np.einsum('x,x->x', photon_coeff, c_lambda)
     else:
-        return np.einsum('ix,i,i->x', c_lambda, np.sqrt(frequency)/np.sqrt(2.), photon_coeff)
+        return np.einsum('i,ix,ix->x', np.sqrt(frequency)/np.sqrt(2.), photon_coeff, c_lambda)
 
 
 def get_lambda2(c_lambda): # lambda square for quadrupole contraction
@@ -89,17 +89,17 @@ def get_dse_2e_xyz(dipole, dm, with_j=False, scale_k=.5): # xyz without coupling
         return [vj, vk*scale_k]
 
 
-def get_bilinear_dipole(dipole, frequency, photon_coeff):
-    # bilinear fock/energy contribution
-    # c_lambda is included in dipole
-    if isinstance(dipole, float): # nuclear dipole
-        return np.sqrt(frequency/2.) * photon_coeff * dipole
-    elif dipole.ndim == 1: # nuclear dipole
-        return np.einsum('i,i,i->', np.sqrt(frequency)/np.sqrt(2.), photon_coeff, dipole)
-    elif dipole.ndim == 2: # electronic dipole moment
-        return (np.sqrt(frequency/2.) * photon_coeff) * dipole
-    elif dipole.ndim == 3: # electronic dipole moment
-        return np.einsum('i,i,ipq->pq', np.sqrt(frequency)/np.sqrt(2.), photon_coeff, dipole)
+#def get_bilinear_dipole(dipole, frequency, photon_coeff):
+#    # bilinear fock/energy contribution
+#    # c_lambda is included in dipole
+#    if isinstance(dipole, float): # nuclear dipole
+#        return np.sqrt(frequency/2.) * photon_coeff * dipole
+#    elif dipole.ndim == 1: # nuclear dipole
+#        return np.einsum('i,i,i->', np.sqrt(frequency/2.), photon_coeff, dipole)
+#    elif dipole.ndim == 2: # electronic dipole moment
+#        return (np.sqrt(frequency/2.) * photon_coeff) * dipole
+#    elif dipole.ndim == 3: # electronic dipole moment
+#        return np.einsum('i,i,ipq->pq', np.sqrt(frequency/2.), photon_coeff, dipole)
 
 
 def get_dse_elec_nuc(dipole, nuc_dip): # c_lambda is included
@@ -133,18 +133,21 @@ class polariton(RKS):
     """
     QED-RKS ground state, independent of photon frequency
     """
-    def get_multipole_matrix(self, c_lambda, dipole=None, quadrupole=None, origin=None, frequency=None, trans_coeff=None):
+    def get_multipole_matrix(self, c_lambda, dipole=None, quadrupole=None,
+                             origin=None, frequency=None, trans_coeff=None):
         multipoles = get_multipole_matrix(self.mol, 'all', dipole, quadrupole, c_lambda=c_lambda, origin=origin)
         self.origin = origin
         self.c_lambda = np.array(c_lambda)
         self.dipole = multipoles['dipole']
         self.quadrupole = multipoles['quadrupole']
 
-        if frequency: # needed for bilinear terms # assume hartree unit!
-            self.photon_freq = frequency
-            self.photon_trans_coeff = trans_coeff
-        else:
-            self.photon_freq = None
+        # needed for bilinear terms # assume hartree unit!
+        self.photon_freq = frequency
+        self.photon_trans_coeff = trans_coeff
+        if self.photon_freq: # scale photon_freq with frequency
+            self.freq_scaled_lambda = get_scaled_lambda(self.c_lambda, self.photon_freq, self.photon_trans_coeff)
+        elif self.photon_trans_coeff:
+            self.freq_scaled_lambda = self.photon_trans_coeff
 
         # set it when needed
         #self.with_dse_response = True # dse response
@@ -241,8 +244,8 @@ class polariton_ns(polariton):
         hdipe = get_dse_elec_nuc(self.dipole, self.nuc_dip)
 
         hdipole = None
-        if self.photon_freq: # bilinear term
-            hdipole = -get_bilinear_dipole(self.dipole, self.photon_freq, self.photon_trans_coeff) # electrons are negative
+        if isinstance(self.freq_scaled_lambda, np.ndarray): # bilinear term
+            hdipole = -get_multipole_matrix(mol, 'dipole', c_lambda=self.freq_scaled_lambda, origin=self.origin)['dipole'] # electrons are negative
             h += hdipole
 
         h += (hquad + hdipe)
@@ -279,7 +282,9 @@ class polariton_ns(polariton):
 
         equad = np.einsum('pq,...qp->', h1e.hquad, dm)
         edipe = np.einsum('pq,...qp->', h1e.hdipe, dm)
-        elineare = np.einsum('pq,...qp->', h1e.hdipole, dm) if self.photon_freq else 0.
+        elineare = 0.
+        if isinstance(self.freq_scaled_lambda, np.ndarray): # bilinear term
+            elineare = np.einsum('pq,...qp->', h1e.hdipole, dm)
 
         self.scf_summary['equad'] = equad.real
         self.scf_summary['edipe'] = edipe.real
@@ -295,8 +300,8 @@ class polariton_ns(polariton):
         edipn = get_energy_nuc_dip(self.nuc_dip)
 
         elinearn = 0.
-        if self.photon_freq: # bilinear term
-            elinearn = get_bilinear_dipole(self.nuc_dip, self.photon_freq, self.photon_trans_coeff)
+        if isinstance(self.freq_scaled_lambda, np.ndarray): # bilinear term
+            elinearn = np.sum(get_nuclear_dipoles(self.mol, self.freq_scaled_lambda))
 
         self.scf_summary['edipn'] = edipn
         self.scf_summary['elinearn'] = elinearn

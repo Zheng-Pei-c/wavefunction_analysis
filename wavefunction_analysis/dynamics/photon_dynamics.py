@@ -37,6 +37,8 @@ class PhotonDynamicsStep():
             self.number = np.array([self.number])
             self.basis_size = np.array([self.basis_size])
 
+        self.scaled_freq = np.sqrt(self.frequency/2.)
+
         self.nmode = len(self.frequency)
 
         self.density = [None]*self.nmode
@@ -58,7 +60,7 @@ class PhotonDynamicsStep():
             kwargs = {}
             return kwargs
 
-        coupling = np.einsum('i,ix,x->i', np.sqrt(self.frequency/2.), self.c_lambda, molecular_dipole)
+        coupling = np.einsum('i,ix,x->i', self.scaled_freq, self.c_lambda, molecular_dipole)
 
         trans_coeff, energy = np.zeros(self.nmode), np.zeros(self.nmode)
         for i in range(self.nmode):
@@ -79,7 +81,7 @@ class PhotonDynamicsStep():
             energy[i] = self.frequency[i] * np.dot(range(ntot), np.diag(self.density[i]))
 
         kwargs = {}
-        kwargs['trans_coeff'] = trans_coeff
+        kwargs['trans_coeff'] = np.einsum('i,i,ix->ix', self.scaled_freq, trans_coeff, self.c_lambda)
         kwargs['photon_energy'] = np.array([np.sum(energy), 0.])
 
         #print('trans:', trans_coeff)
@@ -89,7 +91,7 @@ class PhotonDynamicsStep():
 
 class PhotonDynamicsStep2(harmonic_oscillator):
     def convert_parameter_units(self, unit_dict):
-        self.n_site = 1 #xyz
+        self.n_site = 3 #xyz
         self.frequency = convert_units(self.frequency, self.freq_unit, 'hartree')
 
         if isinstance(self.frequency, float):
@@ -108,14 +110,11 @@ class PhotonDynamicsStep2(harmonic_oscillator):
 
         self.update_coordinate_velocity(force, half)
 
-        trans_coeff = np.sum(self.coordinate, axis=1) #2. * np.dot(self.frequency, self.coordinate)
-        #energy = self.energy
-        energy = np.array([self.potential, self.kinetic])
-
         kwargs = {}
-        kwargs['trans_coeff'] = trans_coeff
-        kwargs['photon_energy'] = energy
-        kwargs['frequency'] = 8.*self.frequency**2
+        kwargs['trans_coeff'] = np.einsum('i,ix,ix->ix', self.frequency, self.coordinate, self.c_lambda)
+        #energy = self.energy
+        kwargs['photon_energy'] = np.array([self.potential, self.kinetic])
+
         return kwargs
 
 

@@ -81,7 +81,6 @@ class MolecularDynamics():
 
         if self.phstep:
             print('photon frequency (au) is:', self.phstep.frequency)
-            kwargs['frequency'] = self.phstep.frequency
             kwargs.update(self.phstep.update_density(dipole, self.ndstep.dt))
         photon_energy = kwargs.get('photon_energy', 0.)
         etot = et + self.ndstep.kinetic + np.sum(photon_energy)

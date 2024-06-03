@@ -20,6 +20,7 @@ def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
     coupling = mf.c_lambda if hasattr(mf, 'c_lambda') else None
     photon_freq = mf.photon_freq if hasattr(mf, 'photon_freq') else None
     trans_coeff = mf.photon_trans_coeff if hasattr(mf, 'photon_trans_coeff') else None
+    origin = mf.origin if hasattr(mf, 'origin') else None
 
     mo = mf.mo_coeff
     mol = mf.mol
@@ -39,7 +40,9 @@ def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
                 mf1.xc = functional
                 mf1.grids.prune = prune
                 if isinstance(coupling, np.ndarray) or isinstance(coupling, list):
-                    mf1.get_multipole_matrix(coupling, frequency=photon_freq, trans_coeff=trans_coeff)
+                    mf1.get_multipole_matrix(coupling, origin=origin,
+                                             frequency=photon_freq,
+                                             trans_coeff=trans_coeff)
 
                 e_tot = mf1.kernel()
 
@@ -178,20 +181,28 @@ def cal_multipole_matrix_d1(mol, dm=None, origin=None): # no coupling strength
         return dipole_d1.reshape(natoms*3,3,nao,nao), quadrupole_d1.reshape(natoms*3,3,3,nao,nao)
 
 
-def get_multipole_matrix_d1(mol, c_lambda, origin=None):
+def get_multipole_matrix_d1(mol, c_lambda, itype='all', origin=None):
     if origin is None:
         origin = np.zeros(3)
+
+    dipole, quadrupole = None, None
+    if itype == 'all':
+        itype += 'dipole_quadrupole'
 
     nao = mol.nao_nr()
     with mol.with_common_orig(origin):
         # this derivatives have extra minus
-        dipole = mol.intor('int1e_irp', comp=9, hermi=0).reshape(3,3,nao,nao)
-        quadrupole = mol.intor('int1e_irrp', comp=27, hermi=0).reshape(3,3,3,nao,nao)
+        if 'dipole' in itype:
+            dipole = mol.intor('int1e_irp', comp=9, hermi=0).reshape(3,3,nao,nao)
+        if 'quadrupole' in itype:
+            quadrupole = mol.intor('int1e_irrp', comp=27, hermi=0).reshape(3,3,3,nao,nao)
 
     if isinstance(c_lambda, np.ndarray) or isinstance(c_lambda, list):
         # these derivatives don't distinguish nuclei
-        dipole = - np.einsum('mxpq,...m->xqp...', dipole, c_lambda) # move mode index to the last for convenience latter
-        quadrupole = - np.einsum('mnxpq,mn->xqp', quadrupole, get_lambda2(c_lambda))
+        if isinstance(dipole, np.ndarray):
+            dipole = - np.einsum('mxpq,...m->xqp...', dipole, c_lambda) # move mode index to the last for convenience latter
+        if isinstance(quadrupole, np.ndarray):
+            quadrupole = - np.einsum('mnxpq,mn->xqp', quadrupole, get_lambda2(c_lambda))
 
     return dipole, quadrupole
 
@@ -232,19 +243,19 @@ def get_dse_2e(dipole, dipole_d1, dm, with_j=False, scale_k=.5): # c_lambda is i
                 return [vj, vk*scale_k]
 
 
-def get_bilinear_dipole_d1(dipole_d1, frequency, photon_coeff, elec=True):
-    # bilinear fock/energy contribution
-    # lambda has combined into dipole_d1
-    if elec: # electronic dipole moment derivative
-        if dipole_d1.ndim == 3:
-            return np.sqrt(frequency/2.) * photon_coeff * dipole_d1
-        elif dipole_d1.ndim == 4: # nmode is moved to the last
-            return np.einsum('i,i,xpqi->xpq', np.sqrt(frequency)/np.sqrt(2.), photon_coeff, dipole_d1)
-    else: # nuclear dipole derivative
-        if dipole_d1.ndim == 2:
-            return np.sqrt(frequency/2.) * photon_coeff * dipole_d1
-        elif dipole_d1.ndim == 3:
-            return np.einsum('i,i,inx->nx', np.sqrt(frequency)/np.sqrt(2.), photon_coeff, dipole_d1)
+#def get_bilinear_dipole_d1(dipole_d1, frequency, photon_coeff, elec=True):
+#    # bilinear fock/energy contribution
+#    # lambda has combined into dipole_d1
+#    if elec: # electronic dipole moment derivative
+#        if dipole_d1.ndim == 3:
+#            return np.sqrt(frequency/2.) * photon_coeff * dipole_d1
+#        elif dipole_d1.ndim == 4: # nmode is moved to the last
+#            return np.einsum('i,i,xpqi->xpq', np.sqrt(frequency/2.), photon_coeff, dipole_d1)
+#    else: # nuclear dipole derivative
+#        if dipole_d1.ndim == 2:
+#            return np.sqrt(frequency/2.) * photon_coeff * dipole_d1
+#        elif dipole_d1.ndim == 3:
+#            return np.einsum('i,i,inx->nx', np.sqrt(frequency/2.), photon_coeff, dipole_d1)
 
 
 def get_dse_elec_nuc_d1(dipole_d1, nuc_dip): # c_lambda is included
@@ -311,13 +322,14 @@ class Gradients2(Gradients):
         mf = self.base
         # here the dipoles and quadrupoles have aleady combined with coupling
         if not isinstance(dipole_d1, np.ndarray):
-            dipole_d1, quadrupole_d1 = get_multipole_matrix_d1(mol, mf.c_lambda, mf.origin)
+            dipole_d1, quadrupole_d1 = get_multipole_matrix_d1(mol, mf.c_lambda, origin=mf.origin)
 
         hdip = get_dse_elec_nuc_d1(dipole_d1, mf.nuc_dip)
         hdip += .5 * quadrupole_d1
 
-        if mf.photon_freq:
-            hdip -= get_bilinear_dipole_d1(dipole_d1, mf.photon_freq, mf.photon_trans_coeff)
+        if isinstance(mf.freq_scaled_lambda, np.ndarray): # bilinear term
+            # dipole derivative with scaled coupling
+            hdip -= get_multipole_matrix_d1(mol, mf.freq_scaled_lambda, 'dipole', mf.origin)[0]
 
         vdse_j, vdse_k = get_dse_2e(mf.dipole, dipole_d1, dm, with_j=True)
         return (hdip + vdse_j - vdse_k)
@@ -332,8 +344,11 @@ class Gradients2(Gradients):
         g1 += get_dse_elec_nuc_grad(mf.dipole, nuc_dip_d1, mf.make_rdm1())
         g1 += get_grad_nuc_dip(mf.nuc_dip, nuc_dip_d1)
 
-        if mf.photon_freq:
-            g1 += get_bilinear_dipole_d1(nuc_dip_d1, mf.photon_freq, mf.photon_trans_coeff, elec=False)
+        if isinstance(mf.freq_scaled_lambda, np.ndarray): # bilinear term
+            gnuc = get_nuclear_dipoles_d1(mol.atom_charges(), mf.freq_scaled_lambda)
+            if gnuc.ndim == 3:
+                gnuc = np.sum(gnuc, axis=0)
+            g1 += gnuc
 
         return g1
 
@@ -365,7 +380,7 @@ if __name__ == '__main__':
     mol = build_molecule(atom, '3-21g')
 
     frequency = 0.42978 # gs doesn't depend on frequency
-    trans_coeff = 1.
+    trans_coeff = np.ones(3)
     coupling = np.array([0, 0, .05])
 
     coherent_state = False
@@ -384,6 +399,7 @@ if __name__ == '__main__':
     #print_matrix('dm:', dm, 5, 1)
 
     g = mf.Gradients()
+    g.grid_response = True
     de1 = g.kernel()
     print_matrix('de1:', de1)
 
