@@ -81,6 +81,8 @@ class harmonic_oscillator():
             for i in range(nmode):
                 self.velocity[i] = get_gaussian_distribution(variance[i], n_site)
 
+        self.get_energy(self.velocity)
+
 
     def update_coordinate_velocity(self, force, half=1):
         if self.frequency: # add oscillator force first
