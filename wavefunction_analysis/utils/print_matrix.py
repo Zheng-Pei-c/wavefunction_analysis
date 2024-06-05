@@ -1,4 +1,5 @@
-import os, sys
+import warnings
+
 import numpy as np
 
 def print_matrix(keyword, matrix, nwidth=0, nind=0, digits=[13,8,'f'],

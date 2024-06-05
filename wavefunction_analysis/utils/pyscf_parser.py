@@ -3,7 +3,7 @@ import numpy as np
 from pyscf import scf, tdscf, gto
 
 #import qed
-from . import print_matrix
+from wavefunction_analysis.utils import print_matrix
 
 
 section_names = ['molecule', 'rem', 'polariton']
@@ -133,8 +133,14 @@ def get_jobtype(parameters):
     jobtype = 'scf'
     if 'cis_n_roots' in parameters.get(section_names[1]):
         jobtype = 'td'
+
+    if 'force' in parameters.get(section_names[1]):
+        jobtype += 'force'
+    elif 'freq' in parameters.get(section_names[1]):
+        jobtype += 'hess'
+
     if section_names[2] in parameters:
-        jobtype = 'qed_td'
+        jobtype += '_qed'
 
     return jobtype
 
@@ -183,19 +189,19 @@ def _run_pyscf_dft(charge, spin, atom, basis, functional, verbose=0, h=None):
         mf.get_hcore = lambda *args: h
     mf.xc = functional
     mf.grids.prune = True
-    mf.kernel()
+    etot = mf.kernel() # return total energy so that we don't need to calculate it again
 
-    return mol, mf
+    return mol, mf, etot
 
 
 def run_pyscf_dft(charge, spin, atom, basis, functional, nfrag=1, verbose=0):
     if isinstance(charge, list):
-        mol, mf = [None]*nfrag, [None]*nfrag
+        mol, mf, etot = [None]*nfrag, [None]*nfrag, [None]*nfrag
         for n in range(nfrag):
-            mol[n], mf[n] = _run_pyscf_dft(charge[n], spin[n], atom[n],
-                                           basis, functional, verbose)
+            mol[n], mf[n], etot[n] = _run_pyscf_dft(charge[n], spin[n], atom[n],
+                                                    basis, functional, verbose)
 
-        return mol, mf
+        return mol, mf, etot
     else:
         return _run_pyscf_dft(charge, spin, atom, basis, functional, verbose)
 
@@ -235,32 +241,32 @@ def run_pyscf_tddft(mf, td_model, nroots, nfrag=1, verbose=0):
 
 def _run_pyscf_dft_tddft(charge, spin, atom, basis, functional, td_model, nroots,
                          verbose=0, debug=0):
-    mol, mf = run_pyscf_dft(charge, spin, atom, basis, functional, verbose=verbose)
+    mol, mf, etot = run_pyscf_dft(charge, spin, atom, basis, functional, verbose=verbose)
     td = run_pyscf_tddft(mf, td_model, nroots, verbose=verbose)
-    return mol, mf, td
+    return mol, mf, etot, td
 
 
 # mainly for parallel execute
 def run_pyscf_dft_tddft(charge, spin, atom, basis, functional, td_model, nroots,
                         nfrag=1, verbose=0, debug=0):
     if isinstance(charge, list):
-        mol, mf, td = [None]*nfrag, [None]*nfrag, [None]*nfrag
+        mol, mf, etot, td = [None]*nfrag, [None]*nfrag, [None]*nfrag, [None]*nfrag
         for n in range(nfrag):
-            mol[n], mf[n] = run_pyscf_dft(charge[n], spin[n], atom[n],
-                                          basis, functional, verbose)
+            mol[n], mf[n], etot[n] = run_pyscf_dft(charge[n], spin[n], atom[n],
+                                                   basis, functional, verbose)
             td[n] = run_pyscf_tddft(mf[n], td_model, nroots, verbose=verbose)
 
         if debug > 0:
             final_print_energy(td, nwidth=10, iprint=7)
             trans_dipole, argmax = find_transition_dipole(td, nroots, nfrag)
 
-        return mol, mf, td
+        return mol, mf, etot, td
     else:
         return _run_pyscf_dft_tddft(charge, spin, atom, basis, functional,
                                     td_model, nroots, verbose, debug)
 
 
-def _run_pyscf_qed(mf, td, qed_model, cavity_model, key):
+def _run_pyscf_tdqed(mf, td, qed_model, cavity_model, key):
     cav_obj = getattr(qed, cavity_model)(mf, key)
     qed_td = getattr(qed, qed_model)(mf, td, cav_obj, key)
     qed_td.kernel()
@@ -275,16 +281,16 @@ def _run_pyscf_qed(mf, td, qed_model, cavity_model, key):
     return qed_td, cav_obj
 
 
-def run_pyscf_qed(mf, td, qed_model, cavity_model, key, nfrag=1):
+def run_pyscf_tdqed(mf, td, qed_model, cavity_model, key, nfrag=1):
     if isinstance(mf, list):
         qed_td, cav_obj = [None]*nfrag, [None]*nfrag
         for n in range(nfrag):
-            qed_td[n], cav_obj[n] = _run_pyscf_qed(mf[n], td[n], qed_model,
+            qed_td[n], cav_obj[n] = _run_pyscf_tdqed(mf[n], td[n], qed_model,
                                                    cavity_model, key)
 
         return qed_td, cav_obj
     else:
-        return _run_pyscf_qed(mf, td, qed_model, cavity_model, key)
+        return _run_pyscf_tdqed(mf, td, qed_model, cavity_model, key)
 
 
 def _find_transition_dipole(td, nroots):
@@ -438,26 +444,25 @@ def run_pyscf_final(parameters):
     functional, basis, nroots, td_model, verbose, debug = \
                 get_rem_info(parameters.get(section_names[1]))
 
-    mol, mf, td = run_pyscf_dft_tddft(charge, spin, atom, basis, functional,
-                                      td_model, nroots, nfrag, verbose, debug)
 
     results = {}
+
     jobtype = get_jobtype(parameters)
     if jobtype == 'scf':
-        mol, mf = run_pyscf_dft(charge, spin, atom, basis, functional, nfrag, verbose)
+        mol, mf, etot = run_pyscf_dft(charge, spin, atom, basis, functional, nfrag, verbose)
         results['mol'] = mol
         results['mf']  = mf
+        print_matrix('scf energy:', [etot])
     elif 'td' in jobtype:
-        mol, mf, td = run_pyscf_dft_tddft(charge, spin, atom, basis, functional,
-                                          td_model, nroots, nfrag, verbose, debug)
+        mol, mf, etot, td = run_pyscf_dft_tddft(charge, spin, atom, basis, functional,
+                                                td_model, nroots, nfrag, verbose, debug)
         results['mol'] = mol
         results['mf']  = mf
         results['td']  = td
-        final_print_energy(td, nwidth=10)
+        print_matrix('scf energy:', [etot])
+        final_print_energy(td, nwidth=10, iprint=1)
 
-    if 'qed' in jobtype:
-        #qed_td, cav_obj, qed_model, cavity_model = None, None, None, None
-
+    if 'td_qed' in jobtype:
         mol0 = mol[0] if isinstance(mol, list) else mol
         nov = get_basis_info(mol0)[-1] # assume identical molecules
         if nroots > nov: # fix the nroots if necessary
@@ -473,8 +478,8 @@ def run_pyscf_final(parameters):
         n_model = len(cavity_model)
         qed_td, cav_obj = [None]*n_model, [None]*n_model
         for i in range(len(cavity_model)):
-            qed_td[i], cav_obj[i] = run_pyscf_qed(mf, td, key['qed_model'],
-                                                  cavity_model[i], key, nfrag)
+            qed_td[i], cav_obj[i] = run_pyscf_tdqed(mf, td, key['qed_model'],
+                                                    cavity_model[i], key, nfrag)
 
         for i in range(n_model):
             final_print_energy(qed_td[i], cavity_model[i]+' qed-tddft', 10, iprint=1)
