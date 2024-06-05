@@ -1,6 +1,8 @@
 import sys
 import numpy as np
+
 from pyscf import scf, tdscf, gto
+from pyscf.lib import logger
 
 #import qed
 from wavefunction_analysis.utils import print_matrix
@@ -440,6 +442,9 @@ def justify_photon_info(td, nroots, nstate='max_dipole', func='average', nwidth=
 
 
 def run_pyscf_final(parameters):
+    cpu0 = (logger.process_clock(), logger.perf_counter())
+    log = logger.new_logger(verbose=5)
+
     nfrag, charge, spin, atom = parameters.get(section_names[0])[:4]
     functional, basis, nroots, td_model, verbose, debug = \
                 get_rem_info(parameters.get(section_names[1]))
@@ -487,6 +492,7 @@ def run_pyscf_final(parameters):
         results['qed_td'] = qed_td
         results['cav_obj'] = cav_obj
 
+    log.timer('pyscf running time', *cpu0)
     return results
 
 

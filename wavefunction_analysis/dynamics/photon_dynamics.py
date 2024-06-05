@@ -101,8 +101,6 @@ class PhotonDynamicsStep2(harmonic_oscillator):
 
         self.mass = np.ones(len(self.frequency))
 
-        self.init_method = 'all_zeros'
-
 
     def update_density(self, molecular_dipole, dt, half=1):
         force = -np.einsum('i,ix,x->ix', self.frequency, self.c_lambda, molecular_dipole)
