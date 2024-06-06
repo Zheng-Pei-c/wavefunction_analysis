@@ -44,10 +44,15 @@ class PhotonDynamicsStep():
 
         self.nmode = len(self.frequency)
 
+        self.energy = 0.
         self._trans, self.density = [None]*self.nmode, [None]*self.nmode
         for i in range(self.nmode):
-            self._trans[i] = get_trans_amplitude(self.basis_size[i], vector=True)
-            self.density[i] = self.get_initial_density(self.basis_size[i], self.init_number[i])
+            ntot = self.basis_size[i]
+            self._trans[i] = get_trans_amplitude(ntot, vector=True)
+            self.density[i] = self.get_initial_density(ntot, self.init_number[i])
+
+            for x in range(3):
+                self.energy += self.frequency[i] * np.dot(range(ntot), np.diag(self.density[i,x]))
 
 
     def get_initial_density(self, ntot, ns):
