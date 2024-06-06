@@ -5,14 +5,17 @@ from wavefunction_analysis.utils import print_matrix, convert_units
 from wavefunction_analysis.utils import put_keys_kwargs_to_object
 from wavefunction_analysis.dynamics import harmonic_oscillator
 
-def get_trans_amplitude(ntot, scaling=1., energy=None):
-    trans = np.zeros((ntot, ntot))
-    for j in range(ntot-1):
-        trans[j,j+1] = trans[j+1,j] = np.sqrt(j+1)*scaling
+def get_trans_amplitude(ntot, coupling=1., energy=None, vector=False):
+    trans = np.sqrt(np.arange(1, ntot))*coupling # does not include the end value
+
+    if vector:
+        return trans
+
+    trans = np.diagflat(trans, 1)
+    trans += trans.T
 
     if energy:
-        for j in range(ntot):
-            trans[j,j] = j*energy
+        np.fill_diagonal(trans, np.arange(0, ntot)*energy)
 
     return trans
 
@@ -22,7 +25,7 @@ class PhotonDynamicsStep():
         key.setdefault('frequency', 0.05)
         key.setdefault('freq_unit', 'hartree')
         key.setdefault('c_lambda', np.array([0.,0.,0.1]))
-        key.setdefault('number', 1)
+        key.setdefault('init_number', [1,1,1])
         key.setdefault('basis_size', 10)
 
         put_keys_kwargs_to_object(self, key, **kwargs)
@@ -34,59 +37,63 @@ class PhotonDynamicsStep():
         if isinstance(self.frequency, float):
             self.frequency = np.array([self.frequency])
             self.c_lambda = np.array([self.c_lambda])
-            self.number = np.array([self.number])
+            self.init_number = np.array([self.init_number])
             self.basis_size = np.array([self.basis_size])
 
         self.scaled_freq = np.sqrt(self.frequency/2.)
 
         self.nmode = len(self.frequency)
 
-        self.density = [None]*self.nmode
+        self._trans, self.density = [None]*self.nmode, [None]*self.nmode
         for i in range(self.nmode):
-            self.density[i] = self.get_initial_density(self.number[i], self.basis_size[i])
+            self._trans[i] = get_trans_amplitude(self.basis_size[i], vector=True)
+            self.density[i] = self.get_initial_density(self.basis_size[i], self.init_number[i])
 
 
-    def get_initial_density(self, n, ntot):
-        init_density = np.zeros((ntot,ntot))
+    def get_initial_density(self, ntot, ns):
+        if isinstance(ns, int): ns = [ns]
+
+        init_density = np.zeros((len(ns),ntot,ntot))
         #init_density[n,n] = n
-        for i in range(n+1):
-            init_density[i,i] = 1./(n+1)
+        for x in range(len(ns)):
+            n = int(ns[x])
+            for i in range(n+1):
+                init_density[x,i,i] = 1./(n+1)
         #init_density = np.ones((ntot,ntot))/ntot
         return init_density
 
 
     def update_density(self, molecular_dipole, dt, half=1):
         if half == 2:
-            kwargs = {}
-            return kwargs
+            return
 
-        coupling = np.einsum('i,ix,x->i', self.scaled_freq, self.c_lambda, molecular_dipole)
+        coupling = np.einsum('i,ix,x->ix', self.scaled_freq, self.c_lambda, molecular_dipole)
 
-        trans_coeff, energy = np.zeros(self.nmode), np.zeros(self.nmode)
+        trans_coeff, energy = np.zeros((self.nmode, 3)), np.zeros((self.nmode, 3))
         for i in range(self.nmode):
             ntot = self.basis_size[i]
-            trans = get_trans_amplitude(ntot, coupling[i], self.frequency[i])
+            _trans = self._trans[i]
 
-            #e, v = np.linalg.eigh(trans)
-            #print_matrix('eigenvalues:', e)
-            #transp = np.einsum('pi,i,qi->pq', v, np.exp(1j*e*dt), v)
-            transp = expm(1j*trans*dt)
-            #transm = np.einsum('pi,i,qi->pq', v, np.exp(-1j*e*dt), v)
-            transm = transp.conjugate()
-            self.density[i] = np.einsum('ij,jk,kl->il', transp, self.density[i], transm)#.real
-            print_matrix('diagonal of density:', self.density[i])
+            for x in range(np.argwhere(coupling[i]>1e-8)[0]): # spatial directions
+                trans = get_trans_amplitude(ntot, coupling[i,x], self.frequency[i])
 
-            trans = get_trans_amplitude(ntot)
-            trans_coeff[i] = np.einsum('ij,ji->', trans, self.density[i])
-            energy[i] = self.frequency[i] * np.dot(range(ntot), np.diag(self.density[i]))
+                #e, v = np.linalg.eigh(trans)
+                #print_matrix('eigenvalues:', e)
+                #transp = np.einsum('pi,i,qi->pq', v, np.exp(1j*e*dt), v)
+                transp = expm(1j*trans*dt)
+                #transm = np.einsum('pi,i,qi->pq', v, np.exp(-1j*e*dt), v)
+                transm = transp.conjugate()
+                self.density[i,x] = np.einsum('ij,jk,kl->il', transp, self.density[i,x], transm)#.real
+                #print_matrix('diagonal of density:', self.density[i])
 
-        kwargs = {}
-        kwargs['trans_coeff'] = np.einsum('i,i,ix->x', self.scaled_freq, trans_coeff, self.c_lambda)
+                trans_coeff[i,x] = np.dot(_trans, self.density[i,x].diag(1)+self.density[i,x].diag(-1))
+                energy[i,x] = self.frequency[i] * np.dot(range(ntot), np.diag(self.density[i,x]))
 
         self.energy = np.sum(energy)
 
-        #print('trans:', trans_coeff)
-        #print('photon_energy:', np.sum(energy))
+        kwargs = {}
+        kwargs['trans_coeff'] = np.einsum('i,ix,ix->x', self.scaled_freq, trans_coeff, self.c_lambda)
+
         return kwargs
 
 
