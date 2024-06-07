@@ -227,8 +227,8 @@ class NuclearDynamicsStep(harmonic_oscillator):
 
 
     # nuclear atoms only have kinetic energy
-    # potential energy is counted as the electronic energy
-    get_energy = harmonic_oscillator.get_kinetic_energy
+    def get_potential_energy(self, mass=None, coordinate=None, omega2=None):
+        self.potential = 0.
 
 
     def init_coordinate_velocity(self, init_method=None):

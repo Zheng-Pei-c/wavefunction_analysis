@@ -4,8 +4,8 @@ import numpy as np
 from pyscf import scf, tdscf, gto
 from pyscf.lib import logger
 
-#import qed
 from wavefunction_analysis.utils import print_matrix
+#import qed
 
 
 section_names = ['molecule', 'rem', 'polariton']
@@ -383,7 +383,9 @@ def get_photon_info(photon_key):
         raise TypeError('need cavity frequency')
     key['uniform_field'] = bool(key.get('uniform_field', True))
     key.setdefault('efield_file', 'efield')
-    if key.get('cavity_mode', None):
+    #if key.get('cavity_mode', None):
+    cavity_mode = key.get('cavity_mode', None)
+    if isinstance(cavity_mode, list) or isinstance(cavity_mode, np.ndarray):
         key['cavity_mode'] = np.array(key['cavity_mode']).reshape(3, -1)
     else:
         if key['uniform_field']:
