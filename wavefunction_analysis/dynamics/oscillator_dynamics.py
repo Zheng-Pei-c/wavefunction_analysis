@@ -151,8 +151,6 @@ class harmonic_oscillator():
 
     def get_energy(self, velocity, mass=None, coordinate=None, omega2=None):
         if mass is None: mass = self.mass
-        if coordinate is None: coordinate = self.coordinate
-        if omega2 is None: omega2 = self.omega2
 
         self.get_kinetic_energy(velocity, mass)
         self.get_potential_energy(mass, coordinate, omega2)
