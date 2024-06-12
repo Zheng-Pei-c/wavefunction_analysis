@@ -35,7 +35,8 @@ class MolecularDynamics():
 
         self.md_time_total_energy = np.zeros(self.nsteps)
         self.md_time_coordinate = np.zeros((self.nsteps, self.ndstep.natoms, 3))
-        self.md_time_dipoles = np.zeros((self.nsteps, 3))
+        self.md_time_velocity = np.zeros((self.nsteps, self.ndstep.natoms, 3))
+        self.md_time_dipole = np.zeros((self.nsteps, 3))
 
 
     def set_nuclear_step(self, key):
@@ -68,77 +69,84 @@ class MolecularDynamics():
 
 
     def run_dynamics(self):
-        coords = self.ndstep.coordinate # equal sign used here as a pointer!
+        # assign local variables for class attributes
+        ndstep, edstep, phstep = self.ndstep, self.edstep, self.phstep
+
+        coords = ndstep.coordinate # equal sign used here as a pointer!
         # coords will change when self.ndstep.coordinate changes!
 
         kwargs = {}
         photon_energy = 0.
-        if self.phstep:
-            print('photon frequency (au) is:', self.phstep.frequency)
-            print('photon-molecule coupling strength:', self.phstep.c_lambda)
-            kwargs['c_lambda'] = self.phstep.c_lambda
-            photon_energy = self.phstep.energy
+        if phstep:
+            print('photon frequency (au) is:', phstep.frequency)
+            print('photon-molecule coupling strength:', phstep.c_lambda)
+            kwargs['c_lambda'] = phstep.c_lambda
+            photon_energy = phstep.energy
 
-        et, force = self.edstep.init_electronic_density_static(coords, **kwargs)
-        force = self.ndstep.project_force(force)
+        et, force = edstep.init_electronic_density_static(coords, **kwargs)
+        force = ndstep.project_force(force)
 
-        etot = et + self.ndstep.kinetic + photon_energy
+        dipole = edstep.mf.dip_moment(unit='au', verbose=0)
+
+        etot = et + ndstep.kinetic + photon_energy
 
         print('current time:%7.3f fs' % 0.0, end='  ')
-        print('temperature: %4.2f K' % float(self.ndstep.temperature * kT_AU_to_Kelvin))
-        print('total energy (au): %15.10f  potential: %15.10f  kinetic: %15.10f' % (etot, et, self.ndstep.kinetic), end='  ')
-        if self.phstep: print('photon: %15.10f' % photon_energy)
+        print('temperature: %4.2f K' % float(ndstep.temperature * kT_AU_to_Kelvin))
+        print('total energy (au): %15.10f  potential: %15.10f  kinetic: %15.10f' % (etot, et, ndstep.kinetic), end='  ')
+        if phstep: print('photon: %15.10f' % photon_energy)
         else: print('')
-        print_matrix('force:\n', self.ndstep.force)
-        print_matrix('velocity:\n', self.ndstep.velocity)
-        print_matrix('nuclear coordinate:\n', convert_units(coords, 'bohr', 'angstrom'))
+        print_matrix('nuclear force:\n', ndstep.force)
+        print_matrix('nuclear velocity:\n', ndstep.velocity)
+        print_matrix('nuclear coordinate (AA):\n', convert_units(coords, 'bohr', 'angstrom'))
+        print_matrix('molecular dipole:\n', dipole)
 
-        dipole = self.edstep.mf.dip_moment(unit='au') # it will be printed out here
-
-        self.md_time_coordinate[0] = coords
-        self.md_time_dipoles[0] = dipole
         self.md_time_total_energy[0] = etot
+        self.md_time_coordinate[0] = coords
+        self.md_time_velocity[0] = ndstep.velocity
+        self.md_time_dipole[0] = dipole
 
 
         # loop times
         for ti in range(1, self.nsteps):
-            if self.phstep:
-                # get bilinear coefficient and photon energy
-                kwargs.update(self.phstep.update_density(dipole, self.ndstep.dt, 1))
-
-            self.ndstep.update_coordinate_velocity(force, 1)
-            et, force = self.edstep.update_electronic_density_static(coords, **kwargs)
-
+            ndstep.update_coordinate_velocity(force, 1)
             #coords = self.ndstep.coordinate # dont need to reassign!
 
+            if phstep:
+                # get bilinear coefficient and photon energy
+                kwargs.update(phstep.update_density(dipole, ndstep.dt, 1))
+
+            et, force = edstep.update_electronic_density_static(coords, **kwargs)
+
             if self.ed_method == 'curvy':
-                et, force = self.edstep.update_electronic_density_static2(coords, **kwargs)
+                et, force = edstep.update_electronic_density_static2(coords, **kwargs)
+
+            dipole = edstep.mf.dip_moment(unit='au', verbose=0)
+
 
             # velocity_verlet is cumbersome
-            force = self.ndstep.update_coordinate_velocity(force, 2)
+            force = ndstep.update_coordinate_velocity(force, 2)
 
-            if self.phstep:
+            if phstep:
                 # get photon energy
-                self.phstep.update_density(dipole, self.ndstep.dt, 2)
-                photon_energy = self.phstep.energy
+                phstep.update_density(dipole, ndstep.dt, 2)
+                photon_energy = phstep.energy
 
-            etot = et + self.ndstep.kinetic + photon_energy
+            etot = et + ndstep.kinetic + photon_energy
 
             print('current time:%7.3f fs' % convert_units(ti*self.dt, 'au', 'fs'), end='  ')
-            print('temperature: %4.2f K' % float(self.ndstep.temperature * kT_AU_to_Kelvin))
-            print('total energy (au): %15.10f  potential: %15.10f  kinetic: %15.10f' % (etot, et, self.ndstep.kinetic), end='  ')
-            #if self.phstep: print('photon: %15.10f' % photon_energy)
-            if self.phstep: print('photon: %15.10f' % photon_energy)
+            print('temperature: %4.2f K' % float(ndstep.temperature * kT_AU_to_Kelvin))
+            print('total energy (au): %15.10f  potential: %15.10f  kinetic: %15.10f' % (etot, et, ndstep.kinetic), end='  ')
+            if phstep: print('photon: %15.10f' % photon_energy)
             else: print('')
-            print_matrix('force:\n', self.ndstep.force)
-            print_matrix('velocity:\n', self.ndstep.velocity)
-            print_matrix('nuclear coordinate:\n', convert_units(coords, 'bohr', 'angstrom'))
+            print_matrix('nuclear force:\n', ndstep.force)
+            print_matrix('nuclear velocity:\n', ndstep.velocity)
+            print_matrix('nuclear coordinate (AA):\n', convert_units(coords, 'bohr', 'angstrom'))
+            print_matrix('molecular dipole:\n', dipole)
 
-            dipole = self.edstep.mf.dip_moment(unit='au') # it will be printed out here
-
-            self.md_time_coordinate[ti] = coords
-            self.md_time_dipoles[ti] = dipole
             self.md_time_total_energy[ti] = etot
+            self.md_time_coordinate[ti] = coords
+            self.md_time_velocity[ti] = ndstep.velocity
+            self.md_time_dipole[ti] = dipole
 
 
     def plot_time_variables(self, fig_name=None):

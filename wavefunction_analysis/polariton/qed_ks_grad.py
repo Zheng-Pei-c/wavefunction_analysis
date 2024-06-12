@@ -243,21 +243,6 @@ def get_dse_2e(dipole, dipole_d1, dm, with_j=False, scale_k=.5): # c_lambda is i
                 return [vj, vk*scale_k]
 
 
-#def get_bilinear_dipole_d1(dipole_d1, frequency, photon_coeff, elec=True):
-#    # bilinear fock/energy contribution
-#    # lambda has combined into dipole_d1
-#    if elec: # electronic dipole moment derivative
-#        if dipole_d1.ndim == 3:
-#            return np.sqrt(frequency/2.) * photon_coeff * dipole_d1
-#        elif dipole_d1.ndim == 4: # nmode is moved to the last
-#            return np.einsum('i,i,xpqi->xpq', np.sqrt(frequency/2.), photon_coeff, dipole_d1)
-#    else: # nuclear dipole derivative
-#        if dipole_d1.ndim == 2:
-#            return np.sqrt(frequency/2.) * photon_coeff * dipole_d1
-#        elif dipole_d1.ndim == 3:
-#            return np.einsum('i,i,inx->nx', np.sqrt(frequency/2.), photon_coeff, dipole_d1)
-
-
 def get_dse_elec_nuc_d1(dipole_d1, nuc_dip): # c_lambda is included
     if isinstance(nuc_dip, float):
         return -nuc_dip * dipole_d1
