@@ -95,10 +95,10 @@ class MolecularDynamics():
         print('total energy (au): %15.10f  potential: %15.10f  kinetic: %15.10f' % (etot, et, ndstep.kinetic), end='  ')
         if phstep: print('photon: %15.10f' % photon_energy)
         else: print('')
-        print_matrix('nuclear force:\n', ndstep.force)
-        print_matrix('nuclear velocity:\n', ndstep.velocity)
-        print_matrix('nuclear coordinate (AA):\n', convert_units(coords, 'bohr', 'angstrom'))
-        print_matrix('molecular dipole:\n', dipole)
+        print_matrix('nuclear force:', ndstep.force)
+        print_matrix('nuclear velocity:', ndstep.velocity)
+        print_matrix('nuclear coordinate (AA):', convert_units(coords, 'bohr', 'angstrom'))
+        print_matrix('molecular dipole:', dipole)
 
         self.md_time_total_energy[0] = etot
         self.md_time_coordinate[0] = coords
@@ -138,10 +138,10 @@ class MolecularDynamics():
             print('total energy (au): %15.10f  potential: %15.10f  kinetic: %15.10f' % (etot, et, ndstep.kinetic), end='  ')
             if phstep: print('photon: %15.10f' % photon_energy)
             else: print('')
-            print_matrix('nuclear force:\n', ndstep.force)
-            print_matrix('nuclear velocity:\n', ndstep.velocity)
-            print_matrix('nuclear coordinate (AA):\n', convert_units(coords, 'bohr', 'angstrom'))
-            print_matrix('molecular dipole:\n', dipole)
+            print_matrix('nuclear force:', ndstep.force)
+            print_matrix('nuclear velocity:', ndstep.velocity)
+            print_matrix('nuclear coordinate (AA):', convert_units(coords, 'bohr', 'angstrom'))
+            print_matrix('molecular dipole:', dipole)
 
             self.md_time_total_energy[ti] = etot
             self.md_time_coordinate[ti] = coords

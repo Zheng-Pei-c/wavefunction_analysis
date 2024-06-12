@@ -1,6 +1,9 @@
 import warnings
-
 import numpy as np
+
+import functools
+# real-time printout
+print = functools.partial(print, flush=True)
 
 def print_matrix(keyword, matrix, nwidth=0, nind=0, digits=[13,8,'f'],
                  trans=False, dtype=float):
