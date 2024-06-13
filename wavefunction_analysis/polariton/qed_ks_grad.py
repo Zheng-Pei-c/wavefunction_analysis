@@ -181,7 +181,7 @@ def cal_multipole_matrix_d1(mol, dm=None, origin=None): # no coupling strength
         return dipole_d1.reshape(natoms*3,3,nao,nao), quadrupole_d1.reshape(natoms*3,3,3,nao,nao)
 
 
-def get_multipole_matrix_d1(mol, c_lambda, itype='all', origin=None):
+def get_multipole_matrix_d1(mol, c_lambda, origin=None, itype='all'):
     if origin is None:
         origin = np.zeros(3)
 
@@ -307,14 +307,14 @@ class Gradients2(Gradients):
         mf = self.base
         # here the dipoles and quadrupoles have aleady combined with coupling
         if not isinstance(dipole_d1, np.ndarray):
-            dipole_d1, quadrupole_d1 = get_multipole_matrix_d1(mol, mf.c_lambda, origin=mf.origin)
+            dipole_d1, quadrupole_d1 = get_multipole_matrix_d1(mol, mf.c_lambda, mf.origin)
 
         hdip = get_dse_elec_nuc_d1(dipole_d1, mf.nuc_dip)
         hdip += .5 * quadrupole_d1
 
         if isinstance(mf.freq_scaled_lambda, np.ndarray): # bilinear term
             # dipole derivative with scaled coupling
-            hdip -= get_multipole_matrix_d1(mol, mf.freq_scaled_lambda, 'dipole', mf.origin)[0]
+            hdip -= get_multipole_matrix_d1(mol, mf.freq_scaled_lambda, mf.origin, 'dipole')[0]
 
         vdse_j, vdse_k = get_dse_2e(mf.dipole, dipole_d1, dm, with_j=True)
         return (hdip + vdse_j - vdse_k)
