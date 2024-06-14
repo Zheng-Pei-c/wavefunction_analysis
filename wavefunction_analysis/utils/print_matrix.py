@@ -5,7 +5,7 @@ import functools
 # real-time printout
 print = functools.partial(print, flush=True)
 
-def print_matrix(keyword, matrix, nwidth=0, nind=0, digits=[13,8,'f'],
+def print_matrix(keyword, matrix, nwidth=6, nind=0, digits=[13,8,'f'],
                  trans=False, dtype=float):
 
     if '\n' in keyword[-3:]: keyword = keyword[:-2]
@@ -20,7 +20,7 @@ def print_matrix(keyword, matrix, nwidth=0, nind=0, digits=[13,8,'f'],
 
     ndim = matrix.ndim
     if ndim == 1: # 1d array
-        if nwidth==0: nwidth = 6
+        if nwidth==0: nwidth = len(matrix)
         for n in range(len(matrix)):
             if nind > 0: # column index
                 #print('%13d ' % n, end='')

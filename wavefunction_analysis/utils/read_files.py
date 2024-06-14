@@ -1,4 +1,3 @@
-import os, sys
 import numpy as np
 
 def read_time(filename):
@@ -43,7 +42,7 @@ def read_array(filename, ncol=4, nrange=[0,4], dtype=float):
     return array
 
 
-def read_matrix(filename, nrow, ncol, keyword, nwidth=10, nind=0, nskip=0, dtype=float):
+def read_matrix(filename, nrow, ncol, keyword, nwidth=6, nind=0, nskip=0, dtype=float):
     if nwidth == -1: nwidth = ncol
 
     nbatch = ncol // nwidth

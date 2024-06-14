@@ -26,11 +26,13 @@ def brokenaxes(fig, gs, xlims, ylims, ratio=[1.,1.], pad=.1):
     if nr == 1: # split xaxis
         for i in range(nc):
             axs[i].set_xlim(xlims[i])
+            axs[i].set_ylim(ylims)
             if i>0: axs[i].set_yticks([])
             #axs[i].tick_params(labelright=False)
         #axs[-1].yaxis.tick_right()
     elif nc == 1: # split yaxis
         for i in range(nr):
+            axs[i].set_xlim(xlims)
             axs[i].set_ylim(ylims[i])
             if i<nr-1: axs[i].set_xticks([])
     else: # split both axes
