@@ -49,13 +49,15 @@ def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
                 if ideriv == 1:
                     g1.append(e_tot)
                 elif ideriv == 2:
-                    de1 = mf1.Gradients().kernel()
+                    g = mf1.Gradients()
+                    g.grid_response = True
+                    de1 = g.kernel()
                     g1.append(de1)
 
                 if extra:
                     mo1.append(change_matrix_phase_c(mo, mf1.mo_coeff))
                     #print_matrix('mo '+str(n)+' '+str(x)+' '+str(k)+':', mo1[-1], 5, 1)
-                    gs_dipole1.append(mf1.dip_moment(mol_new, unit='au'))
+                    gs_dipole1.append(mf1.dip_moment(mol_new, unit='au', verbose=0))
                     if isinstance(extra, float) or isinstance(extra, list) or isinstance(extra, np.ndarray): # extra is the frequency
                         transp.append(np.einsum('...pq,qp,...->...', mf1.dipole, mf1.make_rdm1(), extra))
 
