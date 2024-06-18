@@ -1,7 +1,5 @@
 import numpy as np
 
-#from wavefunction_analysis.utils import print_matrix
-
 def read_geometry(infile, probe=1):
     geometry = []
 
@@ -83,9 +81,14 @@ def get_symbols_coords(geometry, string=False):
     return symbols, coords
 
 
-def write_geometry(infile, geometry, open_file_method='w'):
+def write_geometry(infile, geometry, energy=None, open_file_method='w'):
     with open(infile, open_file_method) as f:
-        if infile[-4:] == '.xyz': f.write('%d\n\n' % int(len(geometry)/4))
+        if infile[-4:] == '.xyz':
+            f.write('%d\n' % int(len(geometry)/4))
+            if energy:
+                f.write('%f\n' % energy)
+            else:
+                f.write('\n')
 
         for atom in range(int(len(geometry)/4)):
             f.write('%2s   ' % geometry[4*atom])
@@ -94,9 +97,14 @@ def write_geometry(infile, geometry, open_file_method='w'):
             f.write('\n')
 
 
-def write_symbols_coords(infile, symbols, coords, open_file_method='w'):
+def write_symbols_coords(infile, symbols, coords, energy=None, open_file_method='w'):
     with open(infile, open_file_method) as f:
-        if infile[-4:] == '.xyz': f.write('%d\n\n' % len(symbols))
+        if infile[-4:] == '.xyz':
+            f.write('%d\n' % len(symbols))
+            if energy:
+                f.write('%f\n' % energy)
+            else:
+                f.write('\n')
 
         for atom in range(len(symbols)):
             f.write('%2s   ' % symbols[atom])
@@ -121,7 +129,7 @@ def switch_atoms(geometry, atom_list):
 
 
 def write_mol_info(infile, charge='0', multiplicity='1', open_file_method='w',
-        itype=0):
+                   itype=0):
     """
     itype: 0 normal job; 1 second job; 2 fragment
     """
@@ -138,14 +146,14 @@ def write_mol_info(infile, charge='0', multiplicity='1', open_file_method='w',
 
 
 def write_mol_info_geometry(infile, charge='0', multiplicity='1',
-        frgm=False, **kwargs):
+                            frgm=False, **kwargs):
 
     if frgm == False:
         write_mol_info(infile, charge, multiplicity, 'w+', 0)
         if 'geometry' in kwargs:
-            write_geometry(infile, kwargs.get('geometry'), 'a+')
+            write_geometry(infile, kwargs.get('geometry'), open_file_method='a+')
         elif 'symbols' in kwargs and 'coords' in kwargs:
-            write_symbols_coords(infile, kwargs.get('symbols'), kwargs.get('coords'), 'a+')
+            write_symbols_coords(infile, kwargs.get('symbols'), kwargs.get('coords'), open_file_method='a+')
         else:
             raise ValueError('need geometry info')
 
