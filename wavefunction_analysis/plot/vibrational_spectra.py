@@ -109,7 +109,7 @@ def get_dipole_dev(mf, hessobj, origin=None):
     return g1.reshape(natm*3, 3)
 
 
-def autocorrelation(arrays, dt, window='gaussian', domain='freq'):
+def autocorrelation(arrays, dt, window='gaussian', domain='freq', direv=False):
     # C(t) = < \int A(\tau) B(t-\tau) \dd \tau >
     # Wiener-Khintchine theorem
     # first index is along time
@@ -117,17 +117,18 @@ def autocorrelation(arrays, dt, window='gaussian', domain='freq'):
         arrays = arrays.reshape(-1, 1)
 
     nstep = arrays.shape[0]
-    #arrays = np.gradient(arrays, edge_order=2, axis=0) / dt
+    if direv: # get time derivatives of the arrays
+        arrays = np.gradient(arrays, edge_order=2, axis=0) / dt
     arrays -= np.mean(arrays, axis=0)
     norm = np.einsum('ix,ix->x', arrays, arrays)
 
-    #n = nstep*2 if nstep%2==0 else nstep*2-1
+    n = nstep*2 if nstep%2==0 else nstep*2-1
     correlation = np.zeros(arrays.shape)
     for i in np.where(norm>1e-8)[0]:
-        correlation[:,i] = signal.convolve(arrays[:,i], arrays[::-1,i], mode='full')[nstep-1:] / norm[i]
-        #tmp = np.zeros(n)
-        #tmp[nstep//2:nstep//2+nstep] = np.copy(arrays[:,i])
-        #correlation[:,i] = signal.fftconvolve(tmp, arrays[::-1,i], mode='same')[-nstep:]/ np.arange(nstep, 0, -1)
+        #correlation[:,i] = signal.convolve(arrays[:,i], arrays[::-1,i], mode='full')[nstep-1:] / norm[i]
+        tmp = np.zeros(n)
+        tmp[nstep//2:nstep//2+nstep] = np.copy(arrays[:,i])
+        correlation[:,i] = signal.convolve(tmp, arrays[::-1,i], mode='same')[-nstep:] / np.arange(nstep, 0, -1)
 
     #window = 'none'
     #if window == 'gaussian':
@@ -143,10 +144,10 @@ def autocorrelation(arrays, dt, window='gaussian', domain='freq'):
     if domain == 'time':
         return correlation
     elif domain == 'freq':
-        return fft_acf(correlation, dt)
+        return np.fft.fft2(correlation)[:nstep//2]
 
 
-def fft_acf(arrays, dt, unit='au'):
+def fft_acf(arrays, dt, unit='au', scale_freq=True):
     nstep = arrays.shape[0]
 
     if unit != 's':
@@ -155,10 +156,10 @@ def fft_acf(arrays, dt, unit='au'):
 
     #sigma = np.fft.fft2(arrays)[:nstep//2] / nstep
     sigma = fftpack.dct(arrays[:nstep//2], type=1, axis=0)
-    sigma = np.mean(sigma, axis=1) * freq**2
-    sigma = smooth(sigma)
+    sigma = np.mean(sigma, axis=1)
 
-    #sigma = np.abs(sigma.imag)
+    if scale_freq:
+        sigma *= freq**2
 
     freq = convert_units(freq, 'hz', 'cm-1')
     return freq, sigma
@@ -180,6 +181,17 @@ def smooth(x, window='hanning', window_len=11):
 
     y = np.convolve(w/w.sum(), s, mode='valid')
     return y[window_len//2-1:-window_len//2]
+
+
+def cal_spectra(array, dt, window='gaussian', unit='au', scale_freq=True,
+                direv=False, smoothing=True):
+    correlation = autocorrelation(array, dt, window, 'time', direv)
+    freq, sigma = fft_acf(correlation, dt, unit, scale_freq)
+
+    if smoothing:
+        sigma = smooth(sigma)
+
+    return freq, sigma
 
 
 
