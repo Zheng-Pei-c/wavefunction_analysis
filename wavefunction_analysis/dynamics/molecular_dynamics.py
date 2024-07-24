@@ -85,10 +85,10 @@ class MolecularDynamics():
 
         if 'restart' in ndstep.init_method:
             # get dynamical variables from nd class
-            energy = edstep.__dict__.pop('energy')
-            dipole = edstep.__dict__.pop('dipole')
-            init_time = edstep.__dict__.pop('init_time') # in au!
-            force = edstep.force
+            energy = ndstep.__dict__.pop('energy')
+            dipole = ndstep.__dict__.pop('dipole')
+            init_time = ndstep.__dict__.pop('init_time') # in au!
+            force = ndstep.force
 
             etot, et, ndstep.kinetic = energy[:3]
             if phstep:
@@ -105,7 +105,7 @@ class MolecularDynamics():
 
             etot = et + ndstep.kinetic + photon_energy
 
-        print('current time:%7.3f fs' % init_time, end='  ')
+        print('current time: %7.3f fs' % convert_units(init_time, 'au', 'fs'), end='  ')
         print('temperature: %4.2f K' % float(ndstep.temperature * kT_AU_to_Kelvin))
         print('total energy (au): %15.10f  potential: %15.10f  kinetic: %15.10f' % (etot, et, ndstep.kinetic), end='  ')
         if phstep: print('photon: %15.10f' % photon_energy)
@@ -148,7 +148,7 @@ class MolecularDynamics():
 
             etot = et + ndstep.kinetic + photon_energy
 
-            print('current time:%7.3f fs' % convert_units(init_time+ti*self.dt, 'au', 'fs'), end='  ')
+            print('current time: %7.3f fs' % convert_units(init_time+ti*self.dt, 'au', 'fs'), end='  ')
             print('temperature: %4.2f K' % float(ndstep.temperature * kT_AU_to_Kelvin))
             print('total energy (au): %15.10f  potential: %15.10f  kinetic: %15.10f' % (etot, et, ndstep.kinetic), end='  ')
             if phstep: print('photon: %15.10f' % photon_energy)
