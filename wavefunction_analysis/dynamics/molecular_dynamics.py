@@ -140,7 +140,6 @@ class MolecularDynamics():
 
             # velocity_verlet is cumbersome
             force = ndstep.update_coordinate_velocity(force, 2)
-            force = ndstep.project_force(force) # might not be necessary
 
             if phstep:
                 # get photon energy

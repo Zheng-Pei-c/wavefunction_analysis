@@ -310,3 +310,12 @@ class NuclearDynamicsStep(harmonic_oscillator):
 
         self.force = remove_trans_rotat_force(force, mass, coords)
         return self.force
+
+
+    def update_coordinate_velocity(self, force, half=1):
+        super().update_coordinate_velocity(force, half)
+        if half == 2:
+            mass = self.mass
+            coords = self.coordinate
+            self.project_velocity(self.velocity, mass, coords)
+            return self.project_force(force, mass, coords)
