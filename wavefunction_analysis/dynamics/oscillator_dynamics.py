@@ -233,7 +233,11 @@ class NuclearDynamicsStep(harmonic_oscillator):
         # coordinate has been given
         if init_method is None: init_method = self.init_method
 
-        if 'kick' in init_method: # no initial velocity
+        if 'restart' in init_method: # read in variables
+            # has been stored in the class
+            return
+
+        elif 'kick' in init_method: # no initial velocity
             self.velocity = np.zeros((self.natoms, 3))
             self.kinetic = self.energy = 0.
             self.temperature = 0.
@@ -241,7 +245,7 @@ class NuclearDynamicsStep(harmonic_oscillator):
             self.project_force(self.force)
             return
 
-        if 'thermo' in init_method:
+        elif 'thermo' in init_method:
             self.velocity = self.init_velocity_thermo()
         elif 'random' in init_method:
             self.velocity = self.init_velocity_random()

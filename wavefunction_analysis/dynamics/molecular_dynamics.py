@@ -83,14 +83,29 @@ class MolecularDynamics():
             kwargs['c_lambda'] = phstep.c_lambda
             photon_energy = phstep.energy
 
-        et, force = edstep.init_electronic_density_static(coords, **kwargs)
-        force = ndstep.project_force(force)
+        if 'restart' in ndstep.init_method:
+            # get dynamical variables from nd class
+            energy = edstep.__dict__.pop('energy')
+            dipole = edstep.__dict__.pop('dipole')
+            init_time = edstep.__dict__.pop('init_time') # in au!
+            force = edstep.force
 
-        dipole = edstep.mf.dip_moment(unit='au', verbose=0)
+            etot, et, ndstep.kinetic = energy[:3]
+            if phstep:
+                photon_energy = energy[3]
+                # get bilinear coefficient and photon energy
+                kwargs.update(phstep.update_density(dipole, ndstep.dt, 1))
 
-        etot = et + ndstep.kinetic + photon_energy
+        else: # default md initial step
+            init_time = 0.
+            et, force = edstep.init_electronic_density_static(coords, **kwargs)
+            force = ndstep.project_force(force)
 
-        print('current time:%7.3f fs' % 0.0, end='  ')
+            dipole = edstep.mf.dip_moment(unit='au', verbose=0)
+
+            etot = et + ndstep.kinetic + photon_energy
+
+        print('current time:%7.3f fs' % init_time, end='  ')
         print('temperature: %4.2f K' % float(ndstep.temperature * kT_AU_to_Kelvin))
         print('total energy (au): %15.10f  potential: %15.10f  kinetic: %15.10f' % (etot, et, ndstep.kinetic), end='  ')
         if phstep: print('photon: %15.10f' % photon_energy)
@@ -125,6 +140,7 @@ class MolecularDynamics():
 
             # velocity_verlet is cumbersome
             force = ndstep.update_coordinate_velocity(force, 2)
+            force = ndstep.project_force(force) # might not be necessary
 
             if phstep:
                 # get photon energy
@@ -133,7 +149,7 @@ class MolecularDynamics():
 
             etot = et + ndstep.kinetic + photon_energy
 
-            print('current time:%7.3f fs' % convert_units(ti*self.dt, 'au', 'fs'), end='  ')
+            print('current time:%7.3f fs' % convert_units(init_time+ti*self.dt, 'au', 'fs'), end='  ')
             print('temperature: %4.2f K' % float(ndstep.temperature * kT_AU_to_Kelvin))
             print('total energy (au): %15.10f  potential: %15.10f  kinetic: %15.10f' % (etot, et, ndstep.kinetic), end='  ')
             if phstep: print('photon: %15.10f' % photon_energy)
