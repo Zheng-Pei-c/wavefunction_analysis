@@ -19,7 +19,7 @@ def read_molecule(data):
         info = line.split()
         if len(info) == 2:
             charge.append(int(info[0]))
-            spin.append(int((int(info[1]) - 1) / 2))
+            spin.append(int((int(info[1]) - 1))) # pyscf using 2S=nalpha-nbeta rather than (2S+1)
             atmsym.append([])
             xyz.append([])
             coords.append('')
@@ -183,9 +183,10 @@ def get_center_of_mass(mol, nfrag=1):
         return _get_center_of_mass(mol)
 
 
-def _run_pyscf_dft(charge, spin, atom, basis, functional, verbose=0, h=None):
+def _run_pyscf_dft(charge, spin, atom, basis, functional, verbose=0, h=None,
+                   scf_method='RKS'):
     mol = build_molecule(atom, basis, charge, spin, verbose=verbose)
-    mf = scf.RKS(mol)
+    mf = getattr(scf, scf_method)(mol)
     if h:
         h = h + mol.intor('cint1e_kin_sph') + mol.intor('cint1e_nuc_sph')
         mf.get_hcore = lambda *args: h
@@ -196,17 +197,18 @@ def _run_pyscf_dft(charge, spin, atom, basis, functional, verbose=0, h=None):
     return mol, mf, etot
 
 
-def run_pyscf_dft(charge, spin, atom, basis, functional, nfrag=1, verbose=0):
+def run_pyscf_dft(charge, spin, atom, basis, functional, nfrag=1, verbose=0,
+                  h=None, scf_method='RKS'):
     if isinstance(charge, list):
         mol, mf, etot = [None]*nfrag, [None]*nfrag, [None]*nfrag
         for n in range(nfrag):
             mol[n], mf[n], etot[n] = _run_pyscf_dft(charge[n], spin[n], atom[n],
-                                                    basis, functional, verbose)
+                                                    basis, functional, verbose,
+                                                    h, scf_method)
 
         return mol, mf, etot
     else:
         return _run_pyscf_dft(charge, spin, atom, basis, functional, verbose)
-
 
 
 def _run_pyscf_tddft(mf, td_model, nroots, verbose=0):
@@ -242,21 +244,23 @@ def run_pyscf_tddft(mf, td_model, nroots, nfrag=1, verbose=0):
 
 
 def _run_pyscf_dft_tddft(charge, spin, atom, basis, functional, td_model, nroots,
-                         verbose=0, debug=0):
-    mol, mf, etot = run_pyscf_dft(charge, spin, atom, basis, functional, verbose=verbose)
-    td = run_pyscf_tddft(mf, td_model, nroots, verbose=verbose)
+                         verbose=0, debug=0, h=None, scf_method='RKS'):
+    mol, mf, etot = _run_pyscf_dft(charge, spin, atom, basis, functional,
+                                  verbose, h, scf_method)
+    td = _run_pyscf_tddft(mf, td_model, nroots, verbose)
     return mol, mf, etot, td
 
 
 # mainly for parallel execute
 def run_pyscf_dft_tddft(charge, spin, atom, basis, functional, td_model, nroots,
-                        nfrag=1, verbose=0, debug=0):
+                        nfrag=1, verbose=0, debug=0, h=None, scf_method='RKS'):
     if isinstance(charge, list):
         mol, mf, etot, td = [None]*nfrag, [None]*nfrag, [None]*nfrag, [None]*nfrag
         for n in range(nfrag):
             mol[n], mf[n], etot[n] = run_pyscf_dft(charge[n], spin[n], atom[n],
-                                                   basis, functional, verbose)
-            td[n] = run_pyscf_tddft(mf[n], td_model, nroots, verbose=verbose)
+                                                   basis, functional, verbose,
+                                                   h, scf_method)
+            td[n] = run_pyscf_tddft(mf[n], td_model, nroots, verbose)
 
         if debug > 0:
             final_print_energy(td, nwidth=10, iprint=7)
@@ -265,7 +269,8 @@ def run_pyscf_dft_tddft(charge, spin, atom, basis, functional, td_model, nroots,
         return mol, mf, etot, td
     else:
         return _run_pyscf_dft_tddft(charge, spin, atom, basis, functional,
-                                    td_model, nroots, verbose, debug)
+                                    td_model, nroots, verbose, debug, h,
+                                    scf_method)
 
 
 def _run_pyscf_tdqed(mf, td, qed_model, cavity_model, key):
@@ -288,7 +293,7 @@ def run_pyscf_tdqed(mf, td, qed_model, cavity_model, key, nfrag=1):
         qed_td, cav_obj = [None]*nfrag, [None]*nfrag
         for n in range(nfrag):
             qed_td[n], cav_obj[n] = _run_pyscf_tdqed(mf[n], td[n], qed_model,
-                                                   cavity_model, key)
+                                                     cavity_model, key)
 
         return qed_td, cav_obj
     else:
@@ -358,6 +363,13 @@ def get_rem_info(rem_keys):
 
     functional = rem_keys.get('method')
     basis = rem_keys.get('basis')
+
+    unrestricted = rem_keys.get('unrestricted', 0)
+    if unrestricted in (0, 'false', 'FALSE'):
+        scf_method = 'RKS'
+    else:
+        scf_method = 'UKS'
+
     nroots = rem_keys.get('cis_n_roots', 0)
     # 0 for rpa if it is ungiven. But it's working! Still None
     rpa = rem_keys.get('rpa', 0)
@@ -366,7 +378,7 @@ def get_rem_info(rem_keys):
     verbose = rem_keys.get('verbose', 1)
     debug   = rem_keys.get('debug', 0)
 
-    return functional, basis, nroots, td_model, verbose, debug
+    return functional, basis, nroots, td_model, verbose, debug, scf_method
 
 
 def get_photon_info(photon_key):
@@ -448,7 +460,7 @@ def run_pyscf_final(parameters):
     log = logger.new_logger(verbose=5)
 
     nfrag, charge, spin, atom = parameters.get(section_names[0])[:4]
-    functional, basis, nroots, td_model, verbose, debug = \
+    functional, basis, nroots, td_model, verbose, debug, scf_method = \
                 get_rem_info(parameters.get(section_names[1]))
 
 
@@ -456,13 +468,15 @@ def run_pyscf_final(parameters):
 
     jobtype = get_jobtype(parameters)
     if jobtype == 'scf':
-        mol, mf, etot = run_pyscf_dft(charge, spin, atom, basis, functional, nfrag, verbose)
+        mol, mf, etot = run_pyscf_dft(charge, spin, atom, basis, functional,
+                                      nfrag, verbose, scf_method=scf_method)
         results['mol'] = mol
         results['mf']  = mf
         print_matrix('scf energy:', [etot])
     elif 'td' in jobtype:
         mol, mf, etot, td = run_pyscf_dft_tddft(charge, spin, atom, basis, functional,
-                                                td_model, nroots, nfrag, verbose, debug)
+                                                td_model, nroots, nfrag, verbose, debug,
+                                                scf_method=scf_method)
         results['mol'] = mol
         results['mf']  = mf
         results['td']  = td

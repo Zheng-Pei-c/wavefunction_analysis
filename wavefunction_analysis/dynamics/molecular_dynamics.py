@@ -93,8 +93,6 @@ class MolecularDynamics():
             etot, et, ndstep.kinetic = energy[:3]
             if phstep:
                 photon_energy = energy[3]
-                # get bilinear coefficient and photon energy
-                kwargs.update(phstep.update_density(dipole, ndstep.dt, 1))
 
         else: # default md initial step
             init_time = 0.
