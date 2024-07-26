@@ -16,7 +16,7 @@ from wavefunction_analysis.utils.fdiff import change_matrix_phase_c
 def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
     scf_method = mf.__class__ # .__name__ to get the class name
 
-    functional, prune = mf.xc, mf.grids.prune
+    functional, prune, grid_level = mf.xc, mf.grids.prune, mf.grids.level
     coupling = mf.c_lambda if hasattr(mf, 'c_lambda') else None
     photon_freq = mf.photon_freq if hasattr(mf, 'photon_freq') else None
     trans_coeff = mf.photon_trans_coeff if hasattr(mf, 'photon_trans_coeff') else None
@@ -39,6 +39,7 @@ def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
                 mf1 = scf_method(mol_new) # in coherent state
                 mf1.xc = functional
                 mf1.grids.prune = prune
+                mf1.grids.level = grid_level
                 if isinstance(coupling, np.ndarray) or isinstance(coupling, list):
                     mf1.get_multipole_matrix(coupling, origin=origin,
                                              frequency=photon_freq,
