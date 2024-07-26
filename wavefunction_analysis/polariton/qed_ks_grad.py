@@ -51,7 +51,7 @@ def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
                     g1.append(e_tot)
                 elif ideriv == 2:
                     g = mf1.Gradients()
-                    g.grid_response = True
+                    if functional != 'hf': g.grid_response = True
                     de1 = g.kernel()
                     g1.append(de1)
 
