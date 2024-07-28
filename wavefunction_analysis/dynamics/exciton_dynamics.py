@@ -87,8 +87,8 @@ class OscillatorDynamicsStep():
         self.nuclear_coordinates = np.zeros((n_site, self.n_mode))
         self.nuclear_velocities  = np.zeros((n_site, self.n_mode))
 
-        def get_gaussian_distribution(variance, size, mean=0):
-            rng = np.random.default_rng()
+        def get_gaussian_distribution(variance, size, mean=0, seed=1385448536):
+            rng = np.random.default_rng(seed)
             return rng.normal(loc=mean, scale=np.sqrt(variance), size=size)
 
         # Boltzmann thermol distribution follows gaussian function
@@ -372,7 +372,9 @@ class ExcitonDynamicsStep():
         arg = np.where(probility > .1)
         print('initial probility:', arg, probility[arg])
         self.coefficients = np.copy(v[arg[0]][0])
-        #print_matrix('initial coefficients:', self.coefficients, 10)
+        self.coefficients = np.zeros(self.coefficients.shape)
+        self.coefficients[0] = 1.
+        print_matrix('initial coefficients:', self.coefficients, 10)
 
         c2 = np.einsum('i,i->i', self.coefficients.conj(), self.coefficients)
         return np.reshape(c2, (self.n_site_tot, -1))
@@ -414,12 +416,14 @@ class ExcitonDynamicsStep():
         if coefficients is None: coefficients = self.coefficients
         coefficients = np.reshape(coefficients, (self.n_site_tot, -1))
 
-        force = np.zeros((self.n_site_tot, self.n_mode))
+        #force = np.zeros((self.n_site_tot, self.n_mode))
 
+        c2 = np.einsum('ni,ni->ni', coefficients.conj(), coefficients)
+        force = - np.einsum('mi,ni->nm', self.coupling_g, c2.real)
         for i in range(self.n_site_tot-1):
             k = i % self.ntype
             c2 = np.einsum('i,j->ij', coefficients[i].conj(), coefficients[i+1])
-            force[i] = -2.* np.einsum('mij,ij->m', self.coupling_a[k], c2.real)
+            force[i] -= 2.* np.einsum('mij,ij->m', self.coupling_a[k], c2.real)
 
         return force
 
@@ -428,11 +432,22 @@ class ExcitonDynamicsStep():
         if coefficients is None: coefficients = self.coefficients
 
         coefficients = np.reshape(coefficients, (self.n_site_tot, -1))
-        c2 = np.einsum('ni,nj->nij', coefficients.conj(), coefficients)
-        correlation = np.einsum('n,nij->', self.length**2, c2)
-        correlation -= np.einsum('n,nij->', self.length, c2)**2
+        c2 = np.einsum('ni,ni->ni', coefficients.conj(), coefficients)
+        correlation = np.einsum('n,ni->', self.length**2, c2)
+        correlation -= np.einsum('n,ni->', self.length, c2)**2
         #print('correlation: %8.6f %10.8f' % correlation.real, correlation.imag)
         return correlation.real
+
+
+    def analyze_wf_property(self, coefficients=None, c2=None):
+        if c2 is None:
+            if coefficients is None: coefficients = self.coefficients
+            c2 = np.einsum('i,i->i', coefficients.conj(), coefficients)
+
+        # inverse participation ratio (ipr)
+        ipr = 1./ np.einsum('i,i->', c2, c2)
+
+        return ipr
 
 
 
@@ -533,6 +548,7 @@ class Dynamics():
         self.md_time_total_energies = np.zeros(self.total_time)
         self.correlation = np.zeros(self.total_time)
         self.c2 = []
+        self.ipr = []
 
 
     def kernel(self):
@@ -540,6 +556,7 @@ class Dynamics():
         coords = self.ndstep.nuclear_coordinates # equal sign used here as a pointer
         c2 = self.edstep.get_initial_coefficients(coords)
         self.c2.append(c2.ravel())
+        self.ipr.append(self.edstep.analyze_wf_property(c2=c2.ravel()))
 
         self.md_time_total_energies[0] = self.edstep.cal_energy() + self.ndstep.nuclear_energy
         electronic_force = self.edstep.cal_force(coords)
@@ -548,6 +565,7 @@ class Dynamics():
             self.ndstep.update_nuclear_coords_velocity(electronic_force)
             c2 = self.edstep.update_coefficients(coords)
             self.c2.append(c2.ravel())#np.max(c2))
+            self.ipr.append(self.edstep.analyze_wf_property(c2=c2.ravel()))
             self.correlation[ti] = self.edstep.cal_r_correlation()
 
             # velocity_verlet is cumbersome
@@ -560,6 +578,7 @@ class Dynamics():
         #print_matrix('ground-state energy (eV):', self.energy*HARTREE2EV, 10)
         #print_matrix('coefficient weights:', np.array(self.c2), 10)
         #print_matrix('correlation:', self.correlation, 10)
+#        print_matrix('ipr:', np.array(self.ipr), 6)
 
 
     def plot_time_variables(self, fig_name=None):
@@ -568,12 +587,12 @@ class Dynamics():
         #fig_name = 'site21_md'
         dpi = 300 if fig_name else 100
         #fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(11,6), sharex=True)
-        fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(11,6), sharex=False, dpi=dpi)
+        fig, ax = plt.subplots(nrows=3, ncols=1, figsize=(11,6), sharex=False, dpi=dpi)
 
         time_line = np.linspace(0, self.total_time, self.total_time) * AU2FS
 
         variable = self.md_time_total_energies
-        variable -= variable[0]
+        #variable -= variable[0]
         ax[0].plot(time_line, variable)
         ax[0].set_ylabel('Energy (a.u.)')
         ax[0].set_xlabel('Time (fs)')
@@ -589,6 +608,10 @@ class Dynamics():
         ax[1].set_xlabel('Site (State) No.')
         ax[1].legend()
 
+        ax[2].plot(time_line, self.ipr)
+        ax[2].set_ylabel('IPR')
+        ax[2].set_xlabel('Time (fs)')
+
         plt.tight_layout()
         if fig_name:
             plt.savefig(fig_name)
@@ -598,23 +621,26 @@ class Dynamics():
 
 
 if __name__ == '__main__':
-    total_time = 400
+    total_time = 50000
     key = {}
 
     """
     Fornari, et. al. JPCC 2016 10.1021/acs.jpcc.6b01298 parameters testing
+    for H2-OBPc molecular crystal
     """
     n_mode = 6
     key['n_mode'] = n_mode
     key['nuclear_mass']  = [6., 6., 754., 754., 754., 754.] # amu
     key['nuclear_omega'] = [144., 148., 5., 5., 5., 5.] # meV
 
-    n_site = np.array([11, 1, 1])
+    n_site = np.array([7, 1, 1])
     distance = 8.64 #[8.64, 8.64, 8.64] # Angstrom
     nstate = 2
     key['n_site'] = n_site
     key['distance'] = distance
     key['nstate'] = nstate
+
+    key['n_mol'] = 1
 
     key['energy'] = [0., 10.] # meV
 
@@ -649,4 +675,4 @@ if __name__ == '__main__':
 
     obj = Dynamics(key, total_time=total_time)
     obj.kernel()
-    obj.plot_time_variables()
+    obj.plot_time_variables('test.png')
