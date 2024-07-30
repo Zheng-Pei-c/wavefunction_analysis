@@ -129,7 +129,7 @@ def cal_wf_overlap_u(Xm, Ym, Xn, Yn, Cm, Cn, S):
     # unrestricted case, including alpha and beta spin orbitals
     has_m = (Xm is not None)
     has_n = (Xn is not None)
-    has_y = ((Ym is not None) and (Yn is not None))
+    has_y = ((Ym[0] is not None) and (Yn[0] is not None))
 
     nroots, no_a, nv_a = Xm[0].shape # alpha
     _,      no_b, nv_b = Xm[1].shape # beta
@@ -552,18 +552,16 @@ if __name__ == '__main__':
         #print('ground-state energy:', e)
 
         td = td_model(mf)
-        #td.max_cycle = 600
-        #td.max_space = 200
+        td.max_cycle = 600
+        td.max_space = 200
         td.nroots  = nroots
         td.verbose = 0
         if 'sf' in itype:
             td.extype = int(itype[-1])
             #td.collinear_samples = 200 #200 is default
         td.kernel()
-        try:
-            td.converged.all()
-            #print_matrix('excitation energy:', td.e)
-        except Warning:
+        #print_matrix('excitation energy:', td.e)
+        if not td.converged.all():
             print('td is not converged:', td.converged)
             #print_matrix('norm:', np.einsum('mia,nia->mn', xs, xs) - np.einsum('mia,nia->mn', ys, ys))
 
