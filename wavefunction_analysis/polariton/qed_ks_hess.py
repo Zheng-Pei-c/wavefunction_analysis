@@ -25,7 +25,7 @@ def fd_orbital_rotation_mo1(mf, fd_mo):
     ovlp = mf.get_ovlp()
 
     ovlp1 = mol.intor('int1e_ipovlp', comp=3)
-    s1 = np.zeros((natoms, 3, nao, nao))
+    s1 = np.zeros((mol.natm, 3, nao, nao))
     atmlst = range(mol.natm)
     aoslices = mol.aoslice_by_atom()
     for k, ia in enumerate(atmlst):
