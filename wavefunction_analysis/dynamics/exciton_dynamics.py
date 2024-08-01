@@ -1,8 +1,7 @@
 import os, sys
 import warnings
 import numpy as np
-from pyscf.data.nist import HARTREE2J, HARTREE2EV, BOLTZMANN, PROTON_MASS_AU, BOHR, PLANCK, E_CHARGE
-from pyscf import lib
+from pyscf.data.nist import HARTREE2J, HARTREE2EV, BOLTZMANN, AMU2AU, BOHR, PLANCK, E_CHARGE
 
 from wavefunction_analysis.utils import print_matrix
 from wavefunction_analysis.utils import put_keys_kwargs_to_object, put_kwargs_to_keys
@@ -67,7 +66,7 @@ class OscillatorDynamicsStep():
     def convert_parameter_units(self):
         # Boltzmann coefficient is 1/(k_B * T)
         self.beta_b = get_boltzmann_beta(self.temperature)
-        self.nuclear_mass *= PROTON_MASS_AU
+        self.nuclear_mass *= AMU2AU
         self.nuclear_omega /= (HARTREE2EV*1000)
         self.nuclear_omega2 = self.nuclear_omega**2 # for computational efficiency
 
