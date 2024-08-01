@@ -170,7 +170,8 @@ def run_pyscf_gs(scf_method, mol, functional, *args, **kwargs):
     # ground-state
     mf = scf_method(mol)
     mf.xc = functional
-    mf.grids.prune = True
+    mf.grids.prune = kwargs.get('prune', True)
+    mf.grids.level = kwargs.get('grid_level', 3)
 
     origin = kwargs.get('origin', [0., 0., 0.])
 
@@ -240,6 +241,11 @@ class ElectronicDynamicsStep():
         # construct atom
         atom = build_atom(self.atmsym, coords)
         #print('current coords in ED:\n', atom)
+
+        if hasattr(self, 'prune'):
+            kwargs['prune'] = self.prune
+        if hasattr(self, 'grid_level'):
+            kwargs['grid_level'] = self.grid_level
 
         mol = build_molecule(atom, self.basis, self.charge, self.spin,
                              self.unit, self.max_memory, self.verbose)
