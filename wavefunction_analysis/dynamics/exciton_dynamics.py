@@ -93,7 +93,7 @@ class OscillatorDynamicsStep():
         # Boltzmann thermol distribution follows gaussian function
         if distribution == 'thermo':
             K = np.einsum('i,i->i', self.nuclear_mass, self.nuclear_omega2)
-            variance = 1. / (self.beta_b * K)
+            variance = 1. / (self.beta_b * K * 2.)
             if self.debug > 0:
                 print_matrix('force constant:', K)
                 print_matrix('coordinate variance:', variance)
@@ -101,7 +101,7 @@ class OscillatorDynamicsStep():
             for i in range(self.n_mode):
                 self.nuclear_coordinates[:,i] = get_gaussian_distribution(variance[i], n_site)
 
-            variance = 1. / (self.beta_b * self.nuclear_mass)
+            variance = 1. / (self.beta_b * self.nuclear_mass * 2.)
             if self.debug > 0:
                 print_matrix('velocity variance:', variance)
 
