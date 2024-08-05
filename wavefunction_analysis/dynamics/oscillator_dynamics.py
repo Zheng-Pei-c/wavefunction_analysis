@@ -27,8 +27,9 @@ class harmonic_oscillator():
         # frequency and mass has same dimension (nmode)
         """
         # set default
+        key.setdefault('dt', 1) # au
         key.setdefault('frequency', None)
-        key.setdefault('init_temp', 300) #K
+        key.setdefault('init_temp', 298) # K
         key.setdefault('init_method', 'thermo')
         key.setdefault('update_method', 'euler')
         key.setdefault('debug', 0)
@@ -58,34 +59,41 @@ class harmonic_oscillator():
         self.coordinate = np.zeros((nmode, n_site))
         self.velocity  = np.zeros((nmode, n_site))
 
-        def get_gaussian_distribution(variance, size, mean=0):
-            rng = np.random.default_rng()
+        def get_gaussian_distribution(variance, size, mean=0, seed=None):
+            rng = np.random.default_rng(seed)
             return rng.normal(loc=mean, scale=np.sqrt(variance), size=size)
 
         # Boltzmann thermol distribution follows gaussian function
         if init_method == 'thermo':
-            beta_b = get_boltzmann_beta(self.init_temp)
+            # equal parition of the kT energy to kinetic and potential
+            # 0.5 is because in the Gaussian function, q^2 = 2\sigma^2
+            seed = getattr(self, 'random_seed', None)
+            beta_b = self.beta_b
             K = np.einsum('i,i->i', self.mass, self.omega2)
-            variance = 1. / (beta_b * K)
+            variance = .5 / (beta_b * K)
             if self.debug > 0:
                 print_matrix('force constant:', K)
                 print_matrix('coordinate variance:', variance)
 
             for i in range(nmode):
-                self.coordinate[i] = get_gaussian_distribution(variance[i], n_site)
+                self.coordinate[i] = get_gaussian_distribution(variance[i], n_site, seed=seed)
 
-            variance = 1. / (beta_b * self.mass)
+            variance = .5 / (beta_b * self.mass)
             if self.debug > 0:
                 print_matrix('velocity variance:', variance)
 
             for i in range(nmode):
-                self.velocity[i] = get_gaussian_distribution(variance[i], n_site)
+                self.velocity[i] = get_gaussian_distribution(variance[i], n_site, seed=seed)
+
+        if self.debug > 1:
+            print_matrix('initial coordinates:', self.coordinate, 10)
+            print_matrix('initial velocities:', self.velocity, 10)
 
         self.get_energy(self.velocity)
 
 
     def update_coordinate_velocity(self, force, half=1):
-        if self.frequency: # add oscillator force first
+        if isinstance(self.frequency, np.ndarray) or isinstance(self.frequency, float): # add oscillator force first
             force -= np.einsum('i,i,ix->ix', self.mass, self.omega2, self.coordinate)
 
         if half == 1:

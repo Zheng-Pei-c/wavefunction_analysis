@@ -5,6 +5,7 @@ from pyscf.data.nist import HARTREE2J, HARTREE2EV, BOLTZMANN, AMU2AU, BOHR, PLAN
 
 from wavefunction_analysis.utils import print_matrix
 from wavefunction_analysis.utils import put_keys_kwargs_to_object, put_kwargs_to_keys
+from wavefunction_analysis.dynamics import harmonic_oscillator
 from wavefunction_analysis.dynamics.dimers_in_crystal import add_molecules_cell
 
 
@@ -18,170 +19,40 @@ def get_boltzmann_beta(temperature):
 refer to Alessandro Troisi and Giorgio Orlandi PRL 2006 10.1103/PhysRevLett.96.086601
          Fornari, et. al. JPCC 2016 10.1021/acs.jpcc.6b01298
 """
-class OscillatorDynamicsStep():
-    def __init__(self, key={}, **kwargs):
+class OscillatorDynamicsStep(harmonic_oscillator):
+    def convert_parameter_units(self, unit_dict):
         """
         required input:
-            nuclear_mass in amu
-            nuclear_omega in meV
-        input with default values:
-            temperature as 298 K
-            nuclear_update_method as velocity_verlet
-            nuclear_distribution as thermo
+            mass in amu
+            frequency in meV
         """
-        self.debug = 2
-        self.temperature = 298 # K
-
-        # phonon dynamics time step
-        self.nuclear_dt = 1 # au
-
-        # nuclear coordinates and velocities update method
-        self.nuclear_update_method = 'euler' #'velocity_verlet'
-        # initial distribution method for oscillator coordinates and velocities
-        self.nuclear_distribution = 'thermo'
-
-        # vibrational mode number of each site
-        self.n_mode = 0
-        # oscillator mass in amu for vibrational mode
-        self.nuclear_mass = 0
-        # vibrational frequency in meV
-        self.nuclear_omega = 0
-
-        put_keys_kwargs_to_object(self, key, **kwargs)
-
-        self.check_sanity()
-        # convert the input parameters into atomic unit for the calculations
-        self.convert_parameter_units()
-
-
-    def check_sanity(self):
-        """
-        check the input parameters
-        """
-        if self.n_mode == 0:
-            raise ValueError('n_mode in %s should be larger than 0' % self.__class__.__name__)
-        assert self.nuclear_mass.size  == self.nuclear_omega.size == self.n_mode
-
-
-    def convert_parameter_units(self):
         # Boltzmann coefficient is 1/(k_B * T)
-        self.beta_b = get_boltzmann_beta(self.temperature)
-        self.nuclear_mass *= AMU2AU
-        self.nuclear_omega /= (HARTREE2EV*1000)
-        self.nuclear_omega2 = self.nuclear_omega**2 # for computational efficiency
+        self.beta_b = get_boltzmann_beta(self.init_temp)
+        self.mass *= AMU2AU
+        self.frequency /= (HARTREE2EV*1000)
+        self.omega2 = self.frequency**2 # for computational efficiency
 
         if self.debug > 0:
             #print('KT:', 1./self.beta_b, 1./self.beta_b*HARTREE2EV*1000)
-            print_matrix('oscillator mass (au):', self.nuclear_mass)
-            print_matrix('oscillator omega (au):', self.nuclear_omega)
+            print_matrix('oscillator mass (au):', self.mass)
+            print_matrix('oscillator omega (au):', self.frequency)
 
 
-    def get_initial_coordinates_velocities(self, n_site, distribution=None):
-        """
-        generate the initial oscillator coordinates and velocities
-        n_site: number of total molecular sites
-        """
-        if distribution is None: distribution = self.nuclear_distribution
+    def get_phonon_hamiltonian(self, velocity=None, coordinate=None, mass=None, omega2=None):
+        # get phonon energy on each site
+        if velocity is None: velocity = self.velocity
+        if coordinate is None: coordinate = self.coordinate
+        if mass is None: mass = self.mass
+        if omega2 is None: omega2 = self.omega2
 
-        self.nuclear_coordinates = np.zeros((n_site, self.n_mode))
-        self.nuclear_velocities  = np.zeros((n_site, self.n_mode))
-
-        def get_gaussian_distribution(variance, size, mean=0, seed=1385448536):
-            rng = np.random.default_rng(seed)
-            return rng.normal(loc=mean, scale=np.sqrt(variance), size=size)
-
-        # Boltzmann thermol distribution follows gaussian function
-        if distribution == 'thermo':
-            K = np.einsum('i,i->i', self.nuclear_mass, self.nuclear_omega2)
-            variance = 1. / (self.beta_b * K * 2.)
-            if self.debug > 0:
-                print_matrix('force constant:', K)
-                print_matrix('coordinate variance:', variance)
-
-            for i in range(self.n_mode):
-                self.nuclear_coordinates[:,i] = get_gaussian_distribution(variance[i], n_site)
-
-            variance = 1. / (self.beta_b * self.nuclear_mass * 2.)
-            if self.debug > 0:
-                print_matrix('velocity variance:', variance)
-
-            for i in range(self.n_mode):
-                self.nuclear_velocities[:,i] = get_gaussian_distribution(variance[i], n_site)
-
-        if self.debug > 1:
-            print_matrix('initial coordinates:', self.nuclear_coordinates, 10)
-            print_matrix('initial velocities:', self.nuclear_velocities, 10)
-
-        nuclear_energy = self.get_nuclear_energy()
-
-
-    def update_nuclear_coords_velocity(self, nuclear_force, nuclear_coordinates=None):
-        if nuclear_coordinates is None: nuclear_coordinates = self.nuclear_coordinates
-
-        # add oscillator force first
-        nuclear_force -= np.einsum('m,m,nm->nm', self.nuclear_mass, self.nuclear_omega2, nuclear_coordinates)
-
-        if self.nuclear_update_method == 'euler':
-            self.euler_step(nuclear_force)
-        elif self.nuclear_update_method == 'leapfrog':
-            self.leapfrog_step(nuclear_force)
-        elif self.nuclear_update_method == 'velocity_verlet':
-            self.velocity_verlet_step(nuclear_force, 1)
-            # we will finish the last falf after electronic step
-
-
-    def euler_step(self, nuclear_force):
-        self.nuclear_velocities += self.nuclear_dt * np.einsum('ni,i->ni', nuclear_force, 1./self.nuclear_mass)
-        self.nuclear_coordinates += self.nuclear_dt * self.nuclear_velocities
-        self.get_nuclear_energy(self.nuclear_velocities)
-
-
-    def leapfrog_step(self, nuclear_force):
-        old_nuclear_velocities = np.copy(self.nuclear_velocities)
-        self.nuclear_velocities += self.nuclear_dt * np.einsum('ni,i->ni', nuclear_force, 1./self.nuclear_mass)
-        self.nuclear_coordinates += self.nuclear_dt * self.nuclear_velocities
-
-        average_nuclear_velocities = 0.5 * (old_nuclear_velocities + self.nuclear_velocities)
-        self.get_nuclear_energy(average_nuclear_velocities)
-
-
-    def velocity_verlet_step(self, nuclear_force, half):
-        self.nuclear_velocities += 0.5 * self.nuclear_dt * np.einsum('ni,i->ni', nuclear_force, 1./self.nuclear_mass)
-        if half == 1:
-            self.nuclear_coordinates += self.nuclear_dt * self.nuclear_velocities
-        if half == 2:
-            self.get_nuclear_energy(self.nuclear_velocities)
-
-
-    def get_nuclear_energy(self, velocities=None, coordinates=None, mass=None, omega2=None):
-        if velocities is None: velocities = self.nuclear_velocities
-        if coordinates is None: coordinates = self.nuclear_coordinates
-        if mass is None: mass = self.nuclear_mass
-        if omega2 is None: omega2 = self.nuclear_omega2
-
-        v2 = np.einsum('ni,ni->i', velocities, velocities)
-        self.nuclear_kinetic = 0.5 * np.einsum('i,i', mass, v2)
-        self.nuclear_temperature = self.nuclear_kinetic * 2 / (velocities.size)
-        v2 = np.einsum('ni,ni->i', coordinates, coordinates)
-        self.nuclear_potential = 0.5 * np.einsum('i,i,i->', mass, omega2, v2)
-        self.nuclear_energy = self.nuclear_kinetic + self.nuclear_potential
-        #print('nuclear energy (au):', self.nuclear_energy, self.nuclear_kinetic, self.nuclear_potential)
-
-        return self.nuclear_energy
-
-
-    def get_phonon_hamiltonian(self, velocities=None, coordinates=None, mass=None, omega2=None):
-        if velocities is None: velocities = self.nuclear_velocities
-        if coordinates is None: coordinates = self.nuclear_coordinates
-        if mass is None: mass = self.nuclear_mass
-        if omega2 is None: omega2 = self.nuclear_omega2
-
+        # the first index of velocity and coordinate is mass related
         mass2 = np.copy(mass) *.5
-        self.phonon_hamiltonian = np.einsum('i,ni,ni->n', mass2, velocities, velocities)
+        self.hamiltonian = np.einsum('i,in,in->n', mass2, velocity, velocity)
         v2 = np.einsum('i,i->i', mass2, omega2)
-        self.phonon_hamiltonian += np.einsum('i,ni,ni->n', v2, coordinates, coordinates)
+        self.hamiltonian += np.einsum('i,in,in->n', v2, coordinate, coordinate)
 
-        return self.phonon_hamiltonian
+        return self.hamiltonian
+
 
 
 class ExcitonDynamicsStep():
@@ -219,9 +90,9 @@ class ExcitonDynamicsStep():
         # exciton energy of each site
         self.energy = 0
         # three couplings
-        self.coupling_g = 0
-        self.coupling_j = 0
-        self.coupling_a = 0
+        self.coupling_g = 0 # (nmode, nstate)
+        self.coupling_j = 0 # (ndimer, nstate, nstate)
+        self.coupling_a = 0 # (ndimer, nmode, nstate, nstate)
 
         self.dimer_label = None
 
@@ -229,7 +100,7 @@ class ExcitonDynamicsStep():
 
         self.check_sanity()
         # convert the input parameters into atomic unit for the calculations
-        self.convert_parameter_units()
+        self.convert_parameter_units(getattr(self, 'unit_dict', None))
         self.process_parameters()
 
 
@@ -241,7 +112,7 @@ class ExcitonDynamicsStep():
             raise ValueError('n_mode in %s should be larger than 0' % self.__class__.__name__)
 
 
-    def convert_parameter_units(self):
+    def convert_parameter_units(self, unit_dict):
         self.beta_b = get_boltzmann_beta(self.temperature)
         self.n_site_tot = np.prod(self.n_site) * self.n_mol
         self.distance /= BOHR
@@ -282,116 +153,124 @@ class ExcitonDynamicsStep():
 
 
     def get_exciton_hamiltonian0(self):
-        self.exciton_hamiltonian0 = np.zeos((self.n_site_tot, self.nstate, self.n_site_tot, self.nstate))
+        n_site_tot, nstate = self.n_site_tot, self.nstate
+        hamiltonian = np.zeros((n_site_tot, nstate, n_site_tot, nstate))
 
-        for i in range(self.n_site_tot-1):
+        for i in range(n_site_tot-1):
             k = i % self.ntype
             hamiltonian[i,:,i+1] = self.coupling_j[k]
             hamiltonian[i+1,:,i] = hamiltonian[i,:,i+1].transpose()
-        self.exciton_hamiltonian0.reshape(self.n_site_tot*self.nstate, -1)
 
-        np.fill_diagonal(self.exciton_hamiltonian0, np.tile(self.energy, (n_site_tot, 1)).ravel())
+        hamiltonian = hamiltonian.reshape(n_site_tot*nstate, -1)
+        np.fill_diagonal(hamiltonian, np.tile(self.energy, (n_site_tot, 1)).ravel())
+
+        self.hamiltonian0 = hamiltonian
+        return self.hamiltonian0
 
 
-    def get_exciton_hamiltonian1(self, nuclear_coordinates):
-        diagonal = np.einsum('mi,nm->ni', self.coupling_g, nuclear_coordinates)
+    def get_exciton_hamiltonian1(self, coordinate):
+        n_site_tot, nstate = self.n_site_tot, self.nstate
+        diagonal = np.einsum('mi,mn->ni', self.coupling_g, coordinate)
 
-        hamiltonian = np.zeros((self.n_site_tot, self.nstate, self.n_site_tot, self.nstate))
+        hamiltonian = np.zeros((n_site_tot, nstate, n_site_tot, nstate))
 
-        nuclear_coordinates1 = np.copy(nuclear_coordinates)
-        nuclear_coordinates1[:-1] -= nuclear_coordinates[1:]
+        coordinate1 = np.copy(coordinate)
+        coordinate1[:,:-1] -= coordinate[:,1:]
 
-        #coupling = np.zeros((self.n_site_tot, self.nstate, self.nstate))
-        #coupling = np.einsum('kmij,nkm->nkij', self.coupling_a, nuclear_coordinates1.reshape(-1, self.ntype, self.n_mode))
-        #coupling = coupling.reshape(-1, self.nstate, self.nstate)
-        for i in range(self.n_site_tot-1):
+        for i in range(n_site_tot-1):
             k = i % self.ntype
-            coupling = np.einsum('mij,m->ij', self.coupling_a[k], nuclear_coordinates1[i])
-            hamiltonian[i,:,i+1] = coupling[i]
+            coupling = np.einsum('mij,m->ij', self.coupling_a[k], coordinate1[:,i])
+            hamiltonian[i,:,i+1] = coupling
             hamiltonian[i+1,:,i] = hamiltonian[i,:,i+1].transpose()
 
+        hamiltonian = hamiltonian.reshape(n_site_tot*nstate, -1)
         np.fill_diagonal(hamiltonian, diagonal.ravel())
         return hamiltonian
 
 
-    def get_exciton_hamiltonian2(self, nuclear_coordinates):
-        self.exciton_hamiltonian = self.get_exciton_hamiltonian1(nuclear_coordinates)
-        self.exciton_hamiltonian += self.exciton_hamiltonian0
-        return self.exciton_hamiltonian
+    def get_exciton_hamiltonian2(self, coordinate):
+        self.hamiltonian = self.get_exciton_hamiltonian1(coordinate)
+        self.hamiltonian += self.hamiltonian0
+        return self.hamiltonian
 
 
-    def get_exciton_diagonal(self, nuclear_coordinates):
-        diagonal = np.einsum('mi,nm->ni', self.coupling_g, nuclear_coordinates)
+    def get_exciton_diagonal(self, coordinate):
+        diagonal = np.einsum('mi,mn->ni', self.coupling_g, coordinate)
         diagonal += np.tile(self.energy, (self.n_site_tot, 1))
-        #diagonal += np.tile(phonon_hamiltonian, (self.nstate, 1)).T
-        #return np.ravel(self.energy + diagonal)
         return diagonal.ravel()
 
 
-    def get_exciton_couplings(self, nuclear_coordinates):
-        hamiltonian = np.zeros((self.n_site_tot, self.nstate, self.n_site_tot, self.nstate))
+    def get_exciton_couplings(self, coordinate):
+        n_site_tot, nstate = self.n_site_tot, self.nstate
+        hamiltonian = np.zeros((n_site_tot, nstate, n_site_tot, nstate))
 
-        nuclear_coordinates1 = np.copy(nuclear_coordinates)
-        nuclear_coordinates1[:-1] -= nuclear_coordinates[1:]
-        #coupling = np.einsum('kmij,nkm->nkij', self.coupling_a, nuclear_coordinates1.reshape(-1, self.ntype, self.n_mode))
-        #coupling = coupling.reshape(-1, self.nstate, self.nstate)
+        coordinate1 = np.copy(coordinate)
+        coordinate1[:,:-1] -= coordinate[:,1:]
 
-        for i in range(self.n_site_tot-1):
+        for i in range(n_site_tot-1):
             k = i % self.ntype
-            coupling = np.einsum('mij,m->ij', self.coupling_a[k], nuclear_coordinates1[i])
+            coupling = np.einsum('mij,m->ij', self.coupling_a[k], coordinate1[:,i])
             hamiltonian[i,:,i+1] = self.coupling_j[k] + coupling
-            #hamiltonian[i,:,i+1] = self.coupling_j[i] + coupling[i]
             hamiltonian[i+1,:,i] = hamiltonian[i,:,i+1].transpose()
 
-        return np.reshape(hamiltonian, (self.n_site_tot*self.nstate, -1))
+        return np.reshape(hamiltonian, (n_site_tot*nstate, -1))
 
 
-    def get_exciton_hamiltonian(self, nuclear_coordinates):
-        self.exciton_hamiltonian = self.get_exciton_couplings(nuclear_coordinates)
+    def get_exciton_hamiltonian(self, coordinate):
+        self.hamiltonian = self.get_exciton_couplings(coordinate)
 
-        diagonal = self.get_exciton_diagonal(nuclear_coordinates)
-        np.fill_diagonal(self.exciton_hamiltonian, diagonal)
-        return self.exciton_hamiltonian
+        diagonal = self.get_exciton_diagonal(coordinate)
+        np.fill_diagonal(self.hamiltonian, diagonal)
+        return self.hamiltonian
 
 
-    def get_initial_coefficients(self, nuclear_coordinates):
-        H = self.get_exciton_hamiltonian(nuclear_coordinates)
-        #print_matrix('H:', H, 10)
-        w, v = np.linalg.eigh(H)
-        # the eigenvalues from eig function are not sorted
-        # but it doesn't matter since we will get the largest weight vector later
-        #arg = np.argsort(w)
-        #w, v = w[arg], v[arg]
+    def get_initial_coefficients(self, coordinate):
+        H = self.get_exciton_hamiltonian(coordinate)
+        if self.debug > 5: # check if the two approach give same hamiltonian
+            self.get_exciton_hamiltonian0()
+            H_t = self.get_exciton_hamiltonian2(coordinate) - H
+            print_matrix('hamiltonian difference: '+str(np.count_nonzero(H_t)), H_t, 10)
 
-        weight = np.exp(- self.beta_b * w)
-        probility = weight / np.sum(weight)
+        ##print_matrix('H:', H, 10)
+        #w, v = np.linalg.eigh(H)
+        ## the eigenvalues from eig function are not sorted
+        ## but it doesn't matter since we will get the largest weight vector later
+        ##arg = np.argsort(w)
+        ##w, v = w[arg], v[arg]
 
-        #print_matrix('initial eigenvalues:', w, 10)
-        #print_matrix('initial eigenvectors:', v, 10)
-        arg = np.where(probility > .1)
-        print('initial probility:', arg, probility[arg])
-        self.coefficients = np.copy(v[arg[0]][0])
-        self.coefficients = np.zeros(self.coefficients.shape)
+        #weight = np.exp(- self.beta_b * w)
+        #probility = weight / np.sum(weight)
+
+        ##print_matrix('initial eigenvalues:', w, 10)
+        ##print_matrix('initial eigenvectors:', v, 10)
+        #arg = np.where(probility > .1)
+        #print('initial probility:', arg, probility[arg])
+        #self.coefficients = np.copy(v[arg[0]][0])
+        self.coefficients = np.zeros(self.n_site_tot*self.nstate)
         self.coefficients[0] = 1.
         print_matrix('initial coefficients:', self.coefficients, 10)
 
         c2 = np.einsum('i,i->i', self.coefficients.conj(), self.coefficients)
-        return np.reshape(c2, (self.n_site_tot, -1))
+        return c2 #np.reshape(c2, ((self.n_site_tot, -1)))
 
 
-    def update_coefficients(self, nuclear_coordinates, nuclear_coordinates1=None, dt=None):
+    def update_coefficients(self, coordinate, coordinate1=None, dt=None):
         if dt is None: dt = self.exciton_dt
 
-        #hamiltonian = self.get_exciton_hamiltonian(nuclear_coordinates1)
+        #hamiltonian = self.get_exciton_hamiltonian(coordinate1)
         #delta = (1j * dt) * np.einsum('ij,j->i', hamiltonian, self.coefficients)
 
-        #hamiltonian = self.get_exciton_hamiltonian(nuclear_coordinates)
+        #hamiltonian = self.get_exciton_hamiltonian(coordinate)
         #delta2 = (1j * dt * dt *.5) * np.einsum('ij,j->i', hamiltonian, self.coefficients_dot)
 
         #self.coefficients -= (delta + delta2)
         #self.coefficients_dot = -1j * np.einsum('ij,j->i', hamiltonian, self.coefficients)
 
-        hamiltonian = self.get_exciton_hamiltonian(nuclear_coordinates)
+        hamiltonian = self.get_exciton_hamiltonian(coordinate)
+        if self.debug > 5: # check if the two approach give same hamiltonian
+            hamiltonian_t = self.get_exciton_hamiltonian2(coordinate) - hamiltonian
+            print_matrix('hamiltonian difference: '+str(np.count_nonzero(hamiltonian_t)), hamiltonian_t, 10)
+
         #exp_h = np.exp((-1j * dt) * hamiltonian)
         w, v = np.linalg.eigh(hamiltonian)
         exp_h = np.exp((-1j * dt) * w)
@@ -399,11 +278,11 @@ class ExcitonDynamicsStep():
         self.coefficients = np.einsum('ij,j->i', exp_h, self.coefficients)
 
         c2 = np.einsum('i,i->i', self.coefficients.conj(), self.coefficients)
-        return np.reshape(c2, (self.n_site_tot, -1)).real
+        return c2.real #np.reshape(c2, ((self.n_site_tot, -1))).real
 
 
     def cal_energy(self, hamiltonian=None, coefficients=None):
-        if hamiltonian is None: hamiltonian = self.exciton_hamiltonian
+        if hamiltonian is None: hamiltonian = self.hamiltonian
         if coefficients is None: coefficients = self.coefficients
 
         energy = np.einsum('i,ij,j->', coefficients.conj(), hamiltonian, coefficients)
@@ -411,31 +290,44 @@ class ExcitonDynamicsStep():
         return energy.real
 
 
-    def cal_force(self, nuclear_coordinates, coefficients=None):
+    def cal_force(self, coordinate, coefficients=None):
         if coefficients is None: coefficients = self.coefficients
         coefficients = np.reshape(coefficients, (self.n_site_tot, -1))
 
         #force = np.zeros((self.n_site_tot, self.n_mode))
 
         c2 = np.einsum('ni,ni->ni', coefficients.conj(), coefficients)
-        force = - np.einsum('mi,ni->nm', self.coupling_g, c2.real)
+        force = - np.einsum('mi,ni->mn', self.coupling_g, c2.real)
         for i in range(self.n_site_tot-1):
             k = i % self.ntype
             c2 = np.einsum('i,j->ij', coefficients[i].conj(), coefficients[i+1])
-            force[i] -= 2.* np.einsum('mij,ij->m', self.coupling_a[k], c2.real)
+            c2 += c2.conj().T
+            force[:,i] -= np.einsum('mij,ij->m', self.coupling_a[k], c2.real)
 
         return force
 
 
-    def cal_r_correlation(self, coefficients=None):
-        if coefficients is None: coefficients = self.coefficients
+    def cal_r_correlation(self, coefficients=None, c2=None):
+        if c2 is None:
+            if coefficients is None: coefficients = self.coefficients
+            c2 = np.einsum('i,i->i', coefficients.conj(), coefficients)
 
-        coefficients = np.reshape(coefficients, (self.n_site_tot, -1))
-        c2 = np.einsum('ni,ni->ni', coefficients.conj(), coefficients)
+        c2 = np.reshape(c2, (self.n_site_tot, -1))
         correlation = np.einsum('n,ni->', self.length**2, c2)
         correlation -= np.einsum('n,ni->', self.length, c2)**2
         #print('correlation: %8.6f %10.8f' % correlation.real, correlation.imag)
-        return correlation.real
+        return correlation
+
+
+    def cal_ipr_value(self, coefficients=None, c2=None):
+        if c2 is None:
+            if coefficients is None: coefficients = self.coefficients
+            c2 = np.einsum('i,i->i', coefficients.conj(), coefficients)
+
+        # inverse participation ratio (ipr)
+        ipr = 1./ np.einsum('i,i->', c2, c2)
+        #print('ipr: %8.6f %10.8f' % ipr.real, ipr.imag)
+        return ipr
 
 
     def analyze_wf_property(self, coefficients=None, c2=None):
@@ -443,14 +335,16 @@ class ExcitonDynamicsStep():
             if coefficients is None: coefficients = self.coefficients
             c2 = np.einsum('i,i->i', coefficients.conj(), coefficients)
 
-        # inverse participation ratio (ipr)
-        ipr = 1./ np.einsum('i,i->', c2, c2)
+        correlation = self.cal_r_correlation(c2=c2)
+        ipr = self.cal_ipr_value(c2=c2)
 
-        return ipr
+        return correlation, ipr
 
 
 
 class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
+    # x, y, z axis.
+    # (1,1,1) is center O, (0,1,1) and (2,1,1) is the left and right points on x-axis
     def process_parameters(self):
         self.length = add_molecules_cell(self.n_site, self.distance, self.angle, [0], self.coords)[1]
 
@@ -473,13 +367,13 @@ class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
         self.ntype = self.neighbor_index.shape[1]
 
 
-    def get_exciton_couplings(self, nuclear_coordinates):
+    def get_exciton_couplings(self, coordinate):
         nx, ny, nz, nt, ns = self.n_site, self.n_mol, self.nstate
         hamiltonian = np.zeros((nx, ny, nz, nt, ns, nx, ny, nz, nt, ns))
 
-        nuclear_coordinates1 = np.copy(nuclear_coordinates)
-        nuclear_coordinates1[:-1] -= nuclear_coordinates[1:]
-        #coupling = np.einsum('kmij,nkm->nkij', self.coupling_a, nuclear_coordinates1.reshape(-1, self.ntype, self.n_mode))
+        coordinate1 = np.copy(coordinate)
+        coordinate1[:-1] -= coordinate[1:]
+        #coupling = np.einsum('kmij,nkm->nkij', self.coupling_a, coordinate1.reshape(-1, self.ntype, self.n_mode))
         #coupling = coupling.reshape(-1, self.nstate, self.nstate)
 
         icount = 0
@@ -487,7 +381,7 @@ class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
             for j in range(1, ny-1):
                 for k in range(1, nz-1):
                     for l in range(nt): # number of molecule in a unit cell
-                        coupling = np.einsum('tmij,m->tij', self.coupling_a, nuclear_coordinates1[icount])
+                        coupling = np.einsum('tmij,m->tij', self.coupling_a, coordinate1[icount])
                         for x, (a, b, c, d) in enumerate(self.neighbor_index[l]):
                             hamiltonian[i,j,k,l,:,i+a,j+b,k+c,d] = self.coupling_j[k] + coupling
                             hamiltonian[i+a,j+b,k+c,d,i,j,k,l] = hamiltonian[i,j,k,0,:,i+a,j+b,k+c,d].transpose()
@@ -496,7 +390,7 @@ class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
         return np.reshape(hamiltonian, (self.n_site_tot*self.nstate, -1))
 
 
-    def cal_force(self, nuclear_coordinates, coefficients=None):
+    def cal_force(self, coordinate, coefficients=None):
         if coefficients is None: coefficients = self.coefficients
 
         nx, ny, nz, nt = self.n_site, self.n_mol
@@ -515,17 +409,6 @@ class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
         return np.ravel(force)
 
 
-    def cal_r_correlation(self, coefficients=None):
-        if coefficients is None: coefficients = self.coefficients
-
-        coefficients = np.reshape(coefficients, (self.n_site_tot, -1))
-        c2 = np.einsum('ni,nj->nij', coefficients.conj(), coefficients)
-        correlation = np.einsum('nx,nx,nij->x', self.length, self.length, c2)
-        correlation -= np.einsum('nx,nij->x', self.length, c2)**2
-        #print('correlation: %8.6f %10.8f' % correlation.real, correlation.imag)
-        return correlation.real
-
-
 
 class Dynamics():
     def __init__(self, key, **kwargs):
@@ -537,75 +420,81 @@ class Dynamics():
             self.total_time = key.pop('total_time')
         print('dynamics run %d steps in %.3f fs.' %(self.total_time, float(self.total_time*AU2FS)))
 
-        self.ndstep = OscillatorDynamicsStep(key)
-
         if 'dimer_label' in key.keys():
             self.edstep = ExcitonDynamicsStep3D(key)
         else: # normal 1d
             self.edstep = ExcitonDynamicsStep(key)
 
-        self.md_time_total_energies = np.zeros(self.total_time)
+        key['n_site'] = self.edstep.n_site_tot
+        self.ndstep = OscillatorDynamicsStep(key)
+
+        # variables needed
+        self.total_energy = np.zeros(self.total_time)
         self.correlation = np.zeros(self.total_time)
+        self.ipr = np.zeros(self.total_time)
         self.c2 = []
-        self.ipr = []
 
 
     def kernel(self):
-        self.ndstep.get_initial_coordinates_velocities(self.edstep.n_site_tot)
-        coords = self.ndstep.nuclear_coordinates # equal sign used here as a pointer
-        c2 = self.edstep.get_initial_coefficients(coords)
-        self.c2.append(c2.ravel())
-        self.ipr.append(self.edstep.analyze_wf_property(c2=c2.ravel()))
+        # assign local variables for class attributes
+        ndstep, edstep = self.ndstep, self.edstep
 
-        self.md_time_total_energies[0] = self.edstep.cal_energy() + self.ndstep.nuclear_energy
-        electronic_force = self.edstep.cal_force(coords)
+        coords = ndstep.coordinate # equal sign used here as a pointer
+        c2 = edstep.get_initial_coefficients(coords)
+        correlation, ipr = edstep.analyze_wf_property(c2=c2)
+
+        self.c2.append(c2)
+        self.correlation[0] = correlation
+        self.ipr[0] = ipr
+
+        self.total_energy[0] = edstep.cal_energy() + ndstep.energy
+        force = edstep.cal_force(coords)
 
         for ti in range(1, self.total_time):
-            self.ndstep.update_nuclear_coords_velocity(electronic_force)
-            c2 = self.edstep.update_coefficients(coords)
-            self.c2.append(c2.ravel())#np.max(c2))
-            self.ipr.append(self.edstep.analyze_wf_property(c2=c2.ravel()))
-            self.correlation[ti] = self.edstep.cal_r_correlation()
+            ndstep.update_coordinate_velocity(force)
+            c2 = edstep.update_coefficients(coords)
+            correlation, ipr = edstep.analyze_wf_property(c2=c2)
+
+            self.c2.append(c2)
+            self.correlation[ti] = correlation
+            self.ipr[ti] = ipr
 
             # velocity_verlet is cumbersome
-            if self.ndstep.nuclear_update_method == 'velocity_verlet':
-                self.ndstep.velocity_verlet_step(electronic_force, 2)
+            force = ndstep.update_coordinate_velocity(force, 2)
 
-            self.md_time_total_energies[ti] = self.edstep.cal_energy() + self.ndstep.nuclear_energy
-            electronic_force = self.edstep.cal_force(coords)
+            self.total_energy[ti] = edstep.cal_energy() + ndstep.energy
+            force = edstep.cal_force(coords)
 
-        #print_matrix('ground-state energy (eV):', self.energy*HARTREE2EV, 10)
+        #print_matrix('ground-state energy (eV):', self.total_energy*HARTREE2EV, 10)
         #print_matrix('coefficient weights:', np.array(self.c2), 10)
         #print_matrix('correlation:', self.correlation, 10)
-#        print_matrix('ipr:', np.array(self.ipr), 6)
+        #print_matrix('ipr:', self.ipr, 6)
 
 
     def plot_time_variables(self, fig_name=None):
         import matplotlib.pyplot as plt
 
-        #fig_name = 'site21_md'
         dpi = 300 if fig_name else 100
-        #fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(11,6), sharex=True)
-        fig, ax = plt.subplots(nrows=3, ncols=1, figsize=(11,6), sharex=False, dpi=dpi)
+        fig, ax = plt.subplots(nrows=3, ncols=1, figsize=(11,6), sharex=True, dpi=dpi)
 
         time_line = np.linspace(0, self.total_time, self.total_time) * AU2FS
 
-        variable = self.md_time_total_energies
-        #variable -= variable[0]
-        ax[0].plot(time_line, variable)
+        ax[0].plot(time_line, self.total_energy)
         ax[0].set_ylabel('Energy (a.u.)')
-        ax[0].set_xlabel('Time (fs)')
 
-        n = len(self.c2)
-        d = int(n/8)
-        variable = self.c2[::d]
-        line = range(1, len(variable[0])+1)
-        for i in range(len(variable)):
-            ax[1].plot(line, variable[i], label='%.1f fs' % float(d*i*AU2FS))
+        #n = len(self.c2)
+        #d = int(n/8)
+        #variable = self.c2[::d]
+        #line = range(1, len(variable[0])+1)
+        #for i in range(len(variable)):
+        #    ax[1].plot(line, variable[i], label='%.1f fs' % float(d*i*AU2FS))
 
-        ax[1].set_ylabel('Coefficients')
-        ax[1].set_xlabel('Site (State) No.')
-        ax[1].legend()
+        #ax[1].set_ylabel('Coefficients')
+        #ax[1].set_xlabel('Site (State) No.')
+        #ax[1].legend()
+
+        ax[1].plot(time_line, self.correlation)
+        ax[1].set_ylabel('correlation')
 
         ax[2].plot(time_line, self.ipr)
         ax[2].set_ylabel('IPR')
@@ -620,8 +509,12 @@ class Dynamics():
 
 
 if __name__ == '__main__':
-    total_time = 50000
+    total_time = 500000
     key = {}
+    key['debug'] = 2
+    key['random_seed'] = 1385448536
+    key['dt'] = 2
+    key['update_method'] = 'velocity_verlet'
 
     """
     Fornari, et. al. JPCC 2016 10.1021/acs.jpcc.6b01298 parameters testing
@@ -629,17 +522,18 @@ if __name__ == '__main__':
     """
     n_mode = 6
     key['n_mode'] = n_mode
-    key['nuclear_mass']  = [6., 6., 754., 754., 754., 754.] # amu
-    key['nuclear_omega'] = [144., 148., 5., 5., 5., 5.] # meV
+    key['mass']  = [6., 6., 754., 754., 754., 754.] # amu
+    key['frequency'] = [144., 148., 5., 5., 5., 5.] # meV
 
     n_site = np.array([7, 1, 1])
     distance = 8.64 #[8.64, 8.64, 8.64] # Angstrom
     nstate = 2
+    n_mol = 2
+
     key['n_site'] = n_site
     key['distance'] = distance
     key['nstate'] = nstate
-
-    key['n_mol'] = 1
+    key['n_mol'] = n_mol
 
     key['energy'] = [0., 10.] # meV
 
@@ -648,8 +542,6 @@ if __name__ == '__main__':
     coupling_g[1,1] = 2231. # meV/AA
     key['coupling_g'] = coupling_g
 
-    # x, y, z axis.
-    # (1,1,1) is center O, (0,1,1) and (2,1,1) is the left and right points on x-axis
     coupling_j = np.zeros((2, nstate, nstate))
     coupling_j[0,0,0] = -39. # meV # A dimer x to x+1
     coupling_j[0,0,1] = -13. # meV
