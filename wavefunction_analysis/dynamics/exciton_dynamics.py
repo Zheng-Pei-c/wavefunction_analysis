@@ -115,7 +115,7 @@ class ExcitonDynamicsStep():
     def convert_parameter_units(self, unit_dict):
         self.beta_b = get_boltzmann_beta(self.temperature)
         self.n_site_tot = np.prod(self.n_site) * self.n_mol
-        self.distance /= BOHR
+        #self.distance /= BOHR
 
         self.energy /= (HARTREE2EV*1000)
         self.coupling_g /= (HARTREE2EV*1000/BOHR)
@@ -247,7 +247,7 @@ class ExcitonDynamicsStep():
         #print('initial probility:', arg, probility[arg])
         #self.coefficients = np.copy(v[arg[0]][0])
         self.coefficients = np.zeros(self.n_site_tot*self.nstate)
-        self.coefficients[0] = 1.
+        self.coefficients[int(self.n_site_tot*self.nstate//4)] = 1.
         print_matrix('initial coefficients:', self.coefficients, 10)
 
         c2 = np.einsum('i,i->i', self.coefficients.conj(), self.coefficients)
@@ -302,7 +302,10 @@ class ExcitonDynamicsStep():
             k = i % self.ntype
             c2 = np.einsum('i,j->ij', coefficients[i].conj(), coefficients[i+1])
             c2 += c2.conj().T
-            force[:,i] -= np.einsum('mij,ij->m', self.coupling_a[k], c2.real)
+            g = np.einsum('mij,ij->m', self.coupling_a[k], c2.real)
+
+            force[:,i] -= g
+            force[:,i+1] += g # shift site and change sign
 
         return force
 
@@ -477,7 +480,7 @@ class Dynamics():
         dpi = 300 if fig_name else 100
         fig, ax = plt.subplots(nrows=3, ncols=1, figsize=(11,6), sharex=True, dpi=dpi)
 
-        time_line = np.linspace(0, self.total_time, self.total_time) * AU2FS
+        time_line = np.linspace(0, self.total_time, self.total_time) * AU2FS *1e-3
 
         ax[0].plot(time_line, self.total_energy)
         ax[0].set_ylabel('Energy (a.u.)')
@@ -494,11 +497,11 @@ class Dynamics():
         #ax[1].legend()
 
         ax[1].plot(time_line, self.correlation)
-        ax[1].set_ylabel('correlation')
+        ax[1].set_ylabel('correlation ($\\AA^2$)')
 
         ax[2].plot(time_line, self.ipr)
         ax[2].set_ylabel('IPR')
-        ax[2].set_xlabel('Time (fs)')
+        ax[2].set_xlabel('Time (ps)')
 
         plt.tight_layout()
         if fig_name:
@@ -509,12 +512,13 @@ class Dynamics():
 
 
 if __name__ == '__main__':
-    total_time = 500000
+    total_time = 60000
     key = {}
     key['debug'] = 2
     key['random_seed'] = 1385448536
-    key['dt'] = 2
-    key['update_method'] = 'velocity_verlet'
+    key['dt'] = 10
+    key['exciton_dt'] = 10
+    #key['update_method'] = 'velocity_verlet'
 
     """
     Fornari, et. al. JPCC 2016 10.1021/acs.jpcc.6b01298 parameters testing
@@ -525,7 +529,7 @@ if __name__ == '__main__':
     key['mass']  = [6., 6., 754., 754., 754., 754.] # amu
     key['frequency'] = [144., 148., 5., 5., 5., 5.] # meV
 
-    n_site = np.array([7, 1, 1])
+    n_site = np.array([21, 1, 1])
     distance = 8.64 #[8.64, 8.64, 8.64] # Angstrom
     nstate = 2
     n_mol = 2
