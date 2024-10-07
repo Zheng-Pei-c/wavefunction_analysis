@@ -116,6 +116,13 @@ class PhotonDynamicsStep2(harmonic_oscillator):
         self.mass = np.ones(len(self.frequency))
 
 
+    def get_minimim_displacement(self, molecular_dipole):
+        self.coordinate = -np.einsum('i,ix,x->ix', 1./self.frequency, self.c_lambda, molecular_dipole)
+        self.get_energy(self.velocity)
+
+        return self.coordinate
+
+
     def update_density(self, molecular_dipole, dt, half=1):
         force = -np.einsum('i,ix,x->ix', self.frequency, self.c_lambda, molecular_dipole)
         if self.n_site == 1:

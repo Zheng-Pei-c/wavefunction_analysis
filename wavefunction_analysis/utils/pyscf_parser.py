@@ -218,13 +218,15 @@ def _run_pyscf_tddft(mf, td_model, nroots, verbose=0):
 
     if nroots > 0:
         td.kernel(nstates=nroots)
-        try:
-            td.converged.all()
-            #print('TDDFT converged: ', td.converged)
-            #print_matrix('Excited state energies (eV):\n', td.e * 27.2116, 6)
-        except Warning:
-            #print('the %d-th job for TDDFT is not converged.' % (n+1))
-            print('the job for TDDFT is not converged.')
+        if not td.converged.all():
+            print('tddft is not converged:', td.converged)
+        #try:
+        #    td.converged.all()
+        #    #print('TDDFT converged: ', td.converged)
+        #    #print_matrix('Excited state energies (eV):\n', td.e * 27.2116, 6)
+        #except Warning:
+        #    #print('the %d-th job for TDDFT is not converged.' % (n+1))
+        #    print('the job for TDDFT is not converged.')
 
     if verbose >= 5:
         td.analyze()
@@ -277,13 +279,15 @@ def _run_pyscf_tdqed(mf, td, qed_model, cavity_model, key):
     cav_obj = getattr(qed, cavity_model)(mf, key)
     qed_td = getattr(qed, qed_model)(mf, td, cav_obj, key)
     qed_td.kernel()
-    try:
-        qed_td.converged.all()
-        #e_lp, e_up = qed_td.e[:2]
-        #print('e_lp:', e_lp, '  e_up:', e_up)
-        #print_matrix('qed state energies(H):\n', qed_td.e)
-    except Warning:
-        print('the job for qed-TDDFT is not converged.')
+    if not qed_td.converged.all():
+        print('tdqed is not converged:', td.converged)
+    #try:
+    #    qed_td.converged.all()
+    #    #e_lp, e_up = qed_td.e[:2]
+    #    #print('e_lp:', e_lp, '  e_up:', e_up)
+    #    #print_matrix('qed state energies(H):\n', qed_td.e)
+    #except Warning:
+    #    print('the job for qed-TDDFT is not converged.')
 
     return qed_td, cav_obj
 

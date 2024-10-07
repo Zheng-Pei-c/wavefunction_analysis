@@ -101,6 +101,10 @@ class MolecularDynamics():
 
             dipole = edstep.mf.dip_moment(unit='au', verbose=0)
 
+            if phstep and phstep.init_method == 'minimum':
+                phstep.get_minimim_displacement(dipole)
+                print('photon initial coordinate:\n', phstep.coordinate)
+
             etot = et + ndstep.kinetic + photon_energy
 
         print('current time: %7.3f fs' % convert_units(init_time, 'au', 'fs'), end='  ')

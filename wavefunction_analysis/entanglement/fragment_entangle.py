@@ -58,7 +58,6 @@ def get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao, ovlp_ao,
     else:
         V = embed_spin_orbital(dm_lo_in_ao, iprint=1)
     print('V shape:', V.shape)
-    #print_matrix('V:', V, 10)
 
     coeff_imp = coeff_lo_in_ao[..., imp_lo_idx] # idensity transformation
     coeff_env = np.einsum('...pi,...ij->...pj', coeff_lo_in_ao[..., env_lo_idx], V)
@@ -66,9 +65,20 @@ def get_embedding_orbital(dm_lo_in_ao, coeff_lo_in_ao, ovlp_ao,
     #print_matrix('coeff_eo_in_ao:', coeff_eo_in_ao, 10)
     # identity = np.einsum('...pi,pq,...qj->...ij', coeff_eo_in_ao, ovlp_ao, coeff_eo_in_ao)
 
+    # a round-over approach to get dm_eo
     coeff_eo_in_lo = np.einsum('...pi,pq,...qj->...ij', coeff_lo_in_ao, ovlp_ao, coeff_eo_in_ao)
     # identity = np.einsum('...ij,...ik->...jk', coeff_eo_in_lo, coeff_eo_in_lo)
     dm_eo_in_ao = np.einsum('...pi,...pq,...qj->...ij', coeff_eo_in_lo, dm_lo_in_ao, coeff_eo_in_lo)
+
+    #IV = np.concatenate((np.eye(len(imp_lo_idx)), V), axis=-1)
+    #dm_lo_ii = dm_lo_in_ao[np.ix_(imp_lo_idx, imp_lo_idx)]
+    #dm_lo_ie = dm_lo_in_ao[np.ix_(imp_lo_idx, env_lo_idx)]
+    #dm_lo_ei = dm_lo_in_ao[np.ix_(env_lo_idx, imp_lo_idx)]
+    #dm_lo_ee = dm_lo_in_ao[np.ix_(env_lo_idx, env_lo_idx)]
+    #dm_lo = np.asarray(np.block([[dm_lo_ii, dm_lo_ie], [dm_lo_ei, dm_lo_ee]]))
+    #dm_eo_in_ao = np.einsum('ji,jk,kl->il', IV, dm_lo, IV)
+    #print_matrix('P:', dm_eo_in_ao, 10)
+    #print('nelec:', np.trace(dm_eo_in_ao))
 
     return coeff_eo_in_ao, dm_eo_in_ao
 
