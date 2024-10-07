@@ -77,8 +77,11 @@ def resemble_deriv_on_atoms(mol, mat0):
 
 
 def get_multipole_matrix_d2(mol, c_lambda, origin=None):
-    if origin is None:
-        origin = np.zeros(3)
+    """
+    second-order analytic derivative of the multipole integrals are not implemented
+    """
+    #if origin is None:
+    #    origin = np.zeros(3)
 
     #natoms = mol.natm
     #nao = mol.nao_nr()
@@ -171,25 +174,29 @@ def partial_hess_elec(hessobj, mo_energy=None, mo_coeff=None, mo_occ=None,
 
     vdse = vdse.reshape(mol.natm, 3, mol.natm, 3).transpose(0,2,1,3)
 
-    dipole_d1, _ = get_multipole_matrix_d1(mol, mf.c_lambda, mf.origin)
+    dipole_d1, _ = get_multipole_matrix_d1(mol, mf.c_lambda, mf.origin, itype='dipole')
     #dipole_d1 = resemble_deriv_on_atoms(mol, dipole_d1)
     #vdse -= get_dse_2e_s(dipole_d1, dm0, with_j=False)
 
+    vdse2 = np.zeros(vdse.shape)
     aoslices = mol.aoslice_by_atom()
     for i0, ia in enumerate(atmlst):
         p0, p1 = aoslices[ia, 2:]
 
         tmp1 = np.einsum('xrs...,qr->...xqs', dipole_d1[:,p0:p1], dm0[:,p0:p1]) # r is derivative index
         tmp2 = np.einsum('xrs...,qr->...xqs', dipole_d1[:,p0:p1].transpose(0,2,1), dm0) # s is derivative index
-        for j0, ja in enumerate(atmlst):
+        for j0, ja in enumerate(atmlst[:i0+1]):
             q0, q1 = aoslices[ja, 2:]
 
             tmp3 = np.einsum('xpq...,ps->...xsq', dipole_d1[:,q0:q1], dm0[q0:q1]) # r is derivative index
             tmp4 = np.einsum('xpq...,ps->...xsq', dipole_d1[:,q0:q1], dm0[q0:q1,p0:p1]) # s is derivative index
-            vdse[i0,j0] -= np.einsum('...xqs,...ysq->xy', tmp1, tmp3)
-            vdse[i0,j0] -= np.einsum('...xqs,...ysq->xy', tmp2, tmp4)
+            vdse2[i0,j0] -= np.einsum('...xqs,...ysq->xy', tmp1, tmp3)
+            vdse2[i0,j0] -= np.einsum('...xqs,...ysq->xy', tmp2, tmp4)
 
-    de2 += vdse
+        for j0 in range(i0):
+            vdse2[j0,i0] = vdse2[i0,j0].T
+
+    de2 += vdse + vdse2
 
     return de2
 
@@ -320,7 +327,7 @@ if __name__ == '__main__':
     mol = build_molecule(atom, 'sto-3g')
 
     frequency = 0.42978 # gs doesn't depend on frequency
-    coupling = np.array([0, 0, .1])
+    coupling = np.array([0, 0, .5])
 
     mf = polariton_cs(mol) # in coherent state
     mf.xc = functional
@@ -330,7 +337,8 @@ if __name__ == '__main__':
     natoms = mol.natm
 
     e_tot = mf.kernel()
-    hess = mf.Hessian().kernel()
+    hessobj = mf.Hessian()
+    hess = hessobj.kernel()
     hess = hess.transpose(0,2,1,3).reshape(natoms*3, natoms*3)
     print_matrix('hess:', hess, 5, 1)
 
@@ -339,17 +347,23 @@ if __name__ == '__main__':
 
     fd_e, fd_mo = finite_difference(mf, norder, step_size, extra=True)[:2]
 
-    fd_mo[0::3,5,3] = 0.
-    fd_mo[np.abs(fd_mo)>2.] = 0.
+    #fd_mo[0::3,5,3] = 0.
+    #fd_mo[np.abs(fd_mo)>2.] = 0.
     #print_matrix('fd_mo:', np.array(fd_mo), 5, 1)
 
-    mo1 = fd_orbital_rotation_mo1(mf, fd_mo)
-    print_matrix('fd_mo1', mo1, 5, 1)
+    fd_mo1 = fd_orbital_rotation_mo1(mf, fd_mo)
+    print_matrix('fd_mo1', fd_mo1, 5, 1)
+
+    mo1 = lib.chkfile.load(hessobj.chkfile, 'scf_mo1')
+    mo1 = np.reshape([mo1[k] for k in mo1], fd_mo1.shape)
+    print_matrix('mo1:', mo1, 5, 1)
+    print('cpscf mo1 diff:', np.linalg.norm(fd_mo1-mo1))
 
     print_matrix('fd_e:', fd_e, 5, 1)
     print('hessian diff:', np.linalg.norm(fd_e-hess))
 
     #from wavefunction_analysis.utils import read_matrix
+    #nao = mf.mo_coeff.shape[0]
     #coeff1 = read_matrix('qc-diff', 1, nao*nao, 'Alpha MO coefficients', 5)
     #coeff1 = coeff1.reshape(2, nao, nao).transpose(0,2,1)
     #coeff1[1] = change_matrix_phase_c(coeff1[0], coeff1[1])
