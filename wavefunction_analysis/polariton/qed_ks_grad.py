@@ -213,20 +213,37 @@ def get_multipole_matrix_d1(mol, c_lambda, origin=None, itype='all'):
 def get_dse_2e(dipole, dipole_d1, dm, with_j=False, scale_k=.5): # c_lambda is included
     # scale k by 1/2 for restricted orbital case by default
     # we moved the mode index for lambda-dipole derivative to the last
-    if dm.ndim == 2:
-        vk = np.einsum('xpq...,...rs,qr->xps', dipole_d1, dipole, dm)
-        if with_j is False:
-            return vk*scale_k
-        else:
-            vj = np.einsum('xpq...,...rs,sr->xpq', dipole_d1, dipole, dm)
-            return [vj, vk*scale_k]
-    else: # multiple density matrices, ie uhf
-        vk = np.einsum('xpq...,...rs,iqr->ixps', dipole_d1, dipole, dm)
-        if with_j is False:
-            return vk*scale_k
-        else:
-            vj = np.einsum('xpq...,...rs,isr->ixpq', dipole_d1, dipole, dm)
-            return [vj, vk*scale_k]
+    if dipole.ndim == 2:
+        if dm.ndim == 2:
+            vk = np.einsum('xpq,rs,qr->xps', dipole_d1, dipole, dm)
+            if with_j is False:
+                return vk*scale_k
+            else:
+                vj = np.einsum('xpq,rs,sr->xpq', dipole_d1, dipole, dm)
+                return [vj, vk*scale_k]
+        else: # multiple density matrices, ie uhf
+            vk = np.einsum('xpq,rs,iqr->ixps', dipole_d1, dipole, dm)
+            if with_j is False:
+                return vk*scale_k
+            else:
+                vj = np.einsum('xpq,rs,isr->ixpq', dipole_d1, dipole, dm)
+                return [vj, vk*scale_k]
+
+    elif dipole.ndim == 3:
+        if dm.ndim == 2:
+            vk = np.einsum('xpql,lrs,qr->xps', dipole_d1, dipole, dm)
+            if with_j is False:
+                return vk*scale_k
+            else:
+                vj = np.einsum('xpql,lrs,sr->xpq', dipole_d1, dipole, dm)
+                return [vj, vk*scale_k]
+        else: # multiple density matrices, ie uhf
+            vk = np.einsum('xpql,lrs,iqr->ixps', dipole_d1, dipole, dm)
+            if with_j is False:
+                return vk*scale_k
+            else:
+                vj = np.einsum('xpql,lrs,isr->ixpq', dipole_d1, dipole, dm)
+                return [vj, vk*scale_k]
 
 
 def get_dse_elec_nuc_d1(dipole_d1, nuc_dip): # c_lambda is included
