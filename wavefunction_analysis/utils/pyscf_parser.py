@@ -213,12 +213,12 @@ def run_pyscf_dft(charge, spin, atom, basis, functional, nfrag=1, verbose=0,
 
 def _run_pyscf_tddft(mf, td_model, nroots, verbose=0):
     def rotation_strength(td, trans_dip=None, trans_mag_dip=None):
-        if trans_dip is None: trans_dip = td.trans_dip
+        if trans_dip is None: trans_dip = td.transition_dipole()
         if trans_mag_dip is None:
             #trans_mag_dip = td.trans_mag_dip
             trans_mag_dip = td.transition_magnetic_dipole()
 
-        f = numpy.einsum('sx,sx->s', trans_dip, trans_mag_dip)
+        f = np.einsum('sx,sx->s', trans_dip, trans_mag_dip)
         return f
 
     td = getattr(tdscf, td_model)(mf)
