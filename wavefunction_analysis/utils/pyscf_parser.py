@@ -212,6 +212,15 @@ def run_pyscf_dft(charge, spin, atom, basis, functional, nfrag=1, verbose=0,
 
 
 def _run_pyscf_tddft(mf, td_model, nroots, verbose=0):
+    def rotation_strength(td, trans_dip=None, trans_mag_dip=None):
+        if trans_dip is None: trans_dip = td.trans_dip
+        if trans_mag_dip is None:
+            #trans_mag_dip = td.trans_mag_dip
+            trans_mag_dip = td.transition_magnetic_dipole()
+
+        f = numpy.einsum('sx,sx->s', trans_dip, trans_mag_dip)
+        return f
+
     td = getattr(tdscf, td_model)(mf)
     td.max_cycle = 600
     td.max_space = 200
@@ -227,6 +236,8 @@ def _run_pyscf_tddft(mf, td_model, nroots, verbose=0):
         #except Warning:
         #    #print('the %d-th job for TDDFT is not converged.' % (n+1))
         #    print('the job for TDDFT is not converged.')
+
+    td.f_rotation = rotation_strength(td)
 
     if verbose >= 5:
         td.analyze()
@@ -266,7 +277,7 @@ def run_pyscf_dft_tddft(charge, spin, atom, basis, functional, td_model, nroots,
 
         if debug > 0:
             final_print_energy(td, nwidth=10, iprint=7)
-            trans_dipole, argmax = find_transition_dipole(td, nroots, nfrag)
+            trans_dipole, trans_mag_dip, argmax = find_transition_dipole(td, nroots, nfrag)
 
         return mol, mf, etot, td
     else:
@@ -306,32 +317,35 @@ def run_pyscf_tdqed(mf, td, qed_model, cavity_model, key, nfrag=1):
 
 def _find_transition_dipole(td, nroots):
     trans_dipole = td.transition_dipole()
+    trans_mag_dip = td.transition_magnetic_dipole()
     argmax = np.unravel_index(np.argmax(np.abs(trans_dipole), axis=None),
                               trans_dipole.shape)[0]
     print_matrix('trans_dipole:', trans_dipole, 10)
-    return trans_dipole, argmax
+    return trans_dipole, trans_mag_dip, argmax
 
 
 def find_transition_dipole(td, nroots, nfrag=1):
     if isinstance(td, list):
-        trans_dipole, argmax = [None]*nfrag, [None]*nfrag
+        trans_dipole, trans_mag_dip, argmax = [None]*nfrag, [None]*nfrag, [None]*nfrag
         for n in range(nfrag):
-            trans_dipole[n], argmax[n] = _find_transition_dipole(td[n], nroots)
+            trans_dipole[n], trans_mag_dip[n], argmax[n] = _find_transition_dipole(td[n], nroots)
 
         trans_dipole = np.reshape(trans_dipole, (nfrag, -1, 3))
-        return trans_dipole, argmax
+        trans_mag_dip = np.reshape(trans_mag_dip, (nfrag, -1, 3))
+        return trans_dipole, trans_mag_dip, argmax
     else:
         return _find_transition_dipole(td, nroots)
 
 
 def find_oscillator_strength(td, nroots, nfrag=1):
     if isinstance(td, list):
-        f_oscillator = [None]*nfrag
+        f_oscillator, f_rotation = [None]*nfrag, [None]*nfrag
         for n in range(nfrag):
             f_oscillator[n] = td[n].oscillator_strength()
-        return np.array(f_oscillator)
+            f_rotation[n] = td[n].f_rotation
+        return np.array(f_oscillator), np.array(f_rotation)
     else:
-        return td.oscillator_strength()
+        return td.oscillator_strength(), td.f_rotation
 
 
 def final_print_energy(td, title='tddft', nwidth=6, iprint=0):
@@ -437,7 +451,7 @@ def get_photon_info(photon_key):
 def justify_photon_info(td, nroots, nstate='max_dipole', func='average', nwidth=10):
     energy = final_print_energy(td, nwidth=nwidth)
     if nstate == 'max_dipole':
-        trans_dipole, argmax = find_transition_dipole(td, nroots)
+        trans_dipole, trans_mag_dip, argmax = find_transition_dipole(td, nroots)
         argmax0 = argmax[0] if isinstance(argmax, np.ndarray) else argmax
         print_matrix('max tddft energy:', energy[:, argmax0].T, nwidth=nwidth)
     elif isinstance(nstate, int):
