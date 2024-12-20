@@ -240,7 +240,7 @@ def _run_pyscf_tddft(mf, td_model, nroots, verbose=0):
     td.f_rotation = rotation_strength(td)
 
     if verbose >= 5:
-        td.analyze()
+        td.analyze(verbose)
 
     return td
 
