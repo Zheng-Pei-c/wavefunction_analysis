@@ -273,7 +273,7 @@ def run_pyscf_dft_tddft(charge, spin, atom, basis, functional, td_model, nroots,
             mol[n], mf[n], etot[n] = run_pyscf_dft(charge[n], spin[n], atom[n],
                                                    basis, functional, verbose,
                                                    h, scf_method)
-            td[n] = run_pyscf_tddft(mf[n], td_model, nroots, verbose)
+            td[n] = run_pyscf_tddft(mf[n], td_model, nroots, nfrag=1, verbose=verbose)
 
         if debug > 0:
             final_print_energy(td, nwidth=10, iprint=7)
