@@ -321,6 +321,7 @@ def _find_transition_dipole(td, nroots):
     argmax = np.unravel_index(np.argmax(np.abs(trans_dipole), axis=None),
                               trans_dipole.shape)[0]
     print_matrix('trans_dipole:', trans_dipole, 10)
+    print_matrix('trans_mag_dip:', trans_mag_dip, 10)
     return trans_dipole, trans_mag_dip, argmax
 
 
