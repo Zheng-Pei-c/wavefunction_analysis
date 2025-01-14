@@ -30,16 +30,27 @@ def read_number(filename, keyword, n=-1, o=1, dtype=int):
     return np.array(numbers, dtype=dtype)
 
 
-def read_array(filename, ncol=4, nrange=[0,4], dtype=float):
+def read_array(filename, ncol=4, nrange=[0,4], dtype=float, same=True):
     array = []
     with open(filename, 'r') as infile:
         for line in infile:
             data = line.split()
             if len(data) == ncol:
-                for i in range(nrange[0], nrange[1]):
-                    array.append(float(data[i]))
+                issame = True
+                if same:
+                    for i in range(len(data)):
+                        try:
+                            f = dtype(data[i])
+                        except:
+                            issame = False
+                if (not same) or issame:
+                    for i in range(nrange[0], nrange[1]):
+                        try:
+                            array.append(dtype(data[i]))
+                        except: # encounter a string
+                            pass
 
-    return array
+    return np.array(array)
 
 
 def read_matrix(filename, nrow, ncol, keyword, nwidth=6, nind=0, nskip=0, dtype=float):
