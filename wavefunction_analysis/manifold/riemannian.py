@@ -131,7 +131,7 @@ class Riemannian():
 
     def transport(self, x1, v0):
         """
-        transport tangent vector v0 at point x0 to point x1
+        vector transport moves tangent vector v0 at point x0 to point x1
         """
         return self.projection(x1, v0)
 
