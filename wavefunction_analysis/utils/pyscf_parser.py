@@ -188,7 +188,7 @@ def _run_pyscf_dft(charge, spin, atom, basis, functional, verbose=0, h=None,
     mol = build_molecule(atom, basis, charge, spin, verbose=verbose)
     mf = getattr(scf, scf_method)(mol)
     if h:
-        h = h + mol.intor('cint1e_kin_sph') + mol.intor('cint1e_nuc_sph')
+        #h = h + mol.intor('cint1e_kin_sph') + mol.intor('cint1e_nuc_sph')
         mf.get_hcore = lambda *args: h
     mf.xc = functional
     mf.grids.prune = True
@@ -384,8 +384,10 @@ def get_rem_info(rem_keys):
     basis = rem_keys.get('basis')
 
     unrestricted = rem_keys.get('unrestricted', 0)
-    if unrestricted in (0, 'false', 'FALSE'):
+    if unrestricted in {0, 'false', 'FALSE'}:
         scf_method = 'RKS'
+    elif unrestricted in {'2', 'g', 'general'}:
+        scf_method = 'GKS'
     else:
         scf_method = 'UKS'
 
