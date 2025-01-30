@@ -12,38 +12,7 @@ from wavefunction_analysis.utils import convert_units, print_matrix
 #import matplotlib.mlab as mlab
 from scipy import signal, fftpack
 from scipy.stats import gaussian_kde, norm
-from wavefunction_analysis.plot import plt
-
-def broadening(centers, heighs, wid=0.0005, d=0.05, method='gaussian', min_e=0):
-    mi, ma = np.min(centers), np.max(centers)
-    if min_e > 0.: mi = min_e
-    x = np.arange(mi-d, ma+d, (ma-mi)/1001)
-    y = 0.
-    if method == 'lorentzian':
-        for n in range(len(centers)):
-            y += heighs[n] * wid**2 / ((x-centers[n])**2 + wid**2)
-    elif method == 'gaussian':
-        for n in range(len(centers)):
-            y += np.sqrt(2*np.pi) * wid * heighs[n] * norm.pdf(x, centers[n], wid)
-    return x, y
-
-
-def fit_val(positions, heighs, broaden):
-    num_vib = len(positions)
-    x_min = positions[0] - 50
-    if x_min < 0:
-        x_min = 0
-    x_max = positions[num_vib-1] + 50
-    if x_max > 4000:
-        x_max = 4000
-    ix = np.linspace(x_min, x_max, int(x_max-x_min))
-
-    iy = 0.0
-    for peak in range(0, num_vib):
-        iy += 2.51225 * broaden * heighs[peak] \
-             * norm.pdf(ix, positions[peak], broaden)
-    return (ix, iy)
-
+from wavefunction_analysis.plot import plt, fit_val
 
 def plot_spectra(peak_centers, peak_intens, broaden, fig_name):
     ix, iy = fit_val(peak_centers, peak_intens, broaden)
@@ -156,7 +125,7 @@ def fft_acf(arrays, dt, unit='au', scale_freq=True):
 
     #sigma = np.fft.fft2(arrays)[:nstep//2] / nstep
     sigma = fftpack.dct(arrays[:nstep//2], type=1, axis=0)
-    sigma = np.mean(sigma, axis=1)
+    sigma = np.mean(sigma, axis=1) # average
 
     if scale_freq:
         sigma *= freq**2

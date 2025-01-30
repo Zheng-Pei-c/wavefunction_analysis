@@ -11,7 +11,7 @@ def print_matrix(keyword, matrix, nwidth=6, nind=0, digits=[13,8,'f'],
     if '\n' in keyword[-3:]: keyword = keyword[:-2]
     print(keyword)
 
-    if isinstance(matrix, list): matrix = np.array(matrix)
+    if type(matrix) in {float, list}: matrix = np.array(matrix)
 
     # transpose the last two dimensions
     if trans: matrix = np.einsum('...ij->...ji', matrix)

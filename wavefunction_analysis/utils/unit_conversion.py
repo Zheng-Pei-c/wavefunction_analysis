@@ -71,7 +71,7 @@ def default_unit_index(prop):
 
 
 units_conversion = {
-        'time':        np.array([8.64*1e12, 3.6*1e11, 6.*1e10, 1e9, 1e6, 1e3, 1., 1e-3, 1e-6, 1e-6/FS, 1e-9]),
+        'time':        np.array([8.64*1e13, 3.6*1e12, 6.*1e10, 1e9, 1e6, 1e3, 1., 1e-3, 1e-6, 1e-6/FS, 1e-9]),
         'length':      np.array([1e9, 1e8, 1e7, 1e6, 1e3, 1., .1, BOHR/10, 1e-3, 1e-6, 1e-9]),
         'energy':      np.array([H2EV, 1., 1e-3, CAL2J/EV2KJM, 1./EV2KJM]),
         'frequency':   np.array([1e12, C*1e2, 1e9, 1e6, 1e3, 1., AU2HZ]),

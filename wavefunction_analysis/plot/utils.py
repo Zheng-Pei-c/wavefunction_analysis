@@ -1,6 +1,4 @@
-import os, sys
-import numpy as np
-
+from wavefunction_analysis import np
 from wavefunction_analysis.plot import plt, mcolors, ticker, LineCollection
 
 def get_kwargs(marker):
@@ -105,3 +103,33 @@ def gradient_color_line(ax, x, y, weights, cmap, vmin=.0, vmax=1., label=''):
     ax.add_collection(line_segments)
     return line_segments
 
+
+def broadening(centers, heighs, wid=0.0005, d=0.05, method='gaussian', min_e=0):
+    mi, ma = np.min(centers), np.max(centers)
+    if min_e > 0.: mi = min_e
+    x = np.arange(mi-d, ma+d, (ma-mi)/10001)
+    y = 0.
+    if method == 'lorentzian':
+        for n in range(len(centers)):
+            y += heighs[n] * wid**2 / ((x-centers[n])**2 + wid**2)
+    elif method == 'gaussian':
+        for n in range(len(centers)):
+            y += np.sqrt(2*np.pi) * wid * heighs[n] * norm.pdf(x, centers[n], wid)
+    return x, y
+
+
+def fit_val(positions, heighs, broaden):
+    num = len(positions)
+    x_min = positions[0] - 50
+    if x_min < 0:
+        x_min = 0
+    x_max = positions[num-1] + 50
+    if x_max > 4000:
+        x_max = 4000
+    ix = np.linspace(x_min, x_max, int(x_max-x_min))
+
+    iy = 0.0
+    for peak in range(num):
+        iy += 2.51225 * broaden * heighs[peak] \
+             * norm.pdf(ix, positions[peak], broaden)
+    return (ix, iy)
