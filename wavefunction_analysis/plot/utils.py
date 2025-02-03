@@ -1,6 +1,8 @@
 from wavefunction_analysis import np
 from wavefunction_analysis.plot import plt, mcolors, ticker, LineCollection
 
+from scipy.stats import gaussian_kde, norm
+
 def get_kwargs(marker):
     return dict(marker=marker, markersize=10,
                 linestyle='none', color='k', mec='k', mew=1, clip_on=False)
@@ -17,7 +19,7 @@ def brokenaxes(fig, gs, xlims, ylims, ratio=[1.,1.], pad=.1):
         gs = func(nr, nc, height_ratios=ratio, hspace=pad)
     else:
         gs = func(nr, nc, width_ratios=ratio[0], height_ratios=ratio[1],
-                              hspace=pad[0], wspace=pad[1])
+                  wspace=pad[0], hspace=pad[1])
 
     axs = gs.subplots()
 
