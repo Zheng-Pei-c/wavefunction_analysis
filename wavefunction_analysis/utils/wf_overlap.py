@@ -1,4 +1,5 @@
 import numpy as np
+import itertools
 
 from pyscf import scf, tdscf, gto
 
@@ -111,15 +112,14 @@ def cal_wf_overlap_r(Xm, Ym, Xn, Yn, Cm, Cn, S):
             ovlp_mn -= np.einsum('m,n->mn', ovlp2, ovlp4)
 
         # e-e * g-g
-        for a in range(nv):
-            for i in range(no):
-                ts0 = np.copy(smo[:no,:])
-                ts0[i,:] = smo[no+a,:]
-                vec3 = np.linalg.solve(ts0[:,:no], ts0[:,no:])
-                ovlp_mn += np.einsum('m,njb,jb->mn', Xm[:,i,a], Xn, vec3) * vec1[i,a]
+        for a, i in itertools.product(range(nv), range(no)):
+            ts0 = np.copy(smo[:no,:])
+            ts0[i,:] = smo[no+a,:]
+            vec3 = np.linalg.solve(ts0[:,:no], ts0[:,no:])
+            ovlp_mn += np.einsum('m,njb,jb->mn', Xm[:,i,a], Xn, vec3) * vec1[i,a]
 
-                if has_y:
-                    ovlp_mn -= np.einsum('mjb,n,jb->mn', Ym, Yn[:,i,a], vec3) *vec1[i,a]
+            if has_y:
+                ovlp_mn -= np.einsum('mjb,n,jb->mn', Ym, Yn[:,i,a], vec3) *vec1[i,a]
 
         ovlp_mn *= 2.*ovlp_00
         return np.block([[ovlp_00, ovlp_0n.reshape(1,-1)], [ovlp_m0.reshape(-1,1), ovlp_mn]])
@@ -200,15 +200,14 @@ def cal_wf_overlap_u(Xm, Ym, Xn, Yn, Cm, Cn, S):
 
             # e-e * g-g
             no, nv = nocc[s], nvir[s]
-            for a in range(nv):
-                for i in range(no):
-                    ts0 = np.copy(smo[s,:no,:])
-                    ts0[i,:] = smo[s,no+a,:]
-                    vec3 = np.linalg.solve(ts0[:,:no], ts0[:,no:])
-                    ovlp_mn += np.einsum('m,njb,jb->mn', Xm[s][:,i,a], Xn[s], vec3) * vec1[s][i,a]
+            for a, i in itertools.product(range(nv), range(no)):
+                ts0 = np.copy(smo[s,:no,:])
+                ts0[i,:] = smo[s,no+a,:]
+                vec3 = np.linalg.solve(ts0[:,:no], ts0[:,no:])
+                ovlp_mn += np.einsum('m,njb,jb->mn', Xm[s][:,i,a], Xn[s], vec3) * vec1[s][i,a]
 
-                    if has_y:
-                        ovlp_mn -= np.einsum('mjb,n,jb->mn', Ym[s], Yn[s][:,i,a], vec3) *vec1[s][i,a]
+                if has_y:
+                    ovlp_mn -= np.einsum('mjb,n,jb->mn', Ym[s], Yn[s][:,i,a], vec3) *vec1[s][i,a]
 
         ovlp_mn *= ovlp_00
         return np.block([[ovlp_00, ovlp_0n.reshape(1,-1)], [ovlp_m0.reshape(-1,1), ovlp_mn]])
@@ -256,13 +255,12 @@ def cal_wf_overlap_sf(Xm, Ym, Xn, Yn, Cm, Cn, S, extype=0):
                 ovlp1[i,j] = np.linalg.det(ts)
 
         ovlp2 = np.zeros((nv_b, nv_b))
-        for a in range(nv_b):
-            for b in range(nv_b):
-                ts = np.vstack((soo_b, smo_b[a+no_b,:no_b])) # add a-row
-                # hstack is samilar to column_stack but needs newaxis for 1d
-                ts = np.column_stack((ts, smo_b[:no_b+1,b+no_b])) # add b-column
-                ts[no_b,no_b] = smo_b[a+no_b,b+no_b]
-                ovlp2[a,b] = np.linalg.det(ts)
+        for a, b in itertools.product(range(nv_b), range(nv_b)):
+            ts = np.vstack((soo_b, smo_b[a+no_b,:no_b])) # add a-row
+            # hstack is samilar to column_stack but needs newaxis for 1d
+            ts = np.column_stack((ts, smo_b[:no_b+1,b+no_b])) # add b-column
+            ts[no_b,no_b] = smo_b[a+no_b,b+no_b]
+            ovlp2[a,b] = np.linalg.det(ts)
 
         return ovlp1, ovlp2
 
@@ -321,14 +319,13 @@ def _overlap_eg(Xm, Yn, Cm=None, Cn=None, S=None, smo=None):
 
     # e-g of Xm, g-e of Yn
     ovlp1, ovlp4 = [], []
-    for a in range(nv):
-        for i in range(no):
-            ts = np.copy(smo_oo)
-            ts[i,:] = smo[no+a,:no]
-            dot = np.linalg.det(ts)
+    for a, i in itertools.product(range(nv), range(no)):
+        ts = np.copy(smo_oo)
+        ts[i,:] = smo[no+a,:no]
+        dot = np.linalg.det(ts)
 
-            ovlp1.append(Xm[:,i,a] * dot)
-            if has_y: ovlp4.append(Yn[:,i,a] * dot)
+        ovlp1.append(Xm[:,i,a] * dot)
+        if has_y: ovlp4.append(Yn[:,i,a] * dot)
 
     return ovlp1, ovlp4
 
@@ -344,14 +341,13 @@ def _overlap_ge(Xn, Ym, Cm=None, Cn=None, S=None, smo=None):
 
     # g-e of Xm, e-g of Yn
     ovlp2, ovlp3 = [], []
-    for a in range(nv):
-        for i in range(no):
-            ts = np.copy(smo_oo)
-            ts[:,i] = smo[:no,no+a]
-            dot = np.linalg.det(ts)
+    for a, i in itertools.product(range(nv), range(no)):
+        ts = np.copy(smo_oo)
+        ts[:,i] = smo[:no,no+a]
+        dot = np.linalg.det(ts)
 
-            ovlp3.append(Xn[:,i,a] * dot)
-            if has_y: ovlp2.append(Ym[:,i,a] * dot)
+        ovlp3.append(Xn[:,i,a] * dot)
+        if has_y: ovlp2.append(Ym[:,i,a] * dot)
 
     return ovlp2, ovlp3
 
@@ -367,24 +363,22 @@ def _overlap_ee(Xm, Ym, Xn, Yn, Cm=None, Cn=None, S=None, smo=None):
 
     # g-e of Xm, e-g of Yn
     ovlp = 0.
-    for a in range(nv):
-        for i in range(no):
-            #tmp0 = np.copy(Cm[:,:no])
-            #tmp0[:,i] = Cm[:,no+a]
+    for a, i in itertools.product(range(nv), range(no)):
+        #tmp0 = np.copy(Cm[:,:no])
+        #tmp0[:,i] = Cm[:,no+a]
 
-            for b in range(nv):
-                for j in range(no):
-                    #tmp1 = np.copy(Cn[:,:no])
-                    #tmp1[:,j] = Cn[:,no+b]
-                    #ts0 = np.einsum('pi,pq,qj->ij', tmp0, S, tmp1)
-                    ts0 = np.copy(smo_oo)
-                    ts0[i,:] = smo[no+a,:no]
-                    ts0[:,j] = smo[:no,no+b]
-                    ts0[i,j] = smo[no+a,no+b]
-                    dot = np.linalg.det(ts0)
+        for b, j in itertools.product(range(nv), range(no)):
+            #tmp1 = np.copy(Cn[:,:no])
+            #tmp1[:,j] = Cn[:,no+b]
+            #ts0 = np.einsum('pi,pq,qj->ij', tmp0, S, tmp1)
+            ts0 = np.copy(smo_oo)
+            ts0[i,:] = smo[no+a,:no]
+            ts0[:,j] = smo[:no,no+b]
+            ts0[i,j] = smo[no+a,no+b]
+            dot = np.linalg.det(ts0)
 
-                    ovlp += np.einsum('m,n->mn', Xm[:,i,a], Xn[:,j,b]) * dot
-                    if has_y: ovlp -= np.einsum('m,n->mn', Ym[:,j,b], Yn[:,i,a]) * dot
+            ovlp += np.einsum('m,n->mn', Xm[:,i,a], Xn[:,j,b]) * dot
+            if has_y: ovlp -= np.einsum('m,n->mn', Ym[:,j,b], Yn[:,i,a]) * dot
 
     return ovlp
 
@@ -480,17 +474,16 @@ def sign_fixing(mat):
     while not converged:
         converged = True
 
-        for i in range(nroots):
-            for j in range(nroots):
-                dot  = 3.* (mat[i,i]**2 + mat[j,j]**2)
-                dot += 6.* (mat[i,j] * mat[j,i])
-                dot += 8.* (mat[i,i] + mat[j,j])
-                dot -= 3.* (np.dot(mat[i,:], mat[:,i]) + np.dot(mat[j,:], mat[:,j]))
+        for i, j in itertools.product(range(nroots), range(nroots)):
+            dot  = 3.* (mat[i,i]**2 + mat[j,j]**2)
+            dot += 6.* (mat[i,j] * mat[j,i])
+            dot += 8.* (mat[i,i] + mat[j,j])
+            dot -= 3.* (np.dot(mat[i,:], mat[:,i]) + np.dot(mat[j,:], mat[:,j]))
 
-                if dot < 0.:
-                    mat[:,i] *= -1.
-                    mat[:,j] *= -1.
-                    converged = False
+            if dot < 0.:
+                mat[:,i] *= -1.
+                mat[:,j] *= -1.
+                converged = False
 
     return mat
 
