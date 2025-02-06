@@ -31,3 +31,11 @@ def ishermitian(keyword, matrix, digits=[2,13,8,'f'], debug=0):
             print(f'{f0.imag:{width}.{precision}{notation}} ', end='')
             print(f'{f0.imag:{width}.{precision}{notation}} ')
         print()
+
+
+def swap_largest_to_diagonal(matrix):
+    for i in range(matrix.shape[0]):
+        idx = np.argmax(np.abs(matrix[i]))
+        matrix[i,i], matrix[i, idx] = matrix[i, idx], matrix[i,i]
+
+    return matrix
