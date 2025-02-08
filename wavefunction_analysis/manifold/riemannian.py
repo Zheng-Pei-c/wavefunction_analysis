@@ -1,6 +1,5 @@
 import sys
-import numpy as np
-import scipy
+from wavefunction_analysis import np, scipy
 
 from wavefunction_analysis.manifold import gradient_descent, conjugate_gradient, newton_2nd
 from wavefunction_analysis.utils import get_ortho_basis
