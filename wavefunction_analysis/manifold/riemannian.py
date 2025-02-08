@@ -5,12 +5,10 @@ import scipy
 from wavefunction_analysis.manifold import gradient_descent, conjugate_gradient, newton_2nd
 from wavefunction_analysis.utils import get_ortho_basis
 
-import pymanopt
-
 """
 the manifold code refers to Alan Edelman, Tomas, Arias, and Steven Smith,
                             SIAM J. Matrix Anal. Appl. 1998
-as well as `pymanopt` package on github https://github.com/pymanopt/pymanopt
+as well as other packages such as `pymanopt`, `manopt`, etc
 """
 
 def get_random_matrix(ndim, seed=None, sym=True):
@@ -33,11 +31,16 @@ def get_random_matrix(ndim, seed=None, sym=True):
     return A
 
 
-def solve_sylvester(A, B, C):
-    # AX + XB = C,
-    # return X
+def solve_sylvester(A, C, B=None, solver='iter'):
+    """
+    solve X from `AX + XB = C` aka. Lyapunov, Stein equation
+    return X
+    """
     n = A.shape[0]
     I = np.eye(n)
+    if not isinstance(B, np.ndarray):
+        B = A.conj().T
+
     A = np.kron(I, A) + np.kron(B, I)
 
     def kernel(A, y):
@@ -48,8 +51,8 @@ def solve_sylvester(A, B, C):
         return kernel(A, C)
 
     elif C.ndim == 3:
+        x = []
         for i in range(C.shape[0]):
-            x = []
             x.append(kernel(A, C[i]))
 
         return np.array(x)
@@ -103,24 +106,44 @@ class Riemannian():
         self.check_sanity()
 
 
+    @property
+    def dimension(self):
+        raise NotImplementedError('actual dimension is not implemented')
+
+
+    @property
     def norm(self, x, v):
         """
+        calculate the length of a tangent vector v of point x
         use euclidean norm by default
         """
         return np.dot(v, v)
 
 
+    @property
+    def dist(self, v1, v2):
+        """
+        calculate the distance between two tangent vectors at one point
+        """
+        #TODO: is this true? I just wrote it down in a second...
+        dv = v1 - v2
+        return np.dot(dv, dv)
+
+
     def exp(self, x, v, dt=1.):
         """
-        geodesic mapping tangent vectors to manifold
+        geodesic mapping tangent vector v of x to other points on manifold
         exp_p: T_p M -> M
         """
         raise NotImplementedError('actual exp is not implemented')
 
 
+    geodesic = exp
+
+
     def log(self, x1, x2, dt=1.):
         """
-        geodesic mapping points on manifold to their tangent space
+        geodesic mapping points on manifold to the tangent space of the first point
         log_p: M -> T_p M
         """
         raise NotImplementedError('actual log is not implemented')
@@ -129,7 +152,7 @@ class Riemannian():
     def retraction(self, x, v):
         """
         approximation to exponential geodesic mapping
-        project new vector x+v at point x to the manifold
+        project new vector x+v from point x to the manifold
         """
         raise NotImplementedError('actual retraction is not implemented')
 
@@ -137,14 +160,14 @@ class Riemannian():
     def inverse_retraction(self):
         """
         approximation to logrithrim geodesic mapping
-        project new point x to its tangent vector
+        project points to get the connecting tangent vector at first point
         """
         raise NotImplementedError('actual inverse_retraction is not implemented')
 
 
     def projection(self, x, v):
         """
-        project vector v at point x to the manifold
+        project a general matrix v to the tangent space of a point x on the manifold
         """
         raise NotImplementedError('actual projection is not implemented')
 
@@ -152,9 +175,13 @@ class Riemannian():
     to_tangent_space = projection
 
 
-    def transport(self, x1, v0):
+    #TODO: any difference between vector transport and parallel transport?
+    def transport(self, x0, x1, v0):
         """
-        vector transport moves tangent vector v0 at point x0 to point x1
+        vector or parallel transport moves tangent vector v0 at point x0 to point x1
+        `T_{x0->x1} (v0): v0 \in T_{x0} M -> v1 \in T_{x1} M = Proj_M (x1, v0)`
+        here x0 is a dummy variable
+        project v0 to the tangent space of x1
         """
         return self.projection(x1, v0)
 
@@ -253,32 +280,39 @@ class OrthogonalGroup(Riemannian): # orthogonal group manifold
         return (v - x * np.dot(x, v))
 
 
-    def retraction_norm(self, x, v):
+    def retraction_norm(self, x, v, dt=1.):
         """put (x+v) on the sphere"""
-        x = x + v
+        x = x + v*dt
         return x / np.linalg.norm(x, axis=0)
 
 
-    def retraction_qr(self, x, v):
+    def retraction_qr(self, x, v, dt=1.):
+        #TODO: fix this bug!!!
         x += x @ x
         q, r = np.linalg.qr(x)
         return q
 
 
-    def retraction_polar(self, x, v):
+    def retraction_polar(self, x, v, dt=1.):
         return x
 
 
-    def retraction_exp(self, x, v):
-        return scipy.linalg.expm(v) @ x
-
-
-    def retraction_cayley(self, x, v):
+    def retraction_cayley(self, x, v, dt=1.):
+        #TODO: where is the step size
         I = np.eye(x.shape[0])
         v *= .5
         m = np.linalg.inv((I - v))
         p = I + v
         return np.einsum('ij,jk,kl->il', m, p, x)
+
+
+    def exp(self, x, v, dt=1.):
+        return scipy.linalg.expm(v*dt) @ x
+
+
+    #TODO: what about log?
+    def log(self, x1, x2, dt=1.):
+        return
 
 
 
@@ -294,6 +328,24 @@ class Stiefel(OrthogonalGroup):
         ndim = self.ndim
         if len(ndim)==1 or (len(ndim)==2 and ndim[0]<=ndim[1]):
             raise ValueError('points on Stiefel should be long rectagular matrix')
+
+
+    @property
+    def dimension(self, dtype=float):
+        n, k = self.ndim
+        if dtype is float: # \mathbb{R}
+            return int(n*k - k*(k+1)/2)
+        elif dtype is complex: # \mathbb{C}
+            return int((2*n - 1)*k)
+        else: # quaternion \mathbb{H}
+            return int((4*n - 2*k +1)*k)
+
+
+    #TODO: find the distance for T_p St
+    @property
+    def dist(self, v1, v2):
+        return
+
 
     def projection(self, x, v):
         """
@@ -325,6 +377,18 @@ class Stiefel(OrthogonalGroup):
         return u @ vt
 
 
+    #TODO: implement qr method
+    def inverse_retraction_qr(self, x1, x2, dt=1.):
+        return
+
+
+    def inverse_retraction_polar(self, x1, x2, dt=1.):
+        pt = x1.conj().T @ x2
+        #TODO: it seems identity should be replaced by overlap metric
+        v = solve_sylvester(pt, 2.*np.eye(x1.shape[1]))
+        return (x2 @ (v*dt) - x1)
+
+
     def weingarten(self, x, v, grad, normal):
         # grad is not used
         tmp = v.T @ normal
@@ -351,20 +415,9 @@ class Stiefel(OrthogonalGroup):
         return a @ (b @ c)
 
 
-    #TODO: manifolds.jl defined two inverse_retract functions
-    def inverse_retraction(self):
+    #TODO: can we find log for stiefel?
+    def log(self, x1, x2, dt=1.):
         return
-
-
-    @property
-    def dimension(self, dtype=float):
-        n, k = self.ndim
-        if dtype is float: # \mathbb{R}
-            return int(n*k - k*(k+1)/2)
-        elif dtype is complex: # \mathbb{C}
-            return int((2*n - 1)*k)
-        else: # quaternion \mathbb{H}
-            return int((4*n - 2*k +1)*k)
 
 
 
@@ -377,6 +430,22 @@ class Grassmann(Stiefel):
              = {p \in F^{n*k} | p^\dagger B p = I_k, PBP = P}
     T_p Gr(k,n) = {V \in F^{n*n} | PV + VP = V}`
     """
+    @property
+    def dimension(self, dtype=float):
+        n, k = self.ndim
+        d = (n-k)*k
+        c = 1 if dtype is float else 2 if dtype is complex else 4
+        return int(c*d)
+
+
+    @property
+    def dist(self, v1, v2):
+        s = np.linalg.svd((v1.conj().T @ self._B @ v2), compute_uv=False)
+        s[s > 1] = 1
+        s = np.arccos(s)
+        return np.linalg.norm(s)
+
+
     def projection(self, x, v):
         """
         the resulted tangent vector is perpendicular to BX
@@ -386,14 +455,7 @@ class Grassmann(Stiefel):
         #return (self._Binv - p) @ v
         #TODO: which one is correct?
         p = x @ x.conj().T @ self._B
-        return (v - p@v)
-
-
-    def dist(self, v1, v2):
-        s = np.linalg.svd((v1.conj().T @ self._B @ v2), compute_uv=False)
-        s[s > 1] = 1
-        s = np.arccos(s)
-        return np.linalg.norm(s)
+        return (v - p @ v)
 
 
     #TODO: should these be same?
@@ -405,6 +467,13 @@ class Grassmann(Stiefel):
         x = x + v*dt
         u, s, vt = np.linalg.svd(x, full_matrices=False)
         return u @ vt
+
+
+    def inverse_retraction_polar(self, x1, x2, dt=1.):
+        pt = x1.conj().T @ x2
+        pt = np.linalg.inv(pt) # get inverse
+        #TODO: double check!
+        return (x2 @ (pt*dt) - x1)
 
 
     def weingarten(self, x, v, grad, normal):
@@ -435,9 +504,6 @@ class Grassmann(Stiefel):
         return q
 
 
-    geodesic = exp
-
-
     def log(self, x1, x2, dt=1.):
         ytx = x2.conj().T @ self._B @ x1
         At = x2.conj().T - ytx @ x1.conj().T
@@ -448,14 +514,6 @@ class Grassmann(Stiefel):
         s *= dt
         arctan = np.expand_dims(np.arctan(s), -2)
         return (u * arctan) @ vt
-
-
-    @property
-    def dimension(self, dtype=float):
-        n, k = self.ndim
-        d = (n-k)*k
-        c = 1 if dtype is float else 2 if dtype is complex else 4
-        return int(c*d)
 
 
     def tangent_solver(self, x, grad, hess, method='direct'):
@@ -474,7 +532,10 @@ class Grassmann(Stiefel):
                           self.geodesic, x0, dt, nmax, thresh)
 
 
+
 if __name__ == '__main__':
+    import pymanopt
+
     ndim = 6
     A = get_random_matrix(ndim)
 
