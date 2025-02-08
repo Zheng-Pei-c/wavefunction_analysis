@@ -61,7 +61,7 @@ class Riemannian():
                  retraction='qr', **kwargs):
         """
         A: the quadratic function kernel
-        B: orthogonal metric, default is I
+        B: orthogonal metric (overlap), default is I_n
         x0: initial point on the manifold
         """
         if isinstance(ndim, float):
@@ -78,22 +78,20 @@ class Riemannian():
                 retraction = 'qr'
                 print('required retraction is not appliable and changed to qr')
 
-        if isinstance(A, np.ndarray): # get a random symmetric matrix
-            self._A = A
-        else:
-            seed = kwargs.get('seed', 12345)
-            self.get_random_kernel(self.ndim[0], seed)
+        if not isinstance(A, np.ndarray): # get a random symmetric matrix
+            self._A = get_random_matrix(self.ndim[0], kwargs.get('seed', 12345))
+        self._A = A
 
         if isinstance(B, np.ndarray):
             self._B = B
             # B^1/2, B^-1/2, B^-1
-            self._L, self._Z, self._Binv = get_ortho_basis(self._B, method='lowdinn')
+            self._L, self._Z, self._Binv = get_ortho_basis(self._B, method='lowdin')
         else: # identity matrix
             self._B = np.eye(self.ndim[0])
             self._L, self._Z, self._Binv = np.copy(self._B), np.copy(self._B), np.copy(self._B)
 
 
-        try: # get the actural retraction method
+        try: # get the actual retraction method
             self.retraction = getattr(self, 'retraction_'+str(retraction))
         except AttributeError:
             raise ValueError('required retraction method is not implemented')
@@ -112,18 +110,43 @@ class Riemannian():
         return np.dot(v, v)
 
 
+    def exp(self, x, v, dt=1.):
+        """
+        geodesic mapping tangent vectors to manifold
+        exp_p: T_p M -> M
+        """
+        raise NotImplementedError('actual exp is not implemented')
+
+
+    def log(self, x1, x2, dt=1.):
+        """
+        geodesic mapping points on manifold to their tangent space
+        log_p: M -> T_p M
+        """
+        raise NotImplementedError('actual log is not implemented')
+
+
     def retraction(self, x, v):
         """
+        approximation to exponential geodesic mapping
         project new vector x+v at point x to the manifold
         """
-        raise NotImplementedError('actural retraction is not implemented')
+        raise NotImplementedError('actual retraction is not implemented')
+
+
+    def inverse_retraction(self):
+        """
+        approximation to logrithrim geodesic mapping
+        project new point x to its tangent vector
+        """
+        raise NotImplementedError('actual inverse_retraction is not implemented')
 
 
     def projection(self, x, v):
         """
         project vector v at point x to the manifold
         """
-        raise NotImplementedError('actural projection is not implemented')
+        raise NotImplementedError('actual projection is not implemented')
 
 
     to_tangent_space = projection
@@ -136,21 +159,25 @@ class Riemannian():
         return self.projection(x1, v0)
 
 
+    #TODO: on same point or two points?
     def weingarten(self, x, v, *args, **kwargs):
         """
         connection between tangent vectors
         """
-        raise NotImplementedError('actural connection is not implemented')
+        raise NotImplementedError('actual weingarten is not implemented')
 
 
     def riemannian_gradient(self, x, grad):
         """
-        project euclidean gradient to riemannian gradient
+        project euclidean gradient to riemannian gradient of a function
         """
         return self.projection(x, grad)
 
 
     def riemannian_hessian(self, x, v, grad, hess, normal=None):
+        """
+        project euclidean hessian to riemannian hessian of a function
+        """
         if normal is None:
             # euclidean_gradient - riemannian_gradient
             normal = grad - self.projection(x, grad)
@@ -257,8 +284,11 @@ class OrthogonalGroup(Riemannian): # orthogonal group manifold
 
 class Stiefel(OrthogonalGroup):
     """
-    the points are n*p matrix, n-dimensions and p-planes
-    quotient space from OrthogonalGroup
+    `St(k,n) = {p \in F^{n*k} | p^\dagger B p = I_k}`
+    the point p is a n*k matrix, n-dimensions and k-planes
+    quotient space from OrthogonalGroup where k<n
+    whose tangent vector V is on the tangent space of point p
+    `T_p St(k,n) = {V \in F^{n*k} | p^\dagger B V + V^\dagger B p = 0_k}`
     """
     def check_sanity(self):
         ndim = self.ndim
@@ -266,20 +296,32 @@ class Stiefel(OrthogonalGroup):
             raise ValueError('points on Stiefel should be long rectagular matrix')
 
     def projection(self, x, v):
-        tmp = x.T @ v
-        tmp = .5 * (tmp + tmp.T)
+        """
+        `Proj(p,V) = V - p Sym(p^\dagger B V)`
+        """
+        tmp = x.conj().T @ self._B @ v
+        tmp = .5 * (tmp + tmp.conj().T)
         return (v - x @ tmp)
 
 
-    def retraction_qr(self, x, v):
-        x = x + v
-        return pymanopt.tools.multi.multiqr(x)[0]
+    def retraction_qr(self, x, v, dt=1.):
+        """
+        `Retr_p V = QD where QR = qr(p+V) and D=diag(sgn(diag(R)+.5))`
+        """
+        x = x + v*dt
+        #TODO: compare this with pymanopt
+        #return pymanopt.tools.multi.multiqr(x)[0]
+        q, r = np.linalg.qr(x)
+        d = np.sign(np.diag(r)+.5)
+        return np.einsum('ij,j->ij', q, d)
 
 
-    def retraction_polar(self, x, v):
-        x = x + v
-        u, s, vt = np.linalg.svd(x+v, full_matrices=False)
-        #return np.einsum('mn,nl->ml', u, vt)
+    def retraction_polar(self, x, v, dt=1.):
+        """
+        `Retr_p V = U V^\dagger where UsV^\dagger = svd(p+V)`
+        """
+        x = x + v*dt
+        u, s, vt = np.linalg.svd(x, full_matrices=False)
         return u @ vt
 
 
@@ -293,46 +335,75 @@ class Stiefel(OrthogonalGroup):
         return w
 
 
-    def exp(self, x, v):
-        pt_tv = x.T @ v
+    #TODO: where is the time dt?
+    def exp(self, x, v, dt=1.):
+        """
+        `exp_p V = (p \\ V) exp((p^\dagger V & - V^\dagger V \\ I_n & p^\dagger V)) (exp(-p^\dagger V) \\ 0_n)`
+        """
+        pt_tv = x.conj().T @ v
         identity = np.eye(self.ndim[1]) # column dimension
 
         a = np.block([x, v])
-        b = np.block([[pt_tv, -v.T @ v,],
+        b = np.block([[pt_tv, -v.conj().T @ v,],
                       [identity, pt_tv],])
-        b = scipy.linalg.expm(b)[..., : self._p]
+        b = scipy.linalg.expm(b)[..., : self._p] #TODO: fix undefined self._p I guess it is k
         c = scipy.linalg.expm(-pt_tv)
         return a @ (b @ c)
+
+
+    #TODO: manifolds.jl defined two inverse_retract functions
+    def inverse_retraction(self):
+        return
+
+
+    @property
+    def dimension(self, dtype=float):
+        n, k = self.ndim
+        if dtype is float: # \mathbb{R}
+            return int(n*k - k*(k+1)/2)
+        elif dtype is complex: # \mathbb{C}
+            return int((2*n - 1)*k)
+        else: # quaternion \mathbb{H}
+            return int((4*n - 2*k +1)*k)
 
 
 
 class Grassmann(Stiefel):
     """
-    quotient space from Stiefel
+    Grassmann is a quotient space from Stiefel
+    with extra idempotency condition for density matrix P = p p^\dagger
+    this class uses point p rather than P
+    `Gr(k,n) = St(k,n) / O(k)
+             = {p \in F^{n*k} | p^\dagger B p = I_k, PBP = P}
+    T_p Gr(k,n) = {V \in F^{n*n} | PV + VP = V}`
     """
     def projection(self, x, v):
         """
-        the resulted tangent vector is perpendicular to BX, <\Delta, BX> = 0
+        the resulted tangent vector is perpendicular to BX
+        `<\Delta, BX> = 0`
         """
-        p = x @ x.T # projector, aka `density matrix`
-        return (self._Binv - p) @ v
+        #p = x @ x.conj().T # projector, aka `density matrix`
+        #return (self._Binv - p) @ v
+        #TODO: which one is correct?
+        p = x @ x.conj().T @ self._B
+        return (v - p@v)
 
 
     def dist(self, v1, v2):
-        s = np.linalg.svd((v1.T @ v2), compute_uv=False)
+        s = np.linalg.svd((v1.conj().T @ self._B @ v2), compute_uv=False)
         s[s > 1] = 1
         s = np.arccos(s)
         return np.linalg.norm(s)
 
 
-    def retraction_qr(self, x, v):
+    #TODO: should these be same?
+    def retraction_qr(self, x, v, dt=1.): # same as stiefel
         return
 
 
-    def retraction_polar(self, x, v): # same as stiefel
-        x = x + v
-        u, s, vt = np.linalg.svd(x+v, full_matrices=False)
-        #return np.einsum('mn,nl->ml', u, vt)
+    def retraction_polar(self, x, v, dt=1.): # same as stiefel
+        x = x + v*dt
+        u, s, vt = np.linalg.svd(x, full_matrices=False)
         return u @ vt
 
 
@@ -343,17 +414,24 @@ class Grassmann(Stiefel):
 
 
     def exp(self, x, v, dt=1.):
+        """
+        `exp_p (V) = p V cos(s) V^\dagger + U sin(s) V^\dagger`
+        qr is needed for numerically stablity
+        """
+        #TODO: why v.conj().T @ self._B @ v
         u, s, vt = np.linalg.svd(v, full_matrices=False)
 
         s *= dt
         cos = np.expand_dims(np.cos(s), -2)
         sin = np.expand_dims(np.sin(s), -2)
 
-        Y = (x @ (vt.T * cos) + (u * sin)) @ vt
+        y = (x @ (vt.conj().T * cos) + (u * sin)) @ vt
 
         # it seems necessary to re-orthonormalize numerically
         # even though it is quite expensive.
-        q, _ = pymanopt.tools.multi.multiqr(Y)
+        #TODO: compare it with pymanopt
+        #q, _ = pymanopt.tools.multi.multiqr(y)
+        q, _ = np.linalg.qr(y)
         return q
 
 
@@ -361,15 +439,23 @@ class Grassmann(Stiefel):
 
 
     def log(self, x1, x2, dt=1.):
-        ytx = x2.T @ x1
-        At = x2.T - ytx @ x1.T
+        ytx = x2.conj().T @ self._B @ x1
+        At = x2.conj().T - ytx @ x1.conj().T
 
         Bt = np.linalg.solve(ytx, At)
-        u, s, vt = np.linalg.svd(Bt.T, full_matrices=False)
+        u, s, vt = np.linalg.svd(Bt.conj().T, full_matrices=False)
 
         s *= dt
         arctan = np.expand_dims(np.arctan(s), -2)
         return (u * arctan) @ vt
+
+
+    @property
+    def dimension(self, dtype=float):
+        n, k = self.ndim
+        d = (n-k)*k
+        c = 1 if dtype is float else 2 if dtype is complex else 4
+        return int(c*d)
 
 
     def tangent_solver(self, x, grad, hess, method='direct'):
