@@ -2,7 +2,7 @@ import sys
 from wavefunction_analysis import np, scipy
 
 from wavefunction_analysis.manifold import gradient_descent, conjugate_gradient, newton_2nd
-from wavefunction_analysis.utils import get_ortho_basis
+from wavefunction_analysis.utils import get_ortho_basis, print_matrix
 
 """
 the manifold code refers to Alan Edelman, Tomas, Arias, and Steven Smith,
@@ -174,10 +174,9 @@ class Riemannian():
     to_tangent_space = projection
 
 
-    #TODO: any difference between vector transport and parallel transport?
     def transport(self, x0, x1, v0):
-        """
-        vector or parallel transport moves tangent vector v0 at point x0 to point x1
+        r"""
+        parallel or vector transport moves tangent vector v0 at point x0 to point x1
         `T_{x0->x1} (v0): v0 \in T_{x0} M -> v1 \in T_{x1} M = Proj_M (x1, v0)`
         here x0 is a dummy variable
         project v0 to the tangent space of x1
@@ -191,6 +190,13 @@ class Riemannian():
         connection between tangent vectors
         """
         raise NotImplementedError('actual weingarten is not implemented')
+
+
+    def check_tangent(self, x, v):
+        """
+        verify the obtained vector v is truly a tangent
+        """
+        raise NotImplementedError('actual check_tangent is not implemented')
 
 
     def riemannian_gradient(self, x, grad):
@@ -316,7 +322,7 @@ class OrthogonalGroup(Riemannian): # orthogonal group manifold
 
 
 class Stiefel(OrthogonalGroup):
-    """
+    r"""
     `St(k,n) = {p \in F^{n*k} | p^\dagger B p = I_k}`
     the point p is a n*k matrix, n-dimensions and k-planes
     quotient space from OrthogonalGroup where k<n
@@ -325,7 +331,7 @@ class Stiefel(OrthogonalGroup):
     """
     def check_sanity(self):
         ndim = self.ndim
-        if len(ndim)==1 or (len(ndim)==2 and ndim[0]<=ndim[1]):
+        if len(ndim)==1 or (len(ndim)==2 and ndim[0]<ndim[1]):
             raise ValueError('points on Stiefel should be long rectagular matrix')
 
 
@@ -347,7 +353,7 @@ class Stiefel(OrthogonalGroup):
 
 
     def projection(self, x, v):
-        """
+        r"""
         `Proj(p,V) = V - p Sym(p^\dagger B V)`
         """
         tmp = x.conj().T @ self._B @ v
@@ -356,7 +362,7 @@ class Stiefel(OrthogonalGroup):
 
 
     def retraction_qr(self, x, v, dt=1.):
-        """
+        r"""
         `Retr_p V = QD where QR = qr(p+V) and D=diag(sgn(diag(R)+.5))`
         """
         x = x + v*dt
@@ -368,7 +374,7 @@ class Stiefel(OrthogonalGroup):
 
 
     def retraction_polar(self, x, v, dt=1.):
-        """
+        r"""
         `Retr_p V = U V^\dagger where UsV^\dagger = svd(p+V)`
         """
         x = x + v*dt
@@ -400,7 +406,7 @@ class Stiefel(OrthogonalGroup):
 
     #TODO: where is the time dt?
     def exp(self, x, v, dt=1.):
-        """
+        r"""
         `exp_p V = (p \\ V) exp((p^\dagger V & - V^\dagger V \\ I_n & p^\dagger V)) (exp(-p^\dagger V) \\ 0_n)`
         """
         pt_tv = x.conj().T @ v
@@ -419,16 +425,36 @@ class Stiefel(OrthogonalGroup):
         return
 
 
+    def check_tangent(self, x, v):
+        dot1 = np.einsum('ji,jk->ik', x.conj(), v)
+        dot2 = np.einsum('ji,jk->ik', v.conj(), x)
+        is_tangent = np.allclose(dot1, dot2)
+        print('is it a true tangent?', is_tangent)
 
-class Grassmann(Stiefel):
-    """
+        if not is_tangent:
+            print_matrix('dot:', dot1-dot2, digits=[10,5,'e'])
+        return is_tangent
+
+
+
+class Grassmann_Quotient(Stiefel):
+    r"""
     Grassmann is a quotient space from Stiefel
     with extra idempotency condition for density matrix P = p p^\dagger
     this class uses point p rather than P
     `Gr(k,n) = St(k,n) / O(k)
              = {p \in F^{n*k} | p^\dagger B p = I_k, PBP = P}
-    T_p Gr(k,n) = {V \in F^{n*n} | PV + VP = V}`
+    T_p Gr(k,n) = {V \in F^{n*n} | p^\dagger V = 0}`
     """
+    def check_sanity(self):
+        x = self.x0
+        p = x @ x.conj().T
+        p2 = p @ self._B @ p
+
+        if not np.allclose(p, p2):
+            return ValueError('Initial point is not on quotient Grassmannian')
+
+
     @property
     def dimension(self, dtype=float):
         n, k = self.ndim
@@ -446,7 +472,7 @@ class Grassmann(Stiefel):
 
 
     def projection(self, x, v):
-        """
+        r"""
         the resulted tangent vector is perpendicular to BX
         `<\Delta, BX> = 0`
         """
@@ -482,18 +508,22 @@ class Grassmann(Stiefel):
 
 
     def exp(self, x, v, dt=1.):
-        """
+        r"""
         `exp_p (V) = p V cos(s) V^\dagger + U sin(s) V^\dagger`
         qr is needed for numerically stablity
         """
         #TODO: why v.conj().T @ self._B @ v
         u, s, vt = np.linalg.svd(v, full_matrices=False)
 
-        s *= dt
-        cos = np.expand_dims(np.cos(s), -2)
-        sin = np.expand_dims(np.sin(s), -2)
+        # save the hard work
+        self._tang_u = u
+        self._tang_s = s
+        self._tang_vt = vt
 
-        y = (x @ (vt.conj().T * cos) + (u * sin)) @ vt
+        s *= dt
+
+        y = np.einsum('ij,kj,k->ik', x, vt.conj(), np.cos(s))
+        y = (y + np.einsum('ij,j->ij', u, np.sin(s))) @ vt
 
         # it seems necessary to re-orthonormalize numerically
         # even though it is quite expensive.
@@ -504,15 +534,94 @@ class Grassmann(Stiefel):
 
 
     def log(self, x1, x2, dt=1.):
+        """
+        adopted from alg. 1 from 10.1007/s10444-023-10090-8
+        recovers Stiefel from exp operation and avoids matrix inverse
+        """
         ytx = x2.conj().T @ self._B @ x1
-        At = x2.conj().T - ytx @ x1.conj().T
+        u, s, vt = np.linalg.svd(ytx, full_matrices=False)
+        #s = np.sqrt(1.-s**2)
+        #idx = np.where(s>1e-9)[0]
+        #s = s[idx]
+        #u, vt = np.flip(u[:,idx], axis=1), np.flip(vt[idx], axis=0)
 
-        Bt = np.linalg.solve(ytx, At)
-        u, s, vt = np.linalg.svd(Bt.conj().T, full_matrices=False)
+        #ytx = np.einsum('ij,jk,k->ik', x2, u, 1./s)
+        #u = ytx - (x1 @ x1.conj().T) @ ytx
+
+        x2 = x2 @ (u @ vt)
+        ytx = x2 - (x1 @ x1.conj().T) @ x2
+        u, s, vt = np.linalg.svd(ytx, full_matrices=False)
 
         s *= dt
-        arctan = np.expand_dims(np.arctan(s), -2)
-        return (u * arctan) @ vt
+        return np.einsum('ij,j,jk->ik', u, np.arcsin(s), vt)
+
+        #At = x2.conj().T - ytx @ x1.conj().T
+        #Bt = np.linalg.solve(ytx, At)
+        #u, s, vt = np.linalg.svd(Bt.conj().T, full_matrices=False)
+        #s *= dt
+        #return np.einsum('ij,j,jk->ik', u, np.arctan(s), vt)
+
+
+    def horizontal_lift(self, x, v, lift=True):
+        r"""
+        `\Delta = (0 & - B^T \\ B & 0)`
+        `\Delta_p^horizontal = \Delta * p = p_\perp * B` in Stiefel representation
+        """
+        def tangent_type():
+            n0, k0 = self.ndim
+            n, k = x.shape
+            n1, n2 = v.shape[-2:]
+
+            if k==k0 and n1==n0: # Delta
+                return 1
+            elif k==(n0-k0) and n2==k0: # B
+                return 2
+            else:
+                return ValueError('point and tangent do not match')
+
+        itype = tangent_type()
+
+        if lift:
+            if itype == 1: return np.einsum('...ij,jk->...ik', v, x)
+            elif itype == 2: return np.einsum('ij,...jk->...ik', x, v)
+
+        else:
+            if itype == 1: return np.einsum('...ij,kj->...ik', v, x.conj())
+            elif itype == 2: return np.einsum('ji,...jk->...ik', x.conj(), v)
+
+
+    def get_tangent(self, x, v):
+        return self.horizontal_lift(x, v, False)
+
+
+    def check_tangent(self, x, v):
+        dot = np.einsum('ji,jk->ik', x.conj(), v)
+        is_tangent = (np.abs(dot)<1e-10).all() # all zeros
+        print('is it a true tangent?', is_tangent)
+
+        if not is_tangent:
+            print_matrix('dot:', dot, digits=[10,5,'e'])
+        return is_tangent
+
+
+    def transport(self, x0, vg, v0, dt=1.):
+        """
+        parallel transport v0 at x0 along geodesic defined by vg
+        to tangent space of x1
+        refer to 10.1137/S0895479895290954
+        """
+        if isinstance(vg, np.ndarray):
+            u, s, vt = np.linalg.svd(vg, full_matrices=False)
+        else: # use the saved geodesics
+            u, s, vt = self._tang_u, self._tang_s, self._tang_vt
+
+        s *= dt
+
+        y = -np.einsum('ij,kj,k->ik', x0, vt.conj(), np.sin(s))
+        y += np.einsum('ij,j->ij', u, np.cos(s))
+        y = y @ u.conj().T + (np.eye(u.shape[0]) - u @ u.conj().T)
+
+        return np.einsum('ij,...jk->...ik', y, v0)
 
 
     def tangent_solver(self, x, grad, hess, method='direct'):
@@ -529,6 +638,22 @@ class Grassmann(Stiefel):
 
         return newton_2nd(self.func, gradf, hessf, self.tangent_solver,
                           self.geodesic, x0, dt, nmax, thresh)
+
+
+
+def Grassmann(**kwargs):
+    ndim = kwargs.get('ndim', None)
+    x0 = kwargs.get('x0', None)
+    if isinstance(x0, np.ndarray):
+        ndim = list(x0.shape)
+        n, k = ndim
+
+    if ndim is None:
+        raise ValueError('Grassmann dimension is not given')
+    elif k < n:
+        return Grassmann_Quotient(**kwargs)
+    elif k == n:
+        return Grassmann_Projection(**kwargs)
 
 
 

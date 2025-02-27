@@ -106,10 +106,11 @@ def gradient_color_line(ax, x, y, weights, cmap, vmin=.0, vmax=1., label=''):
     return line_segments
 
 
-def broadening(centers, heighs, wid=0.0005, d=0.05, method='gaussian', min_e=0):
-    mi, ma = np.min(centers), np.max(centers)
-    if min_e > 0.: mi = min_e
-    x = np.arange(mi-d, ma+d, (ma-mi)/10001)
+def broadening(centers, heighs, wid=0.0005, d=0.05, method='gaussian', xrange=None):
+    mi, ma = np.min(centers)-d, np.max(centers)+d
+    if xrange is not None:
+        mi, ma = xrange
+    x = np.linspace(mi, ma, 10001)
     y = 0.
     if method == 'lorentzian':
         for n in range(len(centers)):
