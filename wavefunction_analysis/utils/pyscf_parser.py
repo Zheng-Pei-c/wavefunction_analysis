@@ -208,7 +208,8 @@ def run_pyscf_dft(charge, spin, atom, basis, functional, nfrag=1, verbose=0,
 
         return mol, mf, etot
     else:
-        return _run_pyscf_dft(charge, spin, atom, basis, functional, verbose)
+        return _run_pyscf_dft(charge, spin, atom, basis, functional, verbose,
+                              h, scf_method)
 
 
 def _run_pyscf_tddft(mf, td_model, nroots, verbose=0):
@@ -223,7 +224,7 @@ def _run_pyscf_tddft(mf, td_model, nroots, verbose=0):
 
     td = getattr(tdscf, td_model)(mf)
     td.max_cycle = 600
-    td.max_space = 200
+    #td.max_space = 200
 
     if nroots > 0:
         td.kernel(nstates=nroots)
@@ -270,10 +271,10 @@ def run_pyscf_dft_tddft(charge, spin, atom, basis, functional, td_model, nroots,
     if isinstance(charge, list):
         mol, mf, etot, td = [None]*nfrag, [None]*nfrag, [None]*nfrag, [None]*nfrag
         for n in range(nfrag):
-            mol[n], mf[n], etot[n] = run_pyscf_dft(charge[n], spin[n], atom[n],
+            mol[n], mf[n], etot[n] = _run_pyscf_dft(charge[n], spin[n], atom[n],
                                                    basis, functional, verbose,
                                                    h, scf_method)
-            td[n] = run_pyscf_tddft(mf[n], td_model, nroots, nfrag=1, verbose=verbose)
+            td[n] = _run_pyscf_tddft(mf[n], td_model, nroots, verbose)
 
         if debug > 0:
             final_print_energy(td, nwidth=10, iprint=7)
@@ -464,12 +465,16 @@ def justify_photon_info(td, nroots, nstate='max_dipole', func='average', nwidth=
         freq = getattr(np, func)(energy[:, argmax0])
         print('change applied photon energy to a more suitable one as:', freq)
     elif 'fwhm' in func: # full width at half maximum
+        data = func.split('-')
+        if len(data) > 1:
+            func, factor = data[0], float(data[1])
+        else: factor = 1.
         std = np.std(energy[:, argmax0])
         ave = np.average(energy[:, argmax0])
         if func[-2:] == '_m' or func[-2:] == '_l':
-            freq = ave - 2. * np.sqrt(2.*np.log(2.)) * std
+            freq = ave - 2. /factor * np.sqrt(2.*np.log(2.)) * std
         else:
-            freq = ave + 2. * np.sqrt(2.*np.log(2.)) * std
+            freq = ave + 2. /factor * np.sqrt(2.*np.log(2.)) * std
         print('change applied photon energy to a more suitable one as:', freq)
 
 
