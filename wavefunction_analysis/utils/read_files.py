@@ -98,6 +98,9 @@ def read_matrix(filename, nrow, ncol, keyword, nwidth=6, nind=0, nskip=0, dtype=
                         for d in range(len(data)-nind):
                             if k*nwidth+d < ncol:
                                 matrix[k*nwidth+d] = dtype(data[d+nind])
+
+                        for n in range(nskip): # skip rows
+                            line = next(infile)
                     matrices.append(matrix)
 
         if len(matrices) == 1: matrix = matrices[0]
