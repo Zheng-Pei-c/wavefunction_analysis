@@ -1,4 +1,4 @@
-import numpy as np
+from wavefunction_analysis import sys, np
 
 def read_geometry(infile, probe=1):
     geometry = []
@@ -82,35 +82,49 @@ def get_symbols_coords(geometry, string=False):
 
 
 def write_geometry(infile, geometry, energy=None, open_file_method='w'):
-    with open(infile, open_file_method) as f:
-        if infile[-4:] == '.xyz':
-            f.write('%d\n' % int(len(geometry)/4))
-            if energy:
-                f.write('%f\n' % energy)
-            else:
-                f.write('\n')
+    if 'stdout' in infile:
+        f = sys.stdout
+    else:
+        f = open(infile, open_file_method)
 
-        for atom in range(int(len(geometry)/4)):
-            f.write('%2s   ' % geometry[4*atom])
-            for x in range(1, 4):
-                f.write('%14.8f ' % geometry[4*atom+x])
+    #with open(infile, open_file_method) as f:
+    if infile[-4:] == '.xyz':
+        f.write('%d\n' % int(len(geometry)/4))
+        if energy:
+            f.write('%f\n' % energy)
+        else:
             f.write('\n')
+
+    for atom in range(int(len(geometry)/4)):
+        f.write('%2s   ' % geometry[4*atom])
+        for x in range(1, 4):
+            f.write('%14.8f ' % geometry[4*atom+x])
+        f.write('\n')
+
+    if 'stdout' not in infile: f.close()
 
 
 def write_symbols_coords(infile, symbols, coords, energy=None, open_file_method='w'):
-    with open(infile, open_file_method) as f:
-        if infile[-4:] == '.xyz':
-            f.write('%d\n' % len(symbols))
-            if energy:
-                f.write('%f\n' % energy)
-            else:
-                f.write('\n')
+    if 'stdout' in infile:
+        f = sys.stdout
+    else:
+        f = open(infile, open_file_method)
 
-        for atom in range(len(symbols)):
-            f.write('%2s   ' % symbols[atom])
-            for x in range(3):
-                f.write('%14.8f ' % coords[atom, x])
+    #with open(infile, open_file_method) as f:
+    if infile[-4:] == '.xyz':
+        f.write('%d\n' % len(symbols))
+        if energy:
+            f.write('%f\n' % energy)
+        else:
             f.write('\n')
+
+    for atom in range(len(symbols)):
+        f.write('%2s   ' % symbols[atom])
+        for x in range(3):
+            f.write('%14.8f ' % coords[atom, x])
+        f.write('\n')
+
+    if 'stdout' not in infile: f.close()
 
 
 def switch_atoms(geometry, atom_list):

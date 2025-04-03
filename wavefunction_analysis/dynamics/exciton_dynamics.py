@@ -1,8 +1,8 @@
-import os, sys
+import sys
 import warnings
-import numpy as np
 from pyscf.data.nist import HARTREE2J, HARTREE2EV, BOLTZMANN, AMU2AU, BOHR, PLANCK, E_CHARGE
 
+from wavefunction_analysis import np, itertools
 from wavefunction_analysis.utils import print_matrix
 from wavefunction_analysis.utils import put_keys_kwargs_to_object, put_kwargs_to_keys
 from wavefunction_analysis.dynamics import harmonic_oscillator
@@ -353,9 +353,9 @@ class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
 
         index = [] # given neighboring pairs
         for dk, dv in enumerate(self.dimer_label):
-            dv = dv.split(',')
-            a, b, c, d = dv
-            index.append([a,b,c,d])
+            #a, b, c, d = dv.split(',')
+            #index.append([a,b,c,d])
+            index.append(dv.split(','))
 
         neighbor_index = [None]*self.n_mol
         i = index[0][3]
@@ -371,6 +371,8 @@ class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
 
 
     def get_exciton_couplings(self, coordinate):
+        # nt is number of molecules in a unit cell
+        # ns is number of states per molecule
         nx, ny, nz, nt, ns = self.n_site, self.n_mol, self.nstate
         hamiltonian = np.zeros((nx, ny, nz, nt, ns, nx, ny, nz, nt, ns))
 
@@ -379,16 +381,11 @@ class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
         #coupling = np.einsum('kmij,nkm->nkij', self.coupling_a, coordinate1.reshape(-1, self.ntype, self.n_mode))
         #coupling = coupling.reshape(-1, self.nstate, self.nstate)
 
-        icount = 0
-        for i in range(1, nx-1):
-            for j in range(1, ny-1):
-                for k in range(1, nz-1):
-                    for l in range(nt): # number of molecule in a unit cell
-                        coupling = np.einsum('tmij,m->tij', self.coupling_a, coordinate1[icount])
-                        for x, (a, b, c, d) in enumerate(self.neighbor_index[l]):
-                            hamiltonian[i,j,k,l,:,i+a,j+b,k+c,d] = self.coupling_j[k] + coupling
-                            hamiltonian[i+a,j+b,k+c,d,i,j,k,l] = hamiltonian[i,j,k,0,:,i+a,j+b,k+c,d].transpose()
-                        icount += 1
+        for icount, (i, j, k, l) in enumerate(itertools.product(range(1, nx-1), range(1, ny-1), range(1, nz-1), range(nt))):
+            coupling = np.einsum('tmij,m->tij', self.coupling_a, coordinate1[icount])
+            for x, (a, b, c, d) in enumerate(self.neighbor_index[l]):
+                hamiltonian[i,j,k,l,:,i+a,j+b,k+c,d] = self.coupling_j[k] + coupling
+                hamiltonian[i+a,j+b,k+c,d,i,j,k,l] = hamiltonian[i,j,k,0,:,i+a,j+b,k+c,d].transpose()
 
         return np.reshape(hamiltonian, (self.n_site_tot*self.nstate, -1))
 
@@ -400,14 +397,11 @@ class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
         coefficients = np.reshape(coefficients, (nx, ny, nz, nt, -1)) # last dimension is nstate
         force = np.zeros((nx, ny, nz, nt, self.n_mode))
 
-        for i in range(1, nx-1):
-            for j in range(1, ny-1):
-                for k in range(1, nz-1):
-                    for l in range(nt): # number of molecule in a unit cell
-                        c2 = np.zeros(self.ntype)
-                        for x, (a, b, c, d) in enumerate(self.neighbor_index[l]):
-                            c2[x] = np.einsum('i,j->ij', coefficients[i,j,k,l].conj(), coefficients[i+a,j+b,k+c,d])
-                        force[i,j,k,l] = -2.* np.einsum('tmij,tij->m', self.coupling_a, c2.real)
+        for (i, j, k, l) in itertools.product(range(1, nx-1), range(1, ny-1), range(1, nz-1), range(nt)):
+            c2 = np.zeros(self.ntype)
+            for x, (a, b, c, d) in enumerate(self.neighbor_index[l]):
+                c2[x] = np.einsum('i,j->ij', coefficients[i,j,k,l].conj(), coefficients[i+a,j+b,k+c,d])
+            force[i,j,k,l] = -2.* np.einsum('tmij,tij->m', self.coupling_a, c2.real)
 
         return np.ravel(force)
 

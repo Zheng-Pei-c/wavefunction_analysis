@@ -1,5 +1,13 @@
 import numpy as np
 
+def istype(data, dtype=float):
+    try:
+        f = dtype(data)
+        return True
+    except ValueError:
+        return False
+
+
 def read_time(filename):
     keyword = 'total wall time:'
     with open(filename, 'r') as infile:
@@ -30,25 +38,34 @@ def read_number(filename, keyword, n=-1, o=1, dtype=int):
     return np.array(numbers, dtype=dtype)
 
 
-def read_array(filename, ncol=4, nrange=[0,4], dtype=float, same=True):
+def read_array(filename, keyword=None, nline=0, ncol=4, nrange=[0,4], dtype=float, same=True):
     array = []
+    def kernel(line):
+        data = line.split()
+        if len(data) == ncol:
+            issame = True
+            if same:
+                for i in range(len(data)):
+                    try:
+                        f = dtype(data[i])
+                    except:
+                        issame = False
+            if (not same) or issame:
+                for i in range(nrange[0], nrange[1]):
+                    try:
+                        array.append(dtype(data[i]))
+                    except: # encounter a string
+                        pass
+
     with open(filename, 'r') as infile:
-        for line in infile:
-            data = line.split()
-            if len(data) == ncol:
-                issame = True
-                if same:
-                    for i in range(len(data)):
-                        try:
-                            f = dtype(data[i])
-                        except:
-                            issame = False
-                if (not same) or issame:
-                    for i in range(nrange[0], nrange[1]):
-                        try:
-                            array.append(dtype(data[i]))
-                        except: # encounter a string
-                            pass
+        if keyword is None:
+            for line in infile:
+                kernel(line)
+        else:
+            for line in infile:
+                if line.find(keyword) >= 0:
+                    for i in range(nline+1):
+                        kernel(next(infile))
 
     return np.array(array)
 

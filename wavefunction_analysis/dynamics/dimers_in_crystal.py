@@ -45,18 +45,33 @@ def read_unit_cell_info(ciff):
 
 
 def add_molecule(ix, iy, iz, inverse, abc, angles, elements, scales):
-    if inverse == 1: scales *= -1. # image molecule
-
     #Eq. 17
     a, b, c = abc[0], abc[1], abc[2]
     alpha, beta, gamma, alpha_star = angles[0], angles[1], angles[2], angles[3]
 
+    x, y, z = scales.T
+    if inverse == 1:
+        x, y, z = 1.-x, 1.-y, 1.-z # matches the current files!!!
+    #TODO: which inverse??????
+    #if inverse == 1: scales *= -1. # image molecule
+
     coordinates = np.zeros_like(scales)
-    for i in range(scales.shape[0]):
-        x, y, z = scales[i]
-        coordinates[i,0] = (ix+x) * a + (iy+y) * b * cos(gamma) + (iz+z) * c * cos(beta)
-        coordinates[i,1] =              (iy+y) * b * sin(gamma) - (iz+z) * c * sin(beta) * cos(alpha_star)
-        coordinates[i,2] =                                        (iz+z) * c * sin(beta) * sin(alpha_star)
+    coordinates[:,0] = (ix+x) * a + (iy+y) * b * cos(gamma) + (iz+z) * c * cos(beta)
+    coordinates[:,1] =              (iy+y) * b * sin(gamma) - (iz+z) * c * sin(beta) * cos(alpha_star)
+    coordinates[:,2] =                                        (iz+z) * c * sin(beta) * sin(alpha_star)
+
+    return coordinates
+
+
+def translate_molecule(ix, iy, iz, abc, angles, elements, coords0):
+    #Eq. 17
+    a, b, c = abc[0], abc[1], abc[2]
+    alpha, beta, gamma, alpha_star = angles[0], angles[1], angles[2], angles[3]
+
+    coordinates = np.copy(coords0)
+    coordinates[:,0] += ix * a + iy * b * cos(gamma) + iz * c * cos(beta)
+    coordinates[:,1] +=          iy * b * sin(gamma) - iz * c * sin(beta) * cos(alpha_star)
+    coordinates[:,2] +=                                iz * c * sin(beta) * sin(alpha_star)
 
     return coordinates
 
@@ -65,30 +80,27 @@ def add_molecules_cell(n_images, abc, angles, elements, scales):
     ix_min = -int((n_images[0]-1)/2)
     iy_min = -int((n_images[1]-1)/2)
     iz_min = -int((n_images[2]-1)/2)
-    #ix_min = 0
-    #iy_min = 0
-    #iz_min = 0
-    n_total = 2 * n_images[0] * n_images[1] * n_images[2]
+    n_total = 2 * np.prod(n_images)
 
-    elements_all = []
+    natoms = len(elements)
+
+    elements_all = elements * n_total
     coordinates = np.zeros((n_total*natoms, 3))
     centers_all = np.zeros((n_total, 3))
 
-    dimer_label = {}
+    site_label = {}
     icount = 0
     for ix in range(ix_min, ix_min+n_images[0]):
         for iy in range(iy_min, iy_min+n_images[1]):
             for iz in range(iz_min, iz_min+n_images[2]):
                 for inverse in range(2): # number of molecules in a unit cell
-                    for i in range(natoms):
-                        elements_all.append(elements[i])
 
-                    coordinates[icount*natoms:(icount+1)*natoms,:] = add_molecule(ix, iy, iz, inverse, abc, angles, elements, scales)
-                    centers_all[icount, :] = .5 * (coordinates[icount*natoms+4,:] + coordinates[icount*natoms+8,:])
+                    coordinates[icount*natoms:(icount+1)*natoms] = add_molecule(ix, iy, iz, inverse, abc, angles, elements, scales)
+                    centers_all[icount] = .5 * (coordinates[icount*natoms+4] + coordinates[icount*natoms+8])
+                    site_label[icount] = str(ix)+','+str(iy)+','+str(iz)+','+str(inverse)
                     icount += 1
-                    dimer_label[icount] = str(ix)+','+str(iy)+','+str(iz)+','+str(inverse)
-    #print('dimer_label:', dimer_label)
-    return elements_all, coordinates, centers_all, dimer_label
+    #print('site_label:', site_label)
+    return elements_all, coordinates, centers_all, site_label
 
 
 def write_xyz_files(elements, coordinates, mol):
@@ -155,41 +167,39 @@ if __name__ == '__main__':
     natoms = len(elements)
     print('natoms:', natoms)
 
-    npairs = 13
+    npairs = 151
 
-    n_images = [3,3,3]
-    n_total = 2 * n_images[0] * n_images[1] * n_images[2]
+    n_images = [5, 5, 5]
+    n_total = 2 * np.prod(n_images)
     print('n_total:', n_total)
 
-    elements_all, coordinates, centers_all, dimer_label = add_molecules_cell(n_images, abc, angles, elements, scales)
+    elements_all, coordinates, centers_all, site_label = add_molecules_cell(n_images, abc, angles, elements, scales)
 
     fname = mol+'-'+str(n_images[0])+'-'+str(n_images[1])+'-'+str(n_images[2])
     write_xyz_files(elements_all, coordinates, fname)
 
     distances = []
     i = int(n_total//2) # center site
-    print('i:', i)
+    print('i:', i, site_label[i])
     for j in range(n_total):
-        distances.append(np.linalg.norm(centers_all[i,:]-centers_all[j,:]))
+        distances.append(np.linalg.norm(centers_all[i]-centers_all[j]))
     distances = np.array(distances)
 
     print('centers:', centers_all[i])
     print('center of mass:', get_center_of_mass(elements_all[:natoms], coordinates[i*natoms:(i+1)*natoms]))
 
     order = distances.argsort()
-    print('distances:', np.sort(distances))
-    print('order:', order+1)
+    #print('distances:', np.sort(distances))
+    #print('order:', order+1)
     #print('distances:', distances[order[:(npairs+1)]])
-    #order = np.sort(order[1:npairs+1])
-    #order = np.insert(order, 0, i)
-    print('dimer_label:')
+    print('site_label:')
     for k in range(npairs+1):
-        print('%3d: %10s %12.5f' % (order[k]+1, dimer_label[order[k]+1], distances[order[k]]))
+        print('%3d: %10s %12.5f' % (order[k]+1, site_label[order[k]], distances[order[k]]))
 
-    for k in range(1, npairs+1):
-      fname = mol+'-'+str(i+1)+'-'+str(order[k]+1)+'-dimer'
-      coordinates_dimer = np.zeros((2*natoms, 3))
-      coordinates_dimer[:natoms, :]         = np.copy(coordinates[i*natoms:(i+1)*natoms,:])
-      coordinates_dimer[natoms:2*natoms, :] = np.copy(coordinates[order[k]*natoms:(order[k]+1)*natoms,:])
-      write_xyz_files(elements_all[:2*natoms], coordinates_dimer, fname)
-      write_eda_files(elements_all[:2*natoms], coordinates_dimer, fname)
+    for k in order[1:npairs+1]:
+        fname = mol+'-'+str(i+1)+'-'+str(k+1)+'-dimer'
+        coordinates_dimer = np.zeros((2*natoms, 3))
+        coordinates_dimer[:natoms]         = np.copy(coordinates[i*natoms:(i+1)*natoms])
+        coordinates_dimer[natoms:2*natoms] = np.copy(coordinates[k*natoms:(k+1)*natoms])
+        write_xyz_files(elements_all[:2*natoms], coordinates_dimer, fname)
+        write_eda_files(elements_all[:2*natoms], coordinates_dimer, fname)
