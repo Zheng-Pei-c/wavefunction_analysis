@@ -368,3 +368,45 @@ def _standard_orientation(coords, var=None, tol=4):
             return kernel(coords, var, i, x, y, z, 1)
 
     return coords, var
+
+
+def cal_dihedral_angle(vectors):
+    n = vectors.shape[0]
+    if n == 2:
+        v1, v2 = vectors
+    elif n == 3:
+        v1 = np.cross(vectors[0], vectors[1])
+        v2 = np.cross(vectors[2], vectors[1])
+    elif n == 4:
+        v1 = np.cross(vectors[0], vectors[1])
+        v2 = np.cross(vectors[2], vectors[3])
+
+    phi = np.dot(v1,v2) / np.linalg.norm(v1) / np.linalg.norm(v2)
+    return np.arccos(phi)
+
+
+def rotate_molecule(coords0, axis, theta):
+    from scipy.spatial.transform import Rotation
+    if type(axis) is list: # axis lies in the molecule
+        v1, v2 = coords0[axis[0]], coords0[axis[1]]
+        axis = v2 - v1
+        axis *= np.sign(axis[-1])
+
+        z = np.array([0.,0.,1.])
+        align = Rotation.align_vectors(axis/np.linalg.norm(axis), z)[0].as_matrix()
+        coords = np.einsum('nx,xy->ny', (coords0-v2), align)
+
+        rotation = Rotation.from_euler('z', theta).as_matrix() # xyz is case sensitive
+        coords = np.einsum('nx,xy->ny', coords, rotation)
+        coords = np.einsum('nx,yx->ny', coords, align) + v2 # reverse alignment
+
+    else:
+        axis /= np.linalg.norm(axis) # make sure the axis is normalized
+        ## same as scipy library function
+        #cos, sin = np.cos(theta), np.sin(theta)
+        #coords = coords0 * cos - np.cross(coords0, axis*sin) + np.einsum('nx,x,y->ny', coords0, axis, axis*(1.-cos))
+
+        rotation = Rotation.from_rotvec(theta*axis)
+        coords = rotation.apply(coords0)
+
+    return coords
