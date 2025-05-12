@@ -62,13 +62,13 @@ def finite_difference(mf, norder=2, step_size=1e-4, ideriv=2, extra=False):
                     if isinstance(extra, float) or isinstance(extra, list) or isinstance(extra, np.ndarray): # extra is the frequency
                         transp.append(np.einsum('...pq,qp,...->...', mf1.dipole, mf1.make_rdm1(), extra))
 
-            fd_e.append( fd.compute_fdiff(np.array(g1)))
+            fd_e.append( fd.compute(np.array(g1)))
 
             if extra:
-                fd_mo.append( fd.compute_fdiff(np.array(mo1)))
-                fd_dip.append( fd.compute_fdiff(np.array(gs_dipole1)))
+                fd_mo.append( fd.compute(np.array(mo1)))
+                fd_dip.append( fd.compute(np.array(gs_dipole1)))
                 if isinstance(extra, float) or isinstance(extra, list) or isinstance(extra, np.ndarray): # extra is the frequency
-                    fd_g.append( fd.compute_fdiff(np.array(transp)) )
+                    fd_g.append( fd.compute(np.array(transp)) )
 
     return np.reshape(fd_e, (3*natoms, -1)), np.array(fd_mo), np.array(fd_dip), np.array(fd_g)
 
@@ -116,8 +116,8 @@ def cal_multipole_matrix_fd(mol, dm=None, origin=None, norder=2, step_size=1e-4,
                     quadrupole.append(ints2)
 
 
-            dipole_d1.append( fd.compute_fdiff(np.array(dipole)) )
-            quadrupole_d1.append( fd.compute_fdiff(np.array(quadrupole)) )
+            dipole_d1.append( fd.compute(np.array(dipole)) )
+            quadrupole_d1.append( fd.compute(np.array(quadrupole)) )
 
     dipole_d1 = np.array(dipole_d1)
     quadrupole_d1 = np.array(quadrupole_d1)

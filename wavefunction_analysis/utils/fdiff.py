@@ -14,7 +14,7 @@ class fdiff():
         self.step_size = step_size * unit
 
         if norder < 1: norder == 1
-        if norder > 4: raise ValueError('fdiff order currently is in [1,4].')
+        elif norder > 4: raise ValueError('fdiff order currently is in [1,4].')
 
         d = []
         for i in range(self.norder, 0, -1):
@@ -44,7 +44,9 @@ class fdiff():
         return x
 
 
-    def compute_fdiff(self, fx, unit=1.): # stencil
+    @property
+    def coeff(self): # stencil
+        # it will be called automatically as an attribute
         coeff = 0
         if self.norder == 1:
             coeff = [-.5, .5]
@@ -54,9 +56,12 @@ class fdiff():
             coeff = [-1./60., 3./20., -3./4., 3./4., -3./20., 1./60.]
         elif self.norder == 4:
             coeff = [1./280., -4./105., 1./5., -4./5., 4./5., -1./5., 4./105., -1./280.]
-        coeff = np.array(coeff) / (self.step_size*unit)
+        coeff = np.array(coeff) / (self.step_size)
+        return coeff
 
-        return np.einsum('i...,i->...', fx, coeff)
+
+    def compute(self, fx, unit=1.):
+        return np.einsum('i...,i->...', fx*unit, self.coeff)
 
 
 
@@ -209,10 +214,10 @@ if __name__ == '__main__':
                         momentum2.append(m2.T)
                         momentum3.append(m3.T)
                         momentum4.append(m4.T)
-                    momentum = fd.compute_fdiff(np.array(momentum), 1./BOHR)
-                    momentum2 = fd.compute_fdiff(np.array(momentum2), 1./BOHR)
-                    momentum3 = fd.compute_fdiff(np.array(momentum3), 1./BOHR)
-                    momentum4 = fd.compute_fdiff(np.array(momentum4), 1./BOHR)
+                    momentum = fd.compute(np.array(momentum), 1./BOHR)
+                    momentum2 = fd.compute(np.array(momentum2), 1./BOHR)
+                    momentum3 = fd.compute(np.array(momentum3), 1./BOHR)
+                    momentum4 = fd.compute(np.array(momentum4), 1./BOHR)
                     momentum_3_fd.append(momentum)
                     momentum_3_fd2.append(momentum2)
                     momentum_3n_fd.append(momentum3)

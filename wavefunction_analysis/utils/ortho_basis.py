@@ -162,10 +162,10 @@ if __name__ == '__main__':
                 Z1.append(Zx)
                 Sinv1.append(Sinvx)
 
-            S_fd[n, x] = fd.compute_fdiff(np.array(S1), 1./BOHR)
-            L_fd[n, x] = fd.compute_fdiff(np.array(L1), 1./BOHR)
-            Z_fd[n, x] = fd.compute_fdiff(np.array(Z1), 1./BOHR)
-            Sinv_fd[n, x] = fd.compute_fdiff(np.array(Sinv1), 1./BOHR)
+            S_fd[n, x] = fd.compute(np.array(S1), 1./BOHR)
+            L_fd[n, x] = fd.compute(np.array(L1), 1./BOHR)
+            Z_fd[n, x] = fd.compute(np.array(Z1), 1./BOHR)
+            Sinv_fd[n, x] = fd.compute(np.array(Sinv1), 1./BOHR)
 
     S_fd = np.reshape(S_fd, (-1, nbas, nbas))
     L_fd = np.reshape(L_fd, (-1, nbas, nbas))

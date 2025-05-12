@@ -1,31 +1,27 @@
-import numpy as np
+from wavefunction_analysis import np
 
-from wavefunction_analysis.utils import print_matrix
+from wavefunction_analysis.utils import print_matrix, convert_units
 from wavefunction_analysis.plot import plt
 
 """
 This Green's function approach follows:
- 10.1063/5.0086027 (Gaussian distribution)
- 10.1103/PhysRevB.105.064205 (Lorentzian distribution)
+ Sebastian JCP, 2022. doi: 10.1063/5.0086027 (Gaussian distribution)
+ Jianshu Cao, PRB, 2022. doi: 10.1103/PhysRevB.105.064205 (Lorentzian distribution)
 """
 
-def greens_func_e0_gauss(x, center, width, scaling=1., itype='both', appro=False):
+def greens_func_e0_gauss(x, center, width=1e-4, scaling=1., itype='both',
+                         appro=False):
     """
     Greens function of the unperturbed exciton states
     disordered state energy spectrum has Gaussian distribution
     """
-    from numpy import sqrt, pi, exp
+    from np import sqrt, pi, exp
 
     v = scaling / width
     x = (x - center) / (sqrt(2.) * width)
 
-    if itype == 'imaginary' or itype == 'both':
-        g_i = (- sqrt(pi/2.) * v) * exp(-x**2)
-
-        if itype == 'imaginary':
-            return g_i
-
-    if itype == 'real' or itype == 'both':
+    g_r, g_i = None, None
+    if itype in {'real', 'both'}:
         if appro:
             def dawsn(x, appro):
                 y = 1. / (2. * x) # first-order
@@ -39,48 +35,50 @@ def greens_func_e0_gauss(x, center, width, scaling=1., itype='both', appro=False
 
         g_r = (sqrt(2.) * v) * dawsn(x)
 
-        if itype == 'real':
-            return g_r
+    if itype in {'imaginary', 'both'}:
+        g_i = (- sqrt(pi/2.) * v) * exp(-x**2)
 
     if itype == 'both':
         return np.array([g_r, g_i])
+    elif itype == 'real':
+        return g_r
+    elif itype == 'imaginary':
+        return g_i
     else:
         raise ValueError('itype has to be imaginary, real, or both')
 
 
-def greens_func_e0_lorentz(x, center, width, eta=1e-4, scaling=1., itype='both'):
+def greens_func_e0_lorentz(x, center, width=1e-4, scaling=1., itype='both'):
     """
     Greens function of the unperturbed exciton states
     disordered state energy spectrum has Lorentzian distribution
-    # eta is a small phenomenological parameter
+    # width is a small phenomenological parameter
     """
     x = x - center
-    eta = eta + width
-    tot = x**2 + eta**2
+    tot = x**2 + width**2
 
-    if itype == 'imaginary' or itype == 'both':
-        g_i = -scaling * eta / tot
-
-        if itype == 'imaginary':
-            return g_i
-
-    if itype == 'real' or itype == 'both':
+    g_r, g_i = None, None
+    if itype in {'real', 'both'}:
         g_r = scaling * x / tot
 
-        if itype == 'real':
-            return g_r
+    if itype in {'imaginary', 'both'}:
+        g_i = -scaling * width / tot
 
     if itype == 'both':
         return np.array([g_r, g_i])
+    elif itype == 'real':
+        return g_r
+    elif itype == 'imaginary':
+        return g_i
     else:
         raise ValueError('itype has to be imaginary, real, or both')
 
 
-def self_energy_same_coupling(x, coupling, center, width, eta=1e-4, method='gauss-0',
+def self_energy_same_coupling(x, coupling, center, width=1e-4, method='gauss-0',
                               itype='both'):
     """
     this function assumes:
-    1. same coupling strengths for all the states
+    1. same coupling strengths for all the states whose disorder is given by width
     2. disordered state energy spectrum following Gaussian or Lorentzian distribution
     """
     scaling = coupling**2
@@ -89,10 +87,12 @@ def self_energy_same_coupling(x, coupling, center, width, eta=1e-4, method='gaus
         appro = int(method[-1])
         return greens_func_e0_gauss(x, center, width, scaling, itype, appro)
     elif 'lorentz' in method:
-        return greens_func_e0_lorentz(x, center, width, eta, scaling, itype)
+        return greens_func_e0_lorentz(x, center, width, scaling, itype)
+    else:
+        raise ValueError('function type is not implemented')
 
 
-def greens_func_p(x, sigma, omega, eta=1e-4, itype='both'):
+def greens_func_p(x, sigma, omega, width=1e-4, itype='both'):
     """
     Greens function of the polariton states
     # sigma[0] and sigma[1] are the real and imaginary parts, respectively
@@ -101,42 +101,43 @@ def greens_func_p(x, sigma, omega, eta=1e-4, itype='both'):
     """
 
     # has same functionility as greens_func_e0_lorentz
-    return greens_func_e0_lorentz(x-sigma[0], omega, -sigma[1], eta, itype=itype)
+    return greens_func_e0_lorentz(x-sigma[0], omega, width-sigma[1], itype=itype)
 
 
-def density_of_states_p(x, sigma, omega, eta=1e-4):
+def density_of_states_p(x, sigma, omega, width=1e-4):
     """
     density of states of the polariton states
     # sigma[0] and sigma[1] are the real and imaginary parts, respectively
     # omega is the photon energy
     # eta is a small phenomenological parameter
     """
-    dos = greens_func_p(x, sigma, omega, eta, 'imaginary')
-    return dos / (-np.pi)
+    dos = greens_func_p(x, sigma, omega, width, 'imaginary')
+    return dos / (np.pi)
 
 
 def greens_func_e(g0, gc, coupling, itype='both'):
     """
     Greens function of exciton states
     """
-    coupling = coupling**2
+    scaling = coupling**2
 
     g0_r, g0_i = g0
     gc_r, gc_i = gc
 
-    tmp1 = g0_r**2 - g0_i**2
-    tmp2 = 2. * g0_r * g0_i
+    g2_r = g0_r**2 - g0_i**2
+    g2_i = 2. * g0_r * g0_i
 
-    if itype == 'imaginary' or itype == 'both':
-        g_i = gc_i * tmp1 + g0_r * tmp2
-        g_i = g_i * coupling + g0_i
+    g_r, g_i = None, None
+    if itype in {'imaginary', 'both'}:
+        g_i = gc_i * g2_r + gc_r * g2_i
+        g_i = g_i * scaling + g0_i
 
         if itype == 'imaginary':
             return g_i
 
-    if itype == 'real' or itype == 'both':
-        g_r = gc_r * tmp1 - g0_i * tmp2
-        g_r = g_r * coupling + g0_r
+    if itype in {'real', 'both'}:
+        g_r = gc_r * g2_r - gc_i * g2_i
+        g_r = g_r * scaling + g0_r
 
         if itype == 'real':
             return g_r
@@ -155,21 +156,24 @@ def density_of_states_e(g0, gc, coupling):
     # eta is a small phenomenological parameter
     """
     dos = greens_func_e(g0, gc, coupling, 'imaginary')
-    return dos / (-np.pi)
+    return dos / (np.pi)
 
 
 def absorption_spectra(x, coupling, dos):
     """
     assume same coupling
     """
-    return (-coupling**2) * x * dos
+    return (coupling**2) * x * dos
 
 
-def plot_sigma(ax, x, coupling, omegac, eta, omega0, width, method, axis_label):
+def plot_sigma(ax, x, coupling, omega0, omegac, width, method, axis_label):
+    """
+    sigma represents the self-energy
+    """
     #print('V/$\sigma$:', coupling, width, coupling/width)
-    g0 = self_energy_same_coupling(x, 1., omega0, width, eta, method)
+    g0 = self_energy_same_coupling(x, 1., omega0, width, method)
     sigma = coupling**2 * g0
-    gc = greens_func_p(x, sigma, omegac, eta)
+    gc = greens_func_p(x, sigma, omegac, width)
     gm = greens_func_e(g0, gc, coupling)
 
     dos_c, dos_e = gc[1]/(-np.pi), gm[1]/(-np.pi)
@@ -179,9 +183,10 @@ def plot_sigma(ax, x, coupling, omegac, eta, omega0, width, method, axis_label):
     ax.plot(x, -sigma[1], label=r'-$\Sigma_I$')
     ax.plot(x, dos_c/np.max(dos_c), label=r'$\rho_c$')
     ax.plot(x, dos_e/np.max(dos_e), label=r'$\rho_e$')
+    ax.plot(x, (dos_c+dos_e)/np.max(dos_c+dos_e), label=r'$\rho$')
     ax.plot(x, absorp/np.max(absorp), label=r'$\alpha$')
 
-    ax.plot(x, x-omegac, color='black', ls='--', lw=.7, label=r'$\omega-\omega_c$')
+    #ax.plot(x, x-omegac, color='black', ls='--', lw=.7, label=r'$\omega-\omega_c$')
 
     xmin, xmax = ax.get_xlim()
     ymin, ymax = ax.get_ylim()
@@ -190,11 +195,12 @@ def plot_sigma(ax, x, coupling, omegac, eta, omega0, width, method, axis_label):
 
     if axis_label[0]:
         ax.set_xlabel(r'$\omega$ (eV)')
-    if axis_label[1]:
-        ax.set_ylabel(r'Self-Energy $\Sigma$ (eV)')
-    ax.set_title(r'$\omega_c$:%2.1f, V:%2.1f, $\sigma$:%3.2f, V/$\sigma$:%2.1f' % (omegac, coupling, width, coupling/width))
+    #if axis_label[1]:
+    #    ax.set_ylabel(r'Self-Energy $\Sigma$ (eV)')
+    ax.set_title(r'$\omega_c$:%2.1f, V:%3.2f, $\sigma$:%3.2f, V/$\sigma$:%2.1f' % (omegac, coupling, width, coupling/width))
 
     ax.legend()
+
 
 
 if __name__ == '__main__':
@@ -204,36 +210,32 @@ if __name__ == '__main__':
     #method = 'gauss-0'
     method = 'lorentz'
 
-    eta = 1e-4
-    omega0 = 0.
-    N = 1500
+    omega0 = 2. # exciton energy center
+    N = 2000
 
-    fig = plt.figure(figsize=(21, 9), dpi=300)
-    axs = fig.subplots(4, 3)
+    fig = plt.figure(figsize=(16, 9), dpi=300, layout='constrained')
+    axs = fig.subplots(3, 4)
 
     i, j = 0, 0
-    for omegac in [0.]:
+    for omegac in [2., 2.1]: # photon energy
         delta = omegac - omega0
         ls = delta if delta < 0. else 0.
         rs = delta if delta > 0. else 0.
-        x = np.linspace(omega0-.5+ls, omega0+.5+rs, 41)
+        x = np.linspace(omega0-.3+ls, omega0+.3+rs, 81)
 
-        for coupling in [3e-3, 6e-3, 1e-2, 2e-2]:
-            coupling *= np.sqrt(N)
+        for width in [0.04, .15]: # gaussian or lorentz width
 
-            for width in [0.05, .1, .2]: # Gaussian width
+            i = 0
+            for coupling in [5e-4, 1e-3, 5e-3]:
+                coupling *= np.sqrt(N)
 
                 xlabel = True if i == 4 else False
                 ylabel = True if j == 0 else False
-                plot_sigma(axs[i,j], x, coupling, omegac, eta, omega0, width, method, [xlabel, ylabel])
+                plot_sigma(axs[i,j], x, coupling, omega0, omegac, width, method, [xlabel, ylabel])
 
                 #print('i:', i, 'j:', j)
-                j += 1
-                if j%3 == 0:
-                    j = 0
-                    i += 1
-
-    plt.tight_layout()
+                i += 1
+            j += 1
 
     if fig_name:
         plt.savefig(fig_name+'_'+method)

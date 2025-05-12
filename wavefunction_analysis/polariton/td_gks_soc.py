@@ -21,6 +21,8 @@ def make_h01_soc1e(mol, orbo=None, orbv=None, so_eff_charge=False, qed_fac=1):
     hso1e *= qed_fac * (alpha2/4)
     return hso1e
 
+#TODO: compare with GHF.x2c in scf.ghf.py
+
 
 def _gen_ghf_response(mf, mo_coeff=None, mo_occ=None,
                       with_j=True, hermi=0, max_memory=None):

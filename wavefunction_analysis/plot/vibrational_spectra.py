@@ -11,7 +11,6 @@ from wavefunction_analysis.utils import convert_units, print_matrix
 
 #import matplotlib.mlab as mlab
 from scipy import signal, fftpack
-from scipy.stats import gaussian_kde, norm
 from wavefunction_analysis.plot import plt, fit_val
 
 def plot_spectra(peak_centers, peak_intens, broaden, fig_name):

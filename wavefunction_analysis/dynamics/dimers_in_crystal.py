@@ -51,9 +51,7 @@ def add_molecule(ix, iy, iz, inverse, abc, angles, elements, scales):
 
     x, y, z = scales.T
     if inverse == 1:
-        x, y, z = 1.-x, 1.-y, 1.-z # matches the current files!!!
-    #TODO: which inverse??????
-    #if inverse == 1: scales *= -1. # image molecule
+        x, y, z = 1.-x, 1.-y, 1.-z
 
     coordinates = np.zeros_like(scales)
     coordinates[:,0] = (ix+x) * a + (iy+y) * b * cos(gamma) + (iz+z) * c * cos(beta)
@@ -189,6 +187,7 @@ if __name__ == '__main__':
     print('center of mass:', get_center_of_mass(elements_all[:natoms], coordinates[i*natoms:(i+1)*natoms]))
 
     order = distances.argsort()
+    npairs = len(order)-1
     #print('distances:', np.sort(distances))
     #print('order:', order+1)
     #print('distances:', distances[order[:(npairs+1)]])
