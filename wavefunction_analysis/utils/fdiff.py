@@ -61,7 +61,7 @@ class fdiff():
 
 
     def compute(self, fx, unit=1.):
-        return np.einsum('i...,i->...', fx*unit, self.coeff)
+        return np.einsum('i...,i->...', fx, self.coeff)*unit
 
 
 
