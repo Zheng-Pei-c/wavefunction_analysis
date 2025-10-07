@@ -92,7 +92,7 @@ class harmonic_oscillator():
         self.get_energy(self.velocity)
 
 
-    def update_coordinate_velocity(self, force, half=1):
+    def update_coordinate_velocity(self, force, half=1, **kwargs):
         if isinstance(self.frequency, np.ndarray) or isinstance(self.frequency, float): # add oscillator force first
             force -= np.einsum('i,i,ix->ix', self.mass, self.omega2, self.coordinate)
 
@@ -104,6 +104,9 @@ class harmonic_oscillator():
             elif self.update_method == 'velocity_verlet':
                 self.velocity_verlet_step(force, 1)
                 # we will finish the last falf after electronic step
+            elif self.update_method == 'recursive':
+                force_func = kwargs.pop('force_func', None)
+                self.recursive_exploration_step(force, force_func, **kwargs)
 
         elif half == 2:
             # velocity_verlet is cumbersome: energy is calculated here
@@ -138,6 +141,33 @@ class harmonic_oscillator():
             self.coordinate += self.dt * self.velocity
         if half == 2:
             self.get_energy(self.velocity)
+
+
+    def recursive_exploration_step(self, force, force_func, **kwargs):
+        N = self.recursive_numbers # >=2
+        dt = self.dt
+        mass = self.mass
+        force0 = np.copy(force)
+        x0 = np.copy(self.coordinate)
+
+        # update coordinate
+        for i in range(N, 0, -1):
+            dv = np.einsum('ix,i->ix', force, 1./mass) * (dt/(2.*i))
+            dx = (self.velocity + dv) * (dt/(2.*i-1.))
+            force = force_func(x0+dx, **kwargs)[1]
+        # we need the accumulation in place to use its pointer
+        self.coordinate += dx
+
+        # update velocity
+        # find coordinate at where the effective acceleration is calculated
+        force = np.copy(force0)
+        for i in range(N, 1, -1):
+            dv = np.einsum('ix,i->ix', force, 1./mass) * (dt/(2.*i-1.))
+            dx = (self.velocity + dv) * (dt/(2.*i-2.))
+            force = force_func(x0+dx, **kwargs)[1]
+        self.velocity += np.einsum('ix,i->ix', force, 1./mass) * dt
+
+        self.get_energy(self.velocity)
 
 
     def get_kinetic_energy(self, velocity, mass=None):
@@ -320,8 +350,8 @@ class NuclearDynamicsStep(harmonic_oscillator):
         return self.force
 
 
-    def update_coordinate_velocity(self, force, half=1):
-        super().update_coordinate_velocity(force, half)
+    def update_coordinate_velocity(self, force, half=1, **kwargs):
+        super().update_coordinate_velocity(force, half, **kwargs)
         if half == 2:
             mass = self.mass
             coords = self.coordinate

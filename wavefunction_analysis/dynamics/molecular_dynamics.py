@@ -125,7 +125,8 @@ class MolecularDynamics():
 
         # loop times
         for ti in range(1, self.nsteps):
-            ndstep.update_coordinate_velocity(force, 1)
+            ndstep.update_coordinate_velocity(force, 1,
+                        force_func=edstep.update_electronic_density_static, **kwargs)
             #coords = self.ndstep.coordinate # dont need to reassign!
 
             if phstep:
@@ -224,6 +225,9 @@ if __name__ == '__main__':
     key['total_time'] = 4000
     key['update_method'] = 'velocity_verlet'
 
+    key['update_method'] = 'recursive'
+    key['recursive_numbers'] = 4
+
     ed_key = {}
     ed_key['functional'] = 'hf'
     #ed_key['basis'] = '3-21g'
@@ -235,7 +239,7 @@ if __name__ == '__main__':
     if mdtype == 0:
         md = MolecularDynamics(key, ed_key)
         md.run_dynamics()
-#        md.plot_time_variables(fig_name='normal_time_coords')
+        md.plot_time_variables(fig_name='normal_time_coords_recursive')
 
     elif mdtype == 1:
         print('run extended_lag')
