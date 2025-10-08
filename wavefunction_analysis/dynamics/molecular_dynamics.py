@@ -225,9 +225,6 @@ if __name__ == '__main__':
     key['total_time'] = 4000
     key['update_method'] = 'velocity_verlet'
 
-    key['update_method'] = 'recursive'
-    key['recursive_numbers'] = 4
-
     ed_key = {}
     ed_key['functional'] = 'hf'
     #ed_key['basis'] = '3-21g'
@@ -239,7 +236,7 @@ if __name__ == '__main__':
     if mdtype == 0:
         md = MolecularDynamics(key, ed_key)
         md.run_dynamics()
-        md.plot_time_variables(fig_name='normal_time_coords_recursive')
+        md.plot_time_variables(fig_name='normal_time_coords')
 
     elif mdtype == 1:
         print('run extended_lag')
@@ -263,6 +260,13 @@ if __name__ == '__main__':
         md.plot_time_variables(fig_name='grassmann_time_coords')
 
     elif mdtype == 4:
+        key['update_method'] = 'recursive'
+        key['recursive_numbers'] = 4
+        md = MolecularDynamics(key, ed_key)
+        md.run_dynamics()
+        md.plot_time_variables(fig_name='normal_time_coords_recursive')
+
+    elif mdtype == 5:
         dists = []
         energies = []
 
