@@ -60,6 +60,7 @@ def mps_canonical_right(mps):
 
 """
 spin models from
+https://doi.org/10.1140/epjb/s10051-023-00575-2
 https://github.com/GCatarina/DMRG_MPS_didactic/blob/main/DMRG-MPS_implementation.ipynb
 """
 
