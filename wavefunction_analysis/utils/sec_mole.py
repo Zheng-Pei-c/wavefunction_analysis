@@ -210,22 +210,29 @@ def get_rotation_matrix(theta, axis='x'):
 
 
 def get_moment_of_inertia(weights, coords, fix_sign=False):
+    """make sure to use coordinates in bohr"""
     # weights is charges or masses
-    U = np.zeros((3,3))
-    for i in range(len(weights)):
-        m = weights[i]
-        x, y, z = coords[i]
+    center = get_molecular_center(weights, coords)
+    coords = coords - center
+    U = np.einsum('i,ix,iy->xy', weights, coords, coords)
+    U = np.eye(3) * U.trace() - U
 
-        U[0,0] += m * (y*y+z*z)
-        U[1,1] += m * (x*x+z*z)
-        U[2,2] += m * (x*x+y*y)
-        U[1,0] -= m * x*y
-        U[2,0] -= m * x*z
-        U[2,1] -= m * y*z
+    # explicit loop over atoms
+    #U = np.zeros((3,3))
+    #for i in range(len(weights)):
+    #    m = weights[i]
+    #    x, y, z = coords[i]
 
-    U[0,1] = U[1,0]
-    U[0,2] = U[2,0]
-    U[1,2] = U[2,1]
+    #    U[0,0] += m * (y*y+z*z)
+    #    U[1,1] += m * (x*x+z*z)
+    #    U[2,2] += m * (x*x+y*y)
+    #    U[1,0] -= m * x*y
+    #    U[2,0] -= m * x*z
+    #    U[2,1] -= m * y*z
+
+    #U[0,1] = U[1,0]
+    #U[0,2] = U[2,0]
+    #U[1,2] = U[2,1]
 
     if fix_sign:
         d, U = np.linalg.eigh(U)
@@ -410,3 +417,18 @@ def rotate_molecule(coords0, axis, theta):
         coords = rotation.apply(coords0)
 
     return coords
+
+
+
+if __name__ == '__main__':
+    from wavefunction_analysis.utils import print_matrix, convert_units
+    from wavefunction_analysis.utils.pyscf_parser import build_atom
+
+    xyzfile = sys.argv[1]
+    symbols, coords = read_symbols_coords(xyzfile)
+    atom = build_atom(symbols, coords)
+
+    weights = get_charge_or_mass(symbols, 'mass')
+    coords = convert_units(coords, 'aa', 'bohr')
+    inertia = get_moment_of_inertia(weights, coords)
+    print_matrix('inertia:', inertia)
