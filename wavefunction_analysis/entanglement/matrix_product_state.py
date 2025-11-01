@@ -1,5 +1,6 @@
 from wavefunction_analysis import sys, np, itertools
 from wavefunction_analysis.utils import print_matrix
+from wavefunction_analysis.spins import get_spins
 
 def mps_canonical(ndims, nsite, rand_seed=True, normalize='both'):
     """
@@ -70,8 +71,8 @@ def _mpo_XY(sigma=None):
     H_{XY} = -1/2 \sum_{l} (\sigma_{l}^{+} \sigma_{l+1}^{-} + \sigma_{l}^{-} \sigma_{l+1}^{+})
     """
     if sigma is None:
-        sigma = get_spins('0pm')
-    I2, sp, sm = sigma
+        sigma = get_spins('0+-', j=.5)
+    si, sp, sm = sigma
 
     """
            |
@@ -86,48 +87,50 @@ def _mpo_XY(sigma=None):
     # the first two indices (left and right) are used to contract
     # the last two dimensions are the Pauli matrix indices
     Hl = np.zeros((4,4,2,2))
-    Hl[0,0] = I2
+    Hl[0,0] = si
     Hl[1,0] = sm
     Hl[2,0] = sp
     Hl[3,1] = -.5*sp
     Hl[3,2] = -.5*sm
-    Hl[3,3] = I2
+    Hl[3,3] = si
 
     return Hl
 
 
-def _mpo_heisenberg(sigma=None):
+def _mpo_heisenberg(j, hz, sigma=None):
     r"""
     matrix product operator MPO hamiltonian of spin-1 Heisenberg model
-    H_{Heis} = J \sum_{l} (\sigma_{l}^{z} \sigma_{l+1}^{z} + 1/2 \sigma_{l}^{+} \sigma_{l+1}^{-} + 1/2 \sigma_{l}^{-} \sigma_{l+1}^{+}) - h \sum_{l} \sigma_{l}^{z}
+    H_{Heis} = j \sum_{l} (1/2 \sigma_{l}^{+} \sigma_{l+1}^{-} + 1/2 \sigma_{l}^{-} \sigma_{l+1}^{+}
+                           + \sigma_{l}^{z} \sigma_{l+1}^{z})
+              - hz \sum_{l} \sigma_{l}^{z}
     """
     if sigma is None:
-        sigma = get_spins('0zpm')
-    I3, sz, sp, sm = sigma
+        sigma = get_spins('0+-z', j=1.)
+    si, sp, sm, sz = sigma
 
     # in the order of [left, right, top, bottom]
     # the first two indices are used to contract
     # the last two dimensions are the Pauli matrix indices
     Hl = np.zeros((5,5,3,3))
-    Hl[0,0] = I3
+    Hl[0,0] = si
     Hl[1,0] = sz
     Hl[2,0] = sm
     Hl[3,0] = sp
-    Hl[4,0] = -h*sz
-    Hl[4,1] = J*sz
-    Hl[4,2] = .5*J*sp
-    Hl[4,3] = .5*J*sm
-    Hl[4,4] = I3
+    Hl[4,0] = -hz*sz
+    Hl[4,1] = j*sz
+    Hl[4,2] = .5*j*sp
+    Hl[4,3] = .5*j*sm
+    Hl[4,4] = si
     return Hl
 
 
-def mpo_hamil(nsite, Hl=None, model=None, sigma=None):
+def mpo_hamil(nsite, Hl=None, model=None, sigma=None, j=None, hz=None):
     # hamiltonian in MPO representation
     if not isinstance(Hl, np.ndarray):
         if model == 'XY':
             Hl = _mpo_XY(sigma)
         elif model == 'heisenberg':
-            Hl = _mpo_heisenberg(sigma)
+            Hl = _mpo_heisenberg(j, hz, sigma)
         else:
             raise NotImplementedError('local Hamiltonian is not defined')
 
@@ -326,9 +329,9 @@ def mpo_spin_correlation(mps, sigma=None, ns=None):
     \expval{\sigma_{l}^{+} \sigma_{l+1}^{-}}
     """
     if sigma is None:
-        sigma = get_spins('0pm')
-    mpo_I2, mpo_sp, mpo_sm = sigma
-    mpo_I2 = mpo_I2.reshape((1,1,2,2))
+        sigma = get_spins('0+-')
+    mpo_si, mpo_sp, mpo_sm = sigma
+    mpo_si = mpo_si.reshape((1,1,2,2))
     mpo_sp = mpo_sp.reshape((1,1,2,2))
     mpo_sm = mpo_sm.reshape((1,1,2,2))
 
@@ -347,7 +350,7 @@ def mpo_spin_correlation(mps, sigma=None, ns=None):
             elif l == n+1:
                 Taux = zipper_from_left(mps[l], mpo_sm, mps[l].conj().T, Taux)
             else:
-                Taux = zipper_from_left(mps[l], mpo_I2, mps[l].conj().T, Taux)
+                Taux = zipper_from_left(mps[l], mpo_si, mps[l].conj().T, Taux)
         correlation.append(Taux[0,0,0])
 
     return np.array(correlation)
@@ -358,12 +361,7 @@ if __name__ == '__main__':
     nsite = 10
     M = mps_canonical(ndims, nsite, normalize='both')
 
-    I2 = np.eye(2)
-    sp = np.zeros((2,2))
-    sp[0,1] = 1
-    sm = np.zeros((2,2))
-    sm[1,0] = 1
-    sigma = [I2, sp, sm]
+    sigma = None
 
     N = 20
     D = 10

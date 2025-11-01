@@ -4,6 +4,8 @@ from wavefunction_analysis.spins import qt # qutip
 from wavefunction_analysis.utils import print_matrix
 from wavefunction_analysis.plot import plt
 
+# use ladder operators if possible
+# because sigma_y is complex matrix
 _spin_names = ['0', 'x', 'y', 'z', '+', '-']
 
 def get_spin(x, j=.5):
@@ -85,15 +87,21 @@ def get_prod_spin_list(n, xs='all', j=.5, np_matrix=True):
     return spin_list
 
 
-def hamil_xxz_1d(n, j, delta, hz, np_matrix=True):
+def hamil_xxz_1d(n, j, delta, hz, np_matrix=True, spin_j=.5):
     r"""
     build xxz 1d-chain spin model hamiltonian H in Hilbert space
+    H = \sum_{i}^{n} j_{i} * (\sigma_{i,x} \sigma_{i+1,x} + \sigma_{i,y} \sigma_{i+1,y}
+                            + \sigma_{i,z} \sigma_{i+1,z} * \delta)
+                  + hz_{i} * \sigma_{i,z}
+    note here that sigma_x \sigma_x + \sigma_y \sigma_y
+                   = .5 * (\sigma_p \sigma_m + \sigma_m \sigma_p)
+    using ladder operators such that the matrices are real
     n: number of 1/2 spins
     j: spin coupling constant of xx and yy sigma
     delta: j*delta is the coupling constant of zz sigma
     hz: magnetic field strength along z axis for each spin
     """
-    si, sx, sy, sz = get_spins(xs='0xyz', np_matrix=False) # use qutip
+    si, sp, sm, sz = get_spins(xs='0+-z', j=spin_j, np_matrix=False) # use qutip
 
     # generalize the parameters to arrays
     # built-in array is faster--so am I told
@@ -107,11 +115,11 @@ def hamil_xxz_1d(n, j, delta, hz, np_matrix=True):
     # build the product state on-the-fly by qutip.tensor() function
     H = 0.
     for i in range(n-1):
-        H += j[i] * (
-                      qt.tensor([si]*i + [sx, sx] + [si]*(n-i-2))
-                    + qt.tensor([si]*i + [sy, sy] + [si]*(n-i-2))
-                    + qt.tensor([si]*i + [sz, sz] + [si]*(n-i-2)) * delta[i]
-                    )
+        # scale j and delta since we ara using ladder operators
+        H += (.5*j[i])* (qt.tensor([si]*i + [sp, sm] + [si]*(n-i-2))
+                       + qt.tensor([si]*i + [sm, sp] + [si]*(n-i-2))
+                       + qt.tensor([si]*i + [sz, sz] + [si]*(n-i-2)) * (2.*delta[i])
+                       )
 
     for i in range(n):
         H += hz[i] * qt.tensor([si]*i + [sz] + [si]*(n-i-1))
@@ -121,10 +129,20 @@ def hamil_xxz_1d(n, j, delta, hz, np_matrix=True):
     return H
 
 
+def hamil_heisenberg_1d(n, j, hz, np_matrix=True):
+    r"""
+    build Heisenberg 1d spin-1 model hamiltonian with Zeeman term hz
+    H = \sum_{i}^{n} j_{i} \vec{\sigma}_{i} \cdot \vec{\sigma}_{i+1}
+                    - hz_{i} \sigma_{i,z}
+    """
+    delta = 1.
+    return hamil_xxz_1d(n, j, hz, np_matrix, spin_j=1.)
+
+
 
 if __name__ == '__main__':
     n = 7
-    j = 3.
+    j = -3.
     delta = .5
     hz = 2.
 
