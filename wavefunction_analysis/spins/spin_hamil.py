@@ -87,39 +87,133 @@ def get_prod_spin_list(n, xs='all', j=.5, np_matrix=True):
     return spin_list
 
 
-def hamil_xxz_1d(n, j, delta, hz, np_matrix=True, spin_j=.5):
+def hamil_heisenberg_1d(n, j, hz, np_matrix=True, spin_j=.5, boundary='open'):
     r"""
     build xxz 1d-chain spin model hamiltonian H in Hilbert space
-    H = \sum_{i}^{n} j_{i} * (\sigma_{i,x} \sigma_{i+1,x} + \sigma_{i,y} \sigma_{i+1,y}
-                            + \sigma_{i,z} \sigma_{i+1,z} * \delta)
-                  + hz_{i} * \sigma_{i,z}
-    note here that sigma_x \sigma_x + \sigma_y \sigma_y
-                   = .5 * (\sigma_p \sigma_m + \sigma_m \sigma_p)
-    using ladder operators such that the matrices are real
+    H = \sum_{i}^{n} ( j_{i,x} * \sigma_{i,x} \sigma_{i+1,x}
+                     + j_{i,y} * \sigma_{i,y} \sigma_{i+1,y}
+                     + j_{i,z} * \sigma_{i,z} \sigma_{i+1,z})
+        + \sum_{i}^{n} hz_{i} * \sigma_{i,z}
+    note that when j_{x} = j_{y}
+              sigma_x \sigma_x + \sigma_y \sigma_y
+              = .5 * (\sigma_p \sigma_m + \sigma_m \sigma_p)
+              using ladder operators such that the matrices are real
     n: number of 1/2 spins
-    j: spin coupling constant of xx and yy sigma
-    delta: j*delta is the coupling constant of zz sigma
+    j: spin coupling constant of xx, yy, zz sigma
     hz: magnetic field strength along z axis for each spin
+    boundary condition: open or periodic
     """
-    si, sp, sm, sz = get_spins(xs='0+-z', j=spin_j, np_matrix=False) # use qutip
+    si, sx, sy, sz = get_spins(xs='0xyz', j=spin_j, np_matrix=False) # use qutip
+    sigma = [sx, sy, sz] # sx variable would be damaged in the later loops
 
     # generalize the parameters to arrays
     # built-in array is faster--so am I told
-    if isinstance(j, float):
-        j = [j] * (n-1)
-    if isinstance(delta, float):
-        delta = [delta] * (n-1)
+    nsize = (n-1) if boundary=='open' else n
+    if isinstance(j, float): # same paremeters
+        j = [[j,j,j]] * nsize
+    elif np.array(j).ndim==1 and len(j) == 3:
+        # given three numbers for x, y, z directions
+        j = [j] * nsize
     if isinstance(hz, float):
         hz = [hz] * n
 
     # build the product state on-the-fly by qutip.tensor() function
     H = 0.
+    for x, sx in enumerate(sigma): # sum over x,y,z directions
+        for i in range(n-1):
+            H += j[i][x] * qt.tensor([si]*i + [sx, sx] + [si]*(n-i-2))
+
+    if boundary == 'periodic': # connect the two end points
+        for x, sx in enumerate(sigma): # sum over x,y,z directions
+            H += j[n-1][x] * qt.tensor([[sx] + [si]*(n-2) + [sx]])
+
+    for i in range(n):
+        H += hz[i] * qt.tensor([si]*i + [sz] + [si]*(n-i-1))
+
+    if np_matrix:
+        H = H.full()
+    return H
+
+hamil_xyz_1d = hamil_heisenberg_1d
+
+
+def hamil_zeeman_1d(n, hz, np_matrix=True, spin_j=.5, sigma=None):
+    """
+    separate the magnetic field part for efficiency
+    """
+    if sigma is None:
+        si, sz = get_spins(xs='0z', j=spin_j, np_matrix=False) # use qutip
+
+    if isinstance(hz, float):
+        hz = [hz] * n
+
+    H = 0.
+    for i in range(n):
+        H += hz[i] * qt.tensor([si]*i + [sz] + [si]*(n-i-1))
+
+    if np_matrix:
+        H = H.full()
+    return H
+
+
+def hamil_x_1d(n, j, np_matrix=True, spin_j=.5, sigma=None, direction='x',
+               boundary='open'):
+    """
+    separate one direction for efficiency
+    """
+    if sigma is None:
+        si, sx = get_spins(xs='0'+direction, j=spin_j, np_matrix=False) # use qutip
+
+    nsize = (n-1) if boundary=='open' else n
+    if isinstance(j, float):
+        j = [j] * nsize
+
+    H = 0.
     for i in range(n-1):
-        # scale j and delta since we ara using ladder operators
-        H += (.5*j[i])* (qt.tensor([si]*i + [sp, sm] + [si]*(n-i-2))
-                       + qt.tensor([si]*i + [sm, sp] + [si]*(n-i-2))
-                       + qt.tensor([si]*i + [sz, sz] + [si]*(n-i-2)) * (2.*delta[i])
-                       )
+        H += j[i] * qt.tensor([si]*i + [sx, sx] + [si]*(n-i-2))
+
+    if boundary == 'periodic':
+        H += j[n-1][x] * qt.tensor([[sx] + [si]*(n-2) + [sx]])
+
+    if np_matrix:
+        H = H.full()
+    return H
+
+
+
+def hamil_xxz_1d(n, j, delta, hz, np_matrix=True, spin_j=.5, sigma=None,
+                 boundary='open'):
+    r"""
+    j * (xx + yy + zz * delta)
+    reimplement for efficiency using ladder operator by defalut
+    """
+    if sigma is None:
+        si, sp, sm, sz = get_spins(xs='0+-z', j=spin_j, np_matrix=False) # use qutip
+        # scale parameters due to ladder operators
+        j *= .5
+        delta *= 2.
+
+    nsize = (n-1) if boundary=='open' else n
+    if isinstance(j, float):
+        j = [j] * nsize
+    if isinstance(delta, float):
+        delta = [delta] * nsize
+    if isinstance(hz, float):
+        hz = [hz] * n
+    #return hamil_xyz_1d(n, j, hz, np_matrix, spin_j, boundary)
+
+    H = 0.
+    for i in range(n-1):
+        H += j[i] * (qt.tensor([si]*i + [sp, sm] + [si]*(n-i-2))
+                   + qt.tensor([si]*i + [sm, sp] + [si]*(n-i-2))
+                   + qt.tensor([si]*i + [sz, sz] + [si]*(n-i-2)) * delta[i]
+                   )
+
+    if boundary == 'periodic':
+        H += j[n-1] * (qt.tensor([[sp] + [si]*(n-2) + [sm]])
+                     + qt.tensor([[sm] + [si]*(n-2) + [sp]])
+                     + qt.tensor([[sz] + [si]*(n-2) + [sz]]) * delta[i]
+                     )
 
     for i in range(n):
         H += hz[i] * qt.tensor([si]*i + [sz] + [si]*(n-i-1))
@@ -129,22 +223,12 @@ def hamil_xxz_1d(n, j, delta, hz, np_matrix=True, spin_j=.5):
     return H
 
 
-def hamil_heisenberg_1d(n, j, hz, np_matrix=True):
-    r"""
-    build Heisenberg 1d spin-1 model hamiltonian with Zeeman term hz
-    H = \sum_{i}^{n} j_{i} \vec{\sigma}_{i} \cdot \vec{\sigma}_{i+1}
-                    - hz_{i} \sigma_{i,z}
-    """
-    delta = 1.
-    return hamil_xxz_1d(n, j, hz, np_matrix, spin_j=1.)
-
-
 
 if __name__ == '__main__':
     n = 7
     j = -3.
     delta = .5
-    hz = 2.
+    hz = -2.
 
     si, sx, sy, sz = get_spins('0xyz', np_matrix=False)
     spin_list = get_prod_spin_list(n)
