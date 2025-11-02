@@ -65,13 +65,14 @@ https://doi.org/10.1140/epjb/s10051-023-00575-2
 https://github.com/GCatarina/DMRG_MPS_didactic/blob/main/DMRG-MPS_implementation.ipynb
 """
 
-def _mpo_XY(sigma=None):
+def _mpo_xx_1d(j, np_matrix=True, spin_j=.5, sigma=None):
     r"""
-    matrix product operator MPO hamiltonian of XY spin-1/2 model
-    H_{XY} = -1/2 \sum_{l} (\sigma_{l}^{+} \sigma_{l+1}^{-} + \sigma_{l}^{-} \sigma_{l+1}^{+})
+    one-site matrix product operator MPO hamiltonian of XY spin model
+    coefficients are put at the last row
+    H_{xy} = 1/2 j \sum_{i} (\sigma_{i,+} \sigma_{i+1,-} + \sigma_{i,-} \sigma_{i+1,+})
     """
     if sigma is None:
-        sigma = get_spins('0+-', j=.5)
+        sigma = get_spins('0+-', j=spin_j, np_matrix=True)
     si, sp, sm = sigma
 
     """
@@ -86,51 +87,83 @@ def _mpo_XY(sigma=None):
     # in the order of [left, right, top, bottom]
     # the first two indices (left and right) are used to contract
     # the last two dimensions are the Pauli matrix indices
-    Hl = np.zeros((4,4,2,2))
+    Hl = np.zeros((4,4,int(2*spin_j+1),int(2*spin_j+1)))
     Hl[0,0] = si
     Hl[1,0] = sm
     Hl[2,0] = sp
-    Hl[3,1] = -.5*sp
-    Hl[3,2] = -.5*sm
+    Hl[3,1] = (.5*j)*sp
+    Hl[3,2] = (.5*j)*sm
     Hl[3,3] = si
 
     return Hl
 
 
-def _mpo_heisenberg(j, hz, sigma=None):
+def _mpo_heisenberg_1d(j, hz, np_matrix=True, spin_j=.5, sigma=None):
     r"""
-    matrix product operator MPO hamiltonian of spin-1 Heisenberg model
-    H_{Heis} = j \sum_{l} (1/2 \sigma_{l}^{+} \sigma_{l+1}^{-} + 1/2 \sigma_{l}^{-} \sigma_{l+1}^{+}
-                           + \sigma_{l}^{z} \sigma_{l+1}^{z})
-              - hz \sum_{l} \sigma_{l}^{z}
+    one-site matrix product operator MPO hamiltonian of Heisenberg model
+    H_{Heis} = \sum_{i} ( j_{x} * \sigma_{i,x} \sigma_{l+1,x}
+                        + j_{y} * \sigma_{i,y} \sigma_{i+1,y}
+                        + j_{z} * \sigma_{i,z} \sigma_{i+1,z})
+                  + \sum_{i} hz * \sigma_{i,z}
     """
     if sigma is None:
-        sigma = get_spins('0+-z', j=1.)
+        sigma = get_spins('0xyz', j=spin_j, np_matrix=True)
+    si, sx, sy, sz = sigma
+
+    # in the order of [left, right, top, bottom]
+    # the first two indices are used to contract
+    # the last two dimensions are the Pauli matrix indices
+    Hl = np.zeros((5,5,int(2*spin_j+1),int(2*spin_j+1)), dtype=sy.dtype)
+    Hl[0,0] = si
+    Hl[1,0] = sx
+    Hl[2,0] = sy
+    Hl[3,0] = sz
+    Hl[4,0] = hz*sz
+    Hl[4,1] = j[0]*sx
+    Hl[4,2] = j[1]*sy
+    Hl[4,3] = j[2]*sz
+    Hl[4,4] = si
+    return Hl
+
+_mpo_xyz_1d = _mpo_heisenberg_1d
+
+
+def _mpo_xxz_1d(j, hz, np_matrix=True, spin_j=.5, sigma=None):
+    r"""
+    one-site matrix product operator MPO hamiltonian of XXZ model
+    similar to XYZ Heisenberg model
+    but use ladder operator to have real matrix
+    """
+    if sigma is None:
+        sigma = get_spins('0+-z', j=spin_j, np_matrix=True)
     si, sp, sm, sz = sigma
 
     # in the order of [left, right, top, bottom]
     # the first two indices are used to contract
     # the last two dimensions are the Pauli matrix indices
-    Hl = np.zeros((5,5,3,3))
+    Hl = np.zeros((5,5,int(2*spin_j+1),int(2*spin_j+1)))
     Hl[0,0] = si
-    Hl[1,0] = sz
+    Hl[1,0] = sp
     Hl[2,0] = sm
-    Hl[3,0] = sp
-    Hl[4,0] = -hz*sz
-    Hl[4,1] = j*sz
-    Hl[4,2] = .5*j*sp
-    Hl[4,3] = .5*j*sm
+    Hl[3,0] = sz
+    Hl[4,0] = hz*sz
+    Hl[4,1] = (.5*j[0])*sm
+    Hl[4,2] = (.5*j[0])*sp
+    Hl[4,3] = j[1]*sz
     Hl[4,4] = si
     return Hl
 
 
-def mpo_hamil(nsite, Hl=None, model=None, sigma=None, j=None, hz=None):
+def mpo_hamil(nsite, j=None, hz=None, Hl=None, model=None,
+              spin_j=.5, sigma=None):
     # hamiltonian in MPO representation
     if not isinstance(Hl, np.ndarray):
-        if model == 'XY':
-            Hl = _mpo_XY(sigma)
-        elif model == 'heisenberg':
-            Hl = _mpo_heisenberg(j, hz, sigma)
+        if model == 'XX':
+            Hl = _mpo_xx_1d(j, spin_j=spin_j, sigma=sigma)
+        elif model == 'XXZ':
+            Hl = _mpo_xxz_1d(j, hz, spin_j=spin_j, sigma=sigma)
+        elif model in {'XYZ', 'heisenberg'}:
+            Hl = _mpo_xyz_1d(j, hz, spin_j=spin_j, sigma=sigma)
         else:
             raise NotImplementedError('local Hamiltonian is not defined')
 
@@ -361,12 +394,16 @@ if __name__ == '__main__':
     nsite = 10
     M = mps_canonical(ndims, nsite, normalize='both')
 
+    spin_j = .5 # spin-1/2 particle
     sigma = None
+    model = 'XX'
+
+    j = 1.
 
     N = 20
     D = 10
     nmax = 10
-    h_mpo = mpo_hamil(N, model='XY', sigma=sigma)
+    h_mpo = mpo_hamil(N, j=j, model=model, spin_j=spin_j, sigma=sigma)
     e_list, mps = dmrg_opt_gs(h_mpo, nbond=D, nmax=nmax)
     print_matrix('e_list:', np.array(e_list))
     correlation = mpo_spin_correlation(mps, sigma)
