@@ -1,15 +1,12 @@
-import os, sys
-import numpy as np
+from wavefunction_analysis import sys, np
 
-import pyscf
-from pyscf import scf, tdscf
-
-from wavefunction_analysis.utils.pyscf_parser import *
-from wavefunction_analysis.entanglement.fragment_entangle import get_embedding_system
-
+# used in the _gen_rhf_response function below
+from pyscf import lib, gto
+from pyscf.lib import logger
 
 # copied from scf/_response_functions.py
 # the only difference is use original density for rho0, vxc, fxc
+# replace scf.hf.RHF.gen_response when used for embedded mf
 def _gen_rhf_response(mf, mo_coeff=None, mo_occ=None,
                       singlet=None, hermi=0, max_memory=None):
     from pyscf.scf import hf, rohf, uhf, ghf, dhf
@@ -23,9 +20,10 @@ def _gen_rhf_response(mf, mo_coeff=None, mo_occ=None,
     '''
     assert (not isinstance(mf, (uhf.UHF, rohf.ROHF)))
 
-    print('zheng defined _gen_rhf_response is called')
-    if mo_coeff is None: mo_coeff = mf.mo_coeff
-    if mo_occ is None: mo_occ = mf.mo_occ
+    if mo_coeff is None: mo_coeff = mf.mo_coeff # embedded mo
+    if mo_occ is None: mo_occ = mf.mo_occ       # embedded occ
+    mo_coeff0 = mf.mo_coeff0             # original mo for dft
+    mo_occ0 = mf.mo_occ0                # original occ for dft
     mol = mf.mol
     if isinstance(mf, hf.KohnShamDFT):
         ni = mf._numint
@@ -128,7 +126,12 @@ def _gen_rhf_response(mf, mo_coeff=None, mo_occ=None,
 
 
 if __name__ == '__main__':
-    infile = '../samples/formic_acid_6_h2o.in'
+    from pyscf import scf, tdscf
+    from wavefunction_analysis.utils.pyscf_parser import *
+    from wavefunction_analysis.utils import print_matrix
+    from wavefunction_analysis.entanglement.fragment_entangle import EmbeddingMeanField
+
+    infile = '../../samples/formic_acid_6_h2o.in'
     if len(sys.argv)>1: infile = sys.argv[1]
     parameters = parser(infile)
     results = run_pyscf_final(parameters)
@@ -136,9 +139,9 @@ if __name__ == '__main__':
     print('nelec:', mol.nelectron//2, 'nbasis:', mf.mo_coeff.shape[0])
     print_matrix('mo_energy:', mf.mo_energy)
 
-    nroots = 3
+    nstates = 3
     td = tdscf.TDA(mf)
-    td.kernel(nstates=nroots)
+    td.kernel(nstates=nstates)
     print('td converged:', td.converged)
     print_matrix('td energy:', td.e)
     #td.analyze()
@@ -147,25 +150,21 @@ if __name__ == '__main__':
     frgm_idx = get_frgm_idx(parameters)
     print('frgm_idx:', frgm_idx)
 
-    extra_orb = 1
-    e, nocc_eo, eo_energy, coeff_eo_in_ao = get_embedding_system(mol, mf, frgm_idx, extra_orb=extra_orb)
-    mo_occ = np.zeros(len(eo_energy))
-    mo_occ[:nocc_eo//2] = 2
-    print_matrix('eo_energy:', eo_energy)
-
-    mf_emb = scf.RKS(mol)
-    mf_emb.xc = mf.xc
-    mf_emb.grids.prune = mf.grids.prune
-    scf.hf.RHF.gen_response = _gen_rhf_response # defined in this file
-    mo_coeff0 = mf.mo_coeff # needed for dft in _gen_rhf_response
-    mo_occ0   = mf.mo_occ   # needed for dft in _gen_rhf_response
-    mf_emb.mo_energy = eo_energy
-    mf_emb.mo_coeff  = coeff_eo_in_ao
-    mf_emb.mo_occ    = mo_occ
+    extra_orb = 0
+    embed = EmbeddingMeanField(mf, frgm_idx, extra_orb=extra_orb)
+    embed.emb_basis_dmet(mf, 0)
+    eomf = embed.get_eomf(mf)
 
 
-    td_emb = tdscf.TDA(mf_emb)
-    td_emb.kernel(nstates=nroots)
+    td_emb = tdscf.TDA(eomf)
+    scf.hf.RHF.gen_response = _gen_rhf_response # use embedding response
+    td_emb.kernel(nstates=nstates)
     print('td_emb converged:', td_emb.converged)
     print_matrix('td_emb energy:', td_emb.e)
     #td_emb.analyze()
+
+    from pydmet.embedding import Embedding
+    from pydmet.dmet_tda import solve_tda, full_mol
+    embed = Embedding(mf, frgm_idx, 1e-6)
+    eomf = embed.get_eomf(mf)
+    ene_eo_tda, amp_eo_tda = solve_tda(eomf, nstates, term='eo', verbose=5)
