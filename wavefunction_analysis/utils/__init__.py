@@ -10,3 +10,5 @@ from .ortho_basis import get_ortho_basis
 from .utils import ishermitian, swap_largest_to_diagonal
 
 #np.set_printoptions(precision=4, linewidth=200, suppress=True)
+
+from .monitor_performance import monitor_performance, set_performance_log

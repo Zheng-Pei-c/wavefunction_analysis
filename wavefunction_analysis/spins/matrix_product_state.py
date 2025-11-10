@@ -2,6 +2,8 @@ from wavefunction_analysis import sys, np, itertools
 from wavefunction_analysis.utils import print_matrix
 from wavefunction_analysis.spins import get_spins
 
+from wavefunction_analysis.utils import monitor_performance
+
 def mps_canonical(ndims, nsite, rand_seed=True, normalize='both'):
     r"""
     random bra MPS wavefunction matries at top
@@ -256,6 +258,7 @@ def get_hamil_from_mpo(h_mpo):
     return H
 
 
+@monitor_performance
 def zipper_from_left(Mt, O, Mb, Tl=np.ones((1,1,1))):
     r"""
     Tl legs order from bottom to top, default np.ones((1,1,1)) for boundary site
@@ -281,7 +284,7 @@ def zipper_from_left(Mt, O, Mb, Tl=np.ones((1,1,1))):
    \\---1---*n*---3---Mb---1-i---
     """
     # contract from bottom to top
-    # np.einsum('imn,npq,pjlm,qlk->ijk', Mb, Tl, O, Mt, optimize=True)
+    #Taux = np.einsum('imn,npq,pjlm,qlk->ijk', Mb, Tl, O, Mt, optimize=True)
     Taux = np.einsum('imn,npq->impq', Mb, Tl)
     Taux = np.einsum('impq,pjlm->ijql', Taux, O)
     Taux = np.einsum('ijql,qlk->ijk', Taux, Mt)
@@ -289,6 +292,7 @@ def zipper_from_left(Mt, O, Mb, Tl=np.ones((1,1,1))):
     return Taux
 
 
+@monitor_performance
 def zipper_from_right(Mt, O, Mb, Tr=np.ones((1,1,1))):
     r"""
     Tr legs order from top to bottom, default np.ones((1,1,1)) for boundary site
@@ -456,7 +460,9 @@ def mpo_spin_correlation(mps, sigma=None, ns=None):
 
 
 if __name__ == '__main__':
-    ndims = [20, 3, 20]
+    from wavefunction_analysis.utils import set_performance_log
+    set_performance_log(debug=True)
+    ndims = [160, 3, 160]
     nsite = 10
     M = mps_canonical(ndims, nsite, normalize='both')
 

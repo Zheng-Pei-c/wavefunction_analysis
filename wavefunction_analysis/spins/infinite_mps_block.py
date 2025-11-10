@@ -1,14 +1,16 @@
 from wavefunction_analysis import np
 from wavefunction_analysis.utils import print_matrix
 
-#from ncon import ncon # for tensor contraction
 from scipy.sparse.linalg import LinearOperator, eigsh
 from numpy import linalg as LA
+
+from wavefunction_analysis.utils import monitor_performance
 
 r"""
 mu and nu indicate the left and right envrionment density matrices
 """
 
+@monitor_performance
 def contract_from_left(mu_ba, s_ab, s_ba, mps_a, mps_b, pick_eig='LM'):
     r"""
     update the environment density matrix at left by contracting it
@@ -45,11 +47,6 @@ def contract_from_left(mu_ba, s_ab, s_ba, mps_a, mps_b, pick_eig='LM'):
     else:
         v0 = (np.eye(chi_ba)/chi_ba).ravel() # change in place
 
-    #s_ab, s_ba = np.diag(s_ab), np.diag(s_ba)
-    #tensor = [s_ba, s_ba, mps_a.conj(), mps_a,
-    #          s_ab, s_ab, mps_b.conj(), mps_b]
-    #idx = [[1,2], [1,3], [2,4], [3,5,6], [4,5,7],
-    #              [6,8], [7,9], [8,10,-1], [9,10,-2]] # negative are free indices
     def left_iter(mu_ba):
         # mu_ba would be iteratively solved from scipy eigs function
         return np.einsum('ij,i,j,ikl,jkm,l,m,lno,mnp->op',
@@ -57,7 +54,6 @@ def contract_from_left(mu_ba, s_ab, s_ba, mps_a, mps_b, pick_eig='LM'):
                          mps_a.conj(), mps_a,
                          s_ab, s_ab, mps_b.conj(), mps_b,
                          optimize=True).reshape(-1,1)
-        #return ncon([mu_ba.reshape(chi_ba,chi_ba), *tensor], idx).reshape(-1,1)
     d, mu_ba = eigsh(LinearOperator((chi_ba**2,chi_ba**2), matvec=left_iter),
                      k=1, which=pick_eig, v0=v0)
 
@@ -68,13 +64,12 @@ def contract_from_left(mu_ba, s_ab, s_ba, mps_a, mps_b, pick_eig='LM'):
     # compute mu_ab density matrix
     mu_ab = np.einsum('ij,i,j,ikl,jkm->lm',
                       mu_ba, s_ba, s_ba, mps_a.conj(), mps_a, optimize=True)
-    #mu_ab = ncon([mu_ba, s_ba, s_ba, mps_a.conj(), mps_a],
-    #             [[1,2], [1,3], [2,4], [3,5,-1], [4,5,-2]])
     mu_ab = mu_ab / np.trace(mu_ab)
 
     return mu_ba, mu_ab
 
 
+@monitor_performance
 def contract_from_right(nu_ab, s_ab, s_ba, mps_a, mps_b, pick_eig='LM'):
     r"""
     update the environment density matrix at right by contracting it
@@ -113,11 +108,6 @@ def contract_from_right(nu_ab, s_ab, s_ba, mps_a, mps_b, pick_eig='LM'):
 
     mps_a, mps_b = mps_a.T, mps_b.T
 
-    #s_ab, s_ba = np.diag(s_ab), np.diag(s_ba)
-    #tensor = [s_ab, s_ab, mps_a, mps_a.conj(),
-    #          s_ba, s_ba, mps_b, mps_b.conj()]
-    #idx = [[1,2], [1,3], [2,4], [3,5,6], [4,5,7],
-    #              [6,8], [7,9], [8,10,-1], [9,10,-2]] # negative are free indices
     def right_iter(mu_ba):
         # nu_ab would be iteratively solved from scipy eigs function
         return np.einsum('ij,i,j,ikl,jkm,l,m,lno,mnp->op',
@@ -125,7 +115,6 @@ def contract_from_right(nu_ab, s_ab, s_ba, mps_a, mps_b, pick_eig='LM'):
                          mps_a, mps_a.conj(),
                          s_ba, s_ba, mps_b, mps_b.conj(),
                          optimize=True).reshape(-1,1)
-        #return ncon([nu_ab.reshape(chi_ab,chi_ab), *tensor], idx).reshape(-1,1)
     d, nu_ab = eigsh(LinearOperator((chi_ab**2,chi_ab**2), matvec=right_iter),
                      k=1, which=pick_eig, v0=v0)
 
@@ -136,13 +125,12 @@ def contract_from_right(nu_ab, s_ab, s_ba, mps_a, mps_b, pick_eig='LM'):
     # compute nu_ba density matrix
     nu_ba = np.einsum('ij,i,j,ikl,jkm->lm',
                       nu_ab, s_ab, s_ab, mps_a, mps_a.conj(), optimize=True)
-    #nu_ba = ncon([nu_ab, s_ab, s_ab, mps_a, mps_a.conj()],
-    #             [[1,2], [1,3], [2,4], [3,5,-1], [4,5,-2]])
     nu_ba = nu_ba / np.trace(nu_ba)
 
     return nu_ab, nu_ba
 
 
+@monitor_performance
 def update_ortho_mps(rho_left, rho_right, weight, mps_left, mps_right,
                      tol=1e-12):
     r"""
@@ -195,6 +183,7 @@ def update_ortho_mps(rho_left, rho_right, weight, mps_left, mps_right,
     return weight, mps_left, mps_right
 
 
+@monitor_performance
 def normalize_mps(s_left, s_right, mps):
     r"""
     normalize the MPS at A or B site
@@ -216,6 +205,7 @@ def normalize_mps(s_left, s_right, mps):
     return mps/np.sqrt(norm)
 
 
+@monitor_performance
 def normalize_mps_2(s_ab, s_ba, mps_a, mps_b):
     """
     normalize mps_a and mps_b at same time
@@ -233,6 +223,7 @@ def normalize_mps_2(s_ab, s_ba, mps_a, mps_b):
     return mps_a, mps_b
 
 
+@monitor_performance
 def get_mps_2rdm(s_ab, s_ba, mps_a, mps_b):
     r"""
     calculate the density matrix of the two-sites in a unit cell
@@ -250,32 +241,20 @@ def get_mps_2rdm(s_ab, s_ba, mps_a, mps_b):
                            3-k                     7-o
     rho_BA: switch A and B when calling the function
     """
-    #s_ab2, s_ba2 = s_ab**2, s_ba**2
+    s_ab2, s_ba2 = s_ab**2, s_ba**2
 
-    # einsum can be super slow
-    #rho_ab = np.einsum('i,ijl,ikm,l,m,lnp,mop,p->jnko',
-    #                   s_ba2, mps_a.conj(), mps_a, s_ab, s_ab,
-    #                   mps_b.conj(), mps_b, s_ba2, optimize=True)
+    rho_ab = np.einsum('i,ijl,ikm,l,m,lnp,mop,p->jnko',
+                       s_ba2, mps_a.conj(), mps_a, s_ab, s_ab,
+                       mps_b.conj(), mps_b, s_ba2, optimize=True)
 
-    #rho_ba = np.einsum('i,ijl,ikm,l,m,lnp,mop,p->jnko',
-    #                   s_ab2, mps_b.conj(), mps_b, s_ba, s_ba,
-    #                   mps_a.conj(), mps_a, s_ab2, optimize=True)
-
-    s_ab2, s_ba2 = np.diag(s_ab**2), np.diag(s_ba**2)
-    s_ab, s_ba = np.diag(s_ab), np.diag(s_ba)
-
-    tensor = [s_ba2, mps_a.conj(), mps_a, s_ab, s_ab,
-              mps_b.conj(), mps_b, s_ba2]
-    idx = [[1,2], [1,-1,3], [2,-3,4], [3,5], [4,6], [5,-2,7], [6,-4,8], [7,8]]
-    rho_ab = ncon(tensor, idx)
-
-    tensor = [s_ab2, mps_b.conj(), mps_b, s_ba, s_ba,
-              mps_a.conj(), mps_a, s_ab2]
-    rho_ba = ncon(tensor, idx)
+    rho_ba = np.einsum('i,ijl,ikm,l,m,lnp,mop,p->jnko',
+                       s_ab2, mps_b.conj(), mps_b, s_ba, s_ba,
+                       mps_a.conj(), mps_a, s_ab2, optimize=True)
 
     return rho_ab, rho_ba
 
 
+@monitor_performance
 def evaluate_energy_mps(mpo_ab, mpo_ba, s_ab, s_ba, mps_a, mps_b):
     r"""
     get energy of the two sites A and B
@@ -315,6 +294,7 @@ def evaluate_energy_rdm(mpo_ab, mpo_ba, rho_ab, rho_ba):
     return .5*(e_ab+e_ba)
 
 
+@monitor_performance
 def apply_gate_on_mps(gate_ab, s_ab, s_ba, mps_a, mps_b, chi, tol=1e-7):
     r"""
     apply a gate from left to AB dimer MPSs (bra side) for time evolution
@@ -414,10 +394,11 @@ def run_tebd(ham_ab, ham_ba, mps_a, mps_b, s_ab, s_ba,
 
 
 if __name__ == '__main__':
-    from doTEBD import *
-
     chi = 160  # bond dimension
     d = 2
+
+    from wavefunction_analysis.utils import set_performance_log
+    set_performance_log(debug=True)
 
     from wavefunction_analysis.spins import get_spins
     sx, sy = get_spins('xy', j=.5)
