@@ -96,7 +96,7 @@ def _mpo_xx_1d(j, np_matrix=True, spin_j=.5, sigma=None):
     r"""
     one-site matrix product operator MPO hamiltonian of XY spin model
     coefficients are put at the last row
-    H_{xy} = 1/2 j \sum_{i} (\sigma_{i,+} \sigma_{i+1,-} + \sigma_{i,-} \sigma_{i+1,+})
+    H_{xy} = 1/2 j sum_{i} (sigma_{i,+} sigma_{i+1,-} + sigma_{i,-} sigma_{i+1,+})
     """
     if sigma is None:
         sigma = get_spins('0+-', j=spin_j, np_matrix=True)
@@ -119,10 +119,10 @@ def _mpo_xx_1d(j, np_matrix=True, spin_j=.5, sigma=None):
 def _mpo_heisenberg_1d(j, hz, np_matrix=True, spin_j=.5, sigma=None):
     r"""
     one-site matrix product operator MPO hamiltonian of Heisenberg model
-    H_{Heis} = \sum_{i} ( j_{x} * \sigma_{i,x} \sigma_{l+1,x}
-                        + j_{y} * \sigma_{i,y} \sigma_{i+1,y}
-                        + j_{z} * \sigma_{i,z} \sigma_{i+1,z})
-                  + \sum_{i} hz * \sigma_{i,z}
+    H_{Heis} = sum_{i} ( j_{x} * sigma_{i,x} sigma_{l+1,x}
+                       + j_{y} * sigma_{i,y} sigma_{i+1,y}
+                       + j_{z} * sigma_{i,z} sigma_{i+1,z})
+                  + sum_{i} hz * sigma_{i,z}
     the indices are in the order of [left, right, top, bottom]
     the first two indices (left and right) are used to contract neighboring MPO
     the last two dimensions are the spin matrix indices
@@ -272,13 +272,13 @@ def zipper_from_left(Mt, O, Mb, Tl=np.ones((1,1,1))):
     |                 |              |
     Tl--2---*p*---1---O----2-j-- =   Tf--2-j--
     |                 |              |
-    |                 4              \---1-i--
+    |                 4             \\---1-i--
     |                 |
     |                 *m
     |                 |
     |                 2
     |                 |
-    \---1---*n*---3---Mb---1-i---
+   \\---1---*n*---3---Mb---1-i---
     """
     # contract from bottom to top
     # np.einsum('imn,npq,pjlm,qlk->ijk', Mb, Tl, O, Mt, optimize=True)
@@ -295,23 +295,23 @@ def zipper_from_right(Mt, O, Mb, Tr=np.ones((1,1,1))):
     Contract Tl from the right with 1). bra Mt at top,
                                     2). operator O at middle,
                                     3). ket Mt at bottom.
-    --i-1---Mt---3---*q*---1---/
+    --i-1---Mt---3---*q*---1--\\
             |                  |
             2                  |
             |                  |
             *l                 |
             |                  |
-            3                  |      --1-i--/
+            3                  |      --1-i-\\
             |                  |             |
     --j-1---O----2---*p*---2---Tr =   --2-j--Tf
             |                  |             |
-            4                  |      --3-k--\
+            4                  |      --3-k--/
             |                  |
             *m                 |
             |                  |
             2                  |
             |                  |
-    --k-3---Mb---1---*n*---3---\
+    --k-3---Mb---1---*n*---3---/
     """
     # contract from top to bottom
     # np.einsum('ilq,qpn,jplm,nmk->ijk', Mt, Tr, O, Mb, optimize=True)
@@ -425,7 +425,7 @@ def dmrg_opt_gs(h_mpo, mps=None, Tzip=None, nbond=None, pick_eig='SA', nmax=10):
 
 def mpo_spin_correlation(mps, sigma=None, ns=None):
     r"""
-    \expval{\sigma_{l}^{+} \sigma_{l+1}^{-}}
+    expval{sigma_{l}^{+} sigma_{l+1}^{-}}
     """
     if sigma is None:
         sigma = get_spins('0+-')

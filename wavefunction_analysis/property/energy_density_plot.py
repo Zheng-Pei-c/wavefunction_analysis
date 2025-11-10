@@ -711,8 +711,8 @@ class EnergyDensity():
 
 
     #@profile
-    def decompose_energy_density(self, directory, nstates=1, estate=0, \
-            plotnum=3, grid_type=1, nxyz=0.1, dohirshfeld=True, dobecke=True, \
+    def decompose_energy_density(self, directory, nstates=1, estate=0,
+            plotnum=3, grid_type=1, nxyz=0.1, dohirshfeld=True, dobecke=True,
             withcharge=False, decompose_es=True, cal_another_attraction=False):
         auxbasis = '6-31g'
         #auxbasis = 'weigend'
@@ -1007,8 +1007,7 @@ class EnergyDensity():
             dm0 = None
             rho0, vxc, fxc = ni.cache_xc_kernel(self.mf.mol, self.mf.grids, self.mf.xc,
                                                 [mo_coeff]*2, [mo_occ*.5]*2, spin=1)
-            f1vo, f1oo, vxc1, k1ao = \
-                    _contract_xc_kernel(td_grad, self.mf.xc, dmzvop,
+            f1vo, f1oo, vxc1, k1ao = _contract_xc_kernel(td_grad, self.mf.xc, dmzvop,
                                         dmzoo, True, True, singlet, max_memory)
 
             hyb, alpha, omega = dft_type[0]

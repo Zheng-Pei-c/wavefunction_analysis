@@ -1,5 +1,4 @@
-import os, sys
-import numpy as np
+from wavefunction_analysis import sys, np
 
 from pyscf import scf, lib
 from pyscf.mp.mp2 import MP2
@@ -77,6 +76,44 @@ if __name__ == '__main__':
     mol, mf = results['mol'], results['mf']
     print('mf energy:', mf.energy_tot())
     nbas = mf.mo_coeff.shape[0]
+
+    mo_coeff = mf.mo_coeff
+    mo_occ = mf.mo_occ
+    nocc = len(np.where(mo_occ==2.)[0])
+    p0 = np.einsum('pi,qi->pq', mo_coeff[:,:nocc], mo_coeff[:,:nocc])
+    p1 = np.einsum('pi,qi->pq', mo_coeff[:,nocc:], mo_coeff[:,nocc:])
+    print_matrix('p0:', p0)
+    print_matrix('p1:', p1)
+
+
+    from wavefunction_analysis.entanglement.mol_lo_tools import partition_lo_to_imps
+    from wavefunction_analysis.entanglement.fragment_entangle import get_localized_orbital, get_localized_orbital_rdm
+    frgm_idx = [[i] for i in range(mol.natm)]
+    ovlp_ao = mf.get_ovlp()
+    coeff_mo_in_ao = mo_coeff
+    coeff_lo_in_ao = get_localized_orbital(mol, coeff_mo_in_ao)
+    dm_lo_in_ao = get_localized_orbital_rdm(coeff_lo_in_ao, coeff_mo_in_ao, ovlp_ao, nocc, extra_orb=0)
+    frgm_lo_idx = partition_lo_to_imps(frgm_idx, mol, coeff_lo_in_ao, min_weight=0.8)
+    print('frgm_lo_idx:', frgm_lo_idx)
+
+    for i in range(mol.natm):
+        for j in range(i):
+            idx = np.ix_(frgm_lo_idx[i], frgm_lo_idx[j])
+            u, s, vt = np.linalg.svd(dm_lo_in_ao[idx])
+            print_matrix(str(i+1)+' '+str(j+1)+': s '+str(np.sum(s)), s)
+            e = -s * np.log(s)
+            print_matrix('e: '+str(np.sum(e)), e)
+
+    aoslices = mol.aoslice_by_atom()
+    ps = np.einsum('mn,nl->ml', p0, ovlp_ao)
+    for i in range(mol.natm):
+        p0, p1 = aoslices[i,2:]
+        for j in range(i):
+            p2, p3 = aoslices[j,2:]
+            print('mayer bond:', np.einsum('pq,qp->', ps[p0:p1,p2:p3], ps[p2:p3,p0:p1])*4.)
+
+    sys.exit()
+
 
     pt = MP2(mf)
     #pt = MP2(scf.density_fit(mf, 'weigend'))

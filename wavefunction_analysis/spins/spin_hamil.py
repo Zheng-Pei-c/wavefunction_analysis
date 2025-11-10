@@ -60,7 +60,7 @@ def get_spins(xs='all', j=.5, np_matrix=True):
 
 def get_prod_spin_list(n, xs='all', j=.5, np_matrix=True):
     r"""
-    the actual \sigma_{ix} matrix:
+    the actual sigma_{ix} matrix:
         loop over n spins
         set i-th spin with spin matrices while the rest are identity matrices
         return n*d supermatrices as Hilbert space operators or basis
@@ -90,13 +90,13 @@ def get_prod_spin_list(n, xs='all', j=.5, np_matrix=True):
 def hamil_heisenberg_1d(n, j, hz, np_matrix=True, spin_j=.5, boundary='open'):
     r"""
     build xxz 1d-chain spin model hamiltonian H in Hilbert space
-    H = \sum_{i}^{n} ( j_{i,x} * \sigma_{i,x} \sigma_{i+1,x}
-                     + j_{i,y} * \sigma_{i,y} \sigma_{i+1,y}
-                     + j_{i,z} * \sigma_{i,z} \sigma_{i+1,z})
-        + \sum_{i}^{n} hz_{i} * \sigma_{i,z}
+    H = sum_{i}^{n} ( j_{i,x} * sigma_{i,x} sigma_{i+1,x}
+                    + j_{i,y} * sigma_{i,y} sigma_{i+1,y}
+                    + j_{i,z} * sigma_{i,z} sigma_{i+1,z})
+        + sum_{i}^{n} hz_{i} * sigma_{i,z}
     note that when j_{x} = j_{y}
-              sigma_x \sigma_x + \sigma_y \sigma_y
-              = .5 * (\sigma_p \sigma_m + \sigma_m \sigma_p)
+              sigma_x sigma_x + sigma_y sigma_y
+              = .5 * (sigma_p sigma_m + sigma_m sigma_p)
               using ladder operators such that the matrices are real
     n: number of 1/2 spins
     j: spin coupling constant of xx, yy, zz sigma

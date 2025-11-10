@@ -1,9 +1,9 @@
 from wavefunction_analysis import np
 
-"""
+r"""
 keep the walking direction along the gradient vector
 while using line search scheme to determine the step size
-`x_{k+1} = retr_x_k (s_k \grad f(x_k))`
+x_{k+1} = retr_x_k (s_k grad f(x_k))
 """
 def gradient_descent(func, gradf, retraction, x0,
                      ls_method='armijo', nmax=50, thresh=1e-8,

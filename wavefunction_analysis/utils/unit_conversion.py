@@ -38,11 +38,11 @@ AU2HZ = (HARTREE2J / (ATOMIC_MASS * BOHR_SI**2))**.5 / (2 * np.pi)
 # milli(m), micro(u), nano(n), pico(p), femto(f), atto(a)
 # deci(d), centi(c), angstrom(aa)
 units_long = {
-        'time':        ['day', 'hour', 'minute', 'second', 'millisecond', \
-                        'microsecond', 'nanosecond', 'picosecond', \
+        'time':        ['day', 'hour', 'minute', 'second', 'millisecond',
+                        'microsecond', 'nanosecond', 'picosecond',
                         'femtosecond', 'atomicunit', 'attosecond'],
-        'length':      ['meter', 'decimeter', 'centimeter', 'millimeter', \
-                        'micrometer', 'nanometer', 'angstrom', 'bohr', \
+        'length':      ['meter', 'decimeter', 'centimeter', 'millimeter',
+                        'micrometer', 'nanometer', 'angstrom', 'bohr',
                         'picometer', 'femtometer', 'attometer'],
         'energy':      ['hartree', 'electronvolt', 'milliev', 'kcal/mol', 'kj/mol'],
         'frequency':   ['terahertz', 'cm^-1', 'gigahertz', 'megahertz', 'kilohertz', 'hertz', 'freq_au'],

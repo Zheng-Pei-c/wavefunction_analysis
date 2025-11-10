@@ -36,11 +36,11 @@ def print_cg_coeff(j1=0, m1=0, j2=0, m2=0, j3=0, m3=0, cg=0,
 
 
 def ladder_coeff(j, m, operator):
-    """
-    j could be 0, \pm 1/2, \pm 1, \pm 3/2, \pm 2, \cdots
-    m is \in {-j, -j+1, \dots, j-1, j}
-    C_\pm = \sqrt(j (j + 1) - m (m \pm 1)) = \sqrt((j \mp m) (j \pm m + 1))
-    j_\pm |jm> = C_\pm |j(m\pm1)>
+    r"""
+    j could be `0, \pm 1/2, \pm 1, \pm 3/2, \pm 2`, etc
+    m is `\in {-j, -j+1, \dots, j-1, j}`
+    `C_\pm = \sqrt(j (j + 1) - m (m \pm 1)) = \sqrt((j \mp m) (j \pm m + 1))`
+    j`_\pm |jm> = C_\pm |j(m\pm1)>`
     """
     if operator == '+': operator = np.add
     elif operator == '-': operator = np.subtract
@@ -54,9 +54,9 @@ def ladder_coeff(j, m, operator):
 
 
 def clebsch_gordan_coeff_direct(j1, m1, j2, m2, j3, m3, sqrt=False):
-    """
-    j3 is \in {|j_1 - j_2|, \dots, j_1 + j_2}
-    m3 = m_1 + m_2 \in {-J, -J+1, \dots, J-1, J}
+    r"""
+    `j3 is \in {|j_1 - j_2|, \dots, j_1 + j_2}`
+    `m3 = m_1 + m_2 \in {-J, -J+1, \dots, J-1, J}`
     """
     if (m1<-j1 or m1>j1) or (m2<-j2 or m2>j2) or (m3<-j3 or m3>j3) or (m1+m2 != m3):
         return 0.
@@ -87,9 +87,9 @@ def clebsch_gordan_coeff_direct(j1, m1, j2, m2, j3, m3, sqrt=False):
 
 
 def clebsch_gordan_coeff_recur(j1, m1, j2, m2):
-    """
-    j3 is \in {|j_1 - j_2|, \dots, j_1 + j_2}
-    m3 = m_1 + m_2 \in {-J, -J+1, \dots, J-1, J}
+    r"""
+    j3 is in `{|j_1 - j_2|, \dots, j_1 + j_2}`
+    `m3 = m_1 + m_2 \in {-J, -J+1, \dots, J-1, J}`
     """
     m3 = m1 + m2
     for j3 in range(abs(j1-j2), j1+j2+1):

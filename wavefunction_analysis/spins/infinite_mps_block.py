@@ -6,7 +6,7 @@ from scipy.sparse.linalg import LinearOperator, eigsh
 from numpy import linalg as LA
 
 r"""
-\mu and \nu indicate the left and right envrionment density matrices
+mu and nu indicate the left and right envrionment density matrices
 """
 
 def contract_from_left(mu_ba, s_ab, s_ba, mps_a, mps_b, pick_eig='LM'):
@@ -22,21 +22,21 @@ def contract_from_left(mu_ba, s_ab, s_ba, mps_a, mps_b, pick_eig='LM'):
     mps_b: MPS state at site B, bra at top
            /-----2---s_{BA}---4---At---7---s_{AB}----9---Bt---12---
            |                      |                      |
-        \mu_{BA}                  5                      10
+         mu_{BA}                  5                      10
            |                      |                      |
-           \-----1---s_{BA}---6---Ab---3---s_{AB}---11---Bb----8---
+          \\-----1---s_{BA}---6---Ab---3---s_{AB}---11---Bb----8---
     it is equivalent to
            /-----2---s_{BA}---4---A----7---s_{AB}---9---B----12---
            |                      |                     |
-        \mu_{BA}                  5                     10
+         mu_{BA}                  5                     10
            |                      |                     |
-           \-----1---s_{BA}---3---A*---6---s_{AB}---8---B*---11---
+          \\-----1---s_{BA}---3---A*---6---s_{AB}---8---B*---11---
     we use the following summation as weigths are vectors (or diagonal)
            /-----2-j--s_{BA}---j---A---5-m---s_{AB}---m---B----8-p---
            |                       |                      |
-        \mu_{BA}                   3-k                    6-n
+         mu_{BA}                   3-k                    6-n
            |                       |                      |
-           \-----1-i--s_{BA}---i---A*--4-l---s_{AB}---l---B*---7-o---
+          \\-----1-i--s_{BA}---i---A*--4-l---s_{AB}---l---B*---7-o---
     """
 
     chi_ba = mps_a.shape[0]
@@ -86,21 +86,21 @@ def contract_from_right(nu_ab, s_ab, s_ba, mps_a, mps_b, pick_eig='LM'):
     s_ba:  weight vector connects site B (left) to A (right)
     mps_a: MPS state at site A, bra at top
     mps_b: MPS state at site B, bra at top
-            ----8---Bt---11---s_{BA}---3---At---6---s_{AB}---1-----\
+            ----8---Bt---11---s_{BA}---3---At---6---s_{AB}---1----\\
                     |                      |                       |
-                    10                     5                   \nu_{AB}
+                    10                     5                    nu_{AB}
                     |                      |                       |
             ---12---Bb----9---s_{BA}---7---Ab---4---s_{AB}---2-----/
     it is equivalent to
-           ---11---BT----8---s_{BA}---6---AT----3---s_{AB}---1-----\
+           ---11---BT----8---s_{BA}---6---AT----3---s_{AB}---1----\\
                    |                      |                        |
-                   10                     5                    \nu_{AB}
+                   10                     5                     nu_{AB}
                    |                      |                        |
            ---12---B*T---9---s_{BA}---7---A*T---4---s_{AB}---2-----/
     we use the following summation as weigths are vectors (or diagonal)
-        ---o-7---At---l---s_{BA}---l-4---At---i---s_{AB}---i-1-----\
+        ---o-7---At---l---s_{BA}---l-4---At---i---s_{AB}---i-1----\\
                  |                       |                         |
-                 6-n                     3-k                    \nu_{AB}
+                 6-n                     3-k                     nu_{AB}
                  |                       |                         |
         ---p-8---Ab---m---s_{BA}---m-5---Ab---j---s_{AB}---j-2-----/
     """
@@ -150,23 +150,23 @@ def update_ortho_mps(rho_left, rho_right, weight, mps_left, mps_right,
     update the weight connecting A and B sites and the MPSs
     the left and right rho and weight should have same order:
                     mu_ab, nu_ab, s_ab; or mu_ba, nu_ba, s_ba
-            /-----s_{AB}-----\                    /-----s_{BA}-----\
+            /-----s_{AB}----\\                    /-----s_{BA}----\\
             |                |                    |                |
-         \mu_{AB}^T       \nu_{AB}      or     \mu_{BA}         \nu_{BA}^T
+          mu_{AB}^T        nu_{AB}      or      mu_{BA}          nu_{BA}^T
             |                |                    |                |
-            \-----s_{AB}-----/                    \-----s_{BA}-----/
+           \\-----s_{AB}-----/                   \\-----s_{BA}-----/
 
-                           /---4-l---s_{AB}---l-4---\
+                           /---4-l---s_{AB}---l-4--\\
                            |                        |
-    ---1-i---At---3-k---\mu_{AB}                 \nu_{AB}---5-m---Bt---7-o---
+    ---1-i---At---3-k--- mu_{AB}                  nu_{AB}---5-m---Bt---7-o---
            |                                                      |
            2-j                                                    6-n
            |                                                      |
     left rho is bottom-up indexed while right rho is top-down indexed
     first step: orthogonalize density matrices and form new weight
     second step: svd of new weight and construct new MPSs
-    A * \mu * s * \nu * B = A * l_U * (l_e * l_U^T * s * r_U * r_e) * r_U^T * B
-                          = (A * l_U /l_e * U_s) * s' * (Vt_s /r_e * r_U^T * B)
+    A * mu * s * \nu * B = A * l_U * (l_e * l_U^T * s * r_U * r_e) * r_U^T * B
+                         = (A * l_U /l_e * U_s) * tilde{s} * (Vt_s /r_e * r_U^T * B)
     the third dimension of A and first dimension of B might be reduced
     """
     def diag(rho):
@@ -198,17 +198,17 @@ def update_ortho_mps(rho_left, rho_right, weight, mps_left, mps_right,
 def normalize_mps(s_left, s_right, mps):
     r"""
     normalize the MPS at A or B site
-        /---1---s_{BA}---2---At---5---s_{AB}---7---\
+        /---1---s_{BA}---2---At---5---s_{AB}---7--\\
         |                    |                     |
         1                    4                     7
         |                    |                     |
-        \---1---s_{BA}---6---Ab---3---s_{AB}---7---/
+       \\---1---s_{BA}---6---Ab---3---s_{AB}---7---/
         since weight vectors are diagonal, it reduces to
-        /---1---s_{BA}---1---A----3---s_{AB}---3---\
+        /---1---s_{BA}---1---A----3---s_{AB}---3--\\
         |                    |                     |
         1                    2                     3
         |                    |                     |
-        \---1---s_{BA}---1---A*---3---s_{AB}---3---/
+       \\---1---s_{BA}---1---A*---3---s_{AB}---3---/
     s_left and s_right are switched for site B
     """
     s_left, s_right = s_left**2, s_right**2
@@ -234,10 +234,10 @@ def normalize_mps_2(s_ab, s_ba, mps_a, mps_b):
 
 
 def get_mps_2rdm(s_ab, s_ba, mps_a, mps_b):
-    """
+    r"""
     calculate the density matrix of the two-sites in a unit cell
     MPS is assumed in canoncial form (orthonormal)
-    rho: |ket><bra| = |Mb><Mt| = |26><37|
+    rho: ketbra{ket}{bra} = ketbra{Mb}{Mt} = ketbra{26}{37}
     rho_AB:
                            2-j                     6-n
                            |                       |
@@ -281,15 +281,15 @@ def evaluate_energy_mps(mpo_ab, mpo_ba, s_ab, s_ba, mps_a, mps_b):
     get energy of the two sites A and B
     use MPS and weights directly rather than build four-index density matrices
     E_AB:
-      /---1---s_{BA}---1---A----4-l---s_{AB}---4---B----8---s_{BA}---8---\
+      /---1---s_{BA}---1---A----4-l---s_{AB}---4---B----8---s_{BA}---8---\\
       |                    |                       |                     |
-      |                   2-j--------\   /--------6-n                    |
+      |                   2-j--------\\   /--------6-n                    |
       |                              |   |                               |
       1-i                            H_{AB}                             8-p
       |                              |   |                               |
-      |                   3-k--------/   \--------7-o                    |
+      |                   3-k--------/  \\--------7-o                    |
       |                    |                       |                     |
-      \---1---s_{BA}---1---A*---5-m---s_{AB}---5---B*---8---s_{BA}---8---/
+     \\---1---s_{BA}---1---A*---5-m---s_{AB}---5---B*---8---s_{BA}---8---/
     E_BA: switch A and B
     """
     s_ab2, s_ba2 = s_ab**2, s_ba**2
@@ -320,9 +320,9 @@ def apply_gate_on_mps(gate_ab, s_ab, s_ba, mps_a, mps_b, chi, tol=1e-7):
     apply a gate from left to AB dimer MPSs (bra side) for time evolution
     use conjugate of evolution operator for the bra state
     gate_ab: e^{1j*t*ham_ab} for real-time or e^{-tau*ham_ab} for imaginary-time
-        ---1---s_{BA}'---1---A---3---s_{AB}---3---B---5---s_{BA}'---5---
+        ---1---ss_{BA}---1---A---3---s_{AB}---3---B---5---ss_{BA}---5---
                              |                    |
-                             2--------\  /--------4
+                             2-------\\  /--------4
                                       |  |
                           -----6-----U_{AB}-----7-----
     above contraction gives a matrix whose indices in order 1675,

@@ -42,10 +42,14 @@ def build_trans_density(mo_coeff, amps, itype='r', has_y=False):
         return dms
 
 
-"""
+r"""
 refer: 10.1021/acs.jctc.8b01058
-    calculate the second-order dispersion energy between two molecules
-    using the excitation energies and Coulomb interactions
+    calculate dispersion energy between two molecules
+    by second-order perturbation theory from many-body wavefunctions
+    using the excitation energies, transition amplitudes,
+    and 2e-opeartor Coulomb interactions
+    E = sum_{ij} (< Psi_{A0} Psi_{B0} | V | Psi_{Ai} Psi_{Bj} >)^{2}
+        / (E_{A0} + E_{B0} - E_{Ai} - E_{Bj})
 """
 def cal_sapt(mols, mo_coeffs, amps, energies, omega=None, itype='r'):
     from pyscf.gto.mole import conc_mol
@@ -56,6 +60,7 @@ def cal_sapt(mols, mo_coeffs, amps, energies, omega=None, itype='r'):
     energies = np.array(energies[0])[:,None] + np.array(energies[1])
 
     print('start computing crossing coulomb interaction')
+    # build state interactions
     func = eval('cal_sapt_'+itype)
     v = func(mol, mo_coeffs, amps, nstates, omega)
     v = -np.einsum('kl,kl,kl->', v, v, 1./energies)

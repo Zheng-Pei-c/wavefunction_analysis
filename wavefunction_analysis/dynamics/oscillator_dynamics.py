@@ -66,7 +66,7 @@ class harmonic_oscillator():
         # Boltzmann thermol distribution follows gaussian function
         if init_method == 'thermo':
             # equal parition of the kT energy to kinetic and potential
-            # 0.5 is because in the Gaussian function, q^2 = 2\sigma^2
+            # 0.5 is because in the Gaussian function, q^2 = 2 * sigma^2
             seed = getattr(self, 'random_seed', None)
             beta_b = self.beta_b
             K = np.einsum('i,i->i', self.mass, self.omega2)
@@ -144,7 +144,7 @@ class harmonic_oscillator():
 
 
     def recursive_exploration_step(self, force, force_func, **kwargs):
-        N = self.recursive_numbers # >=2
+        N = self.recursive_numbers # >=1
         dt = self.dt
         mass = self.mass
         force0 = np.copy(force)

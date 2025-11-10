@@ -6,7 +6,9 @@ from wavefunction_analysis import np, itertools
 from wavefunction_analysis.utils import print_matrix
 from wavefunction_analysis.utils import put_keys_kwargs_to_object, put_kwargs_to_keys
 from wavefunction_analysis.dynamics import harmonic_oscillator
-from wavefunction_analysis.dynamics.dimers_in_crystal import add_molecules_cell
+from wavefunction_analysis.dynamics.dimers_in_crystal import add_molecules_cell, read_unit_cell_info
+
+from wavefunction_analysis.transport.read_parameters import read_energy_coupling
 
 
 AU2FS = 2.e5 * 8.854187817e-12 * PLANCK * BOHR / E_CHARGE**2
@@ -82,10 +84,12 @@ class ExcitonDynamicsStep():
         self.n_mode = 0
         # exciton number of each site
         self.nstate = 0
-        # intermolecular distance in (x,y,z) directions
-        self.distance = 0 # Angstrom
-        # cell angule in (x,y,z) directions
-        self.angle = 0
+
+        #TODO: move n_mol to unit_cell dict
+        # unit cell informations
+        # including intermolecular distance: abc
+        # angle, element, and coordinate: scale
+        self.unit_cell = {'abc': 0, 'angle': 0, 'element': 0, 'scale': 0, 'n_site': [5,5,5]}
 
         # exciton energy of each site
         self.energy = 0
@@ -98,10 +102,18 @@ class ExcitonDynamicsStep():
 
         put_keys_kwargs_to_object(self, key, **kwargs)
 
+        if getattr(self, 'cif'):
+            self.get_unit_cell_info(self.cif)
+
         self.check_sanity()
         # convert the input parameters into atomic unit for the calculations
         self.convert_parameter_units(getattr(self, 'unit_dict', None))
         self.process_parameters()
+
+
+    def get_unit_cell_info(self, cif):
+        abc, angle, element, scale = read_unit_cell_info(cif)
+        self.unit_cell.update({'abc': abc, 'angle': angle, 'element': element, 'scale': scale})
 
 
     def check_sanity(self):
@@ -115,7 +127,6 @@ class ExcitonDynamicsStep():
     def convert_parameter_units(self, unit_dict):
         self.beta_b = get_boltzmann_beta(self.temperature)
         self.n_site_tot = np.prod(self.n_site) * self.n_mol
-        #self.distance /= BOHR
 
         self.energy /= (HARTREE2EV*1000)
         self.coupling_g /= (HARTREE2EV*1000/BOHR)
@@ -134,7 +145,7 @@ class ExcitonDynamicsStep():
 
 
     def process_parameters(self):
-        self.length = np.linspace(0, self.distance*self.n_site_tot, self.n_site_tot)
+        self.length = np.linspace(0, self.unit_cell['abc']*self.n_site_tot, self.n_site_tot)
         self.length -= np.average(self.length) # move center
 
         #n_site_tot, n_mode, nstate = self.n_site_tot, self.n_mode, self.nstate
@@ -218,6 +229,7 @@ class ExcitonDynamicsStep():
 
     def get_exciton_hamiltonian(self, coordinate):
         self.hamiltonian = self.get_exciton_couplings(coordinate)
+        print_matrix('exciton_hamiltonian:', self.hamiltonian)
 
         diagonal = self.get_exciton_diagonal(coordinate)
         np.fill_diagonal(self.hamiltonian, diagonal)
@@ -349,13 +361,40 @@ class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
     # x, y, z axis.
     # (1,1,1) is center O, (0,1,1) and (2,1,1) is the left and right points on x-axis
     def process_parameters(self):
-        self.length = add_molecules_cell(self.n_site, self.distance, self.angle, [0], self.coords)[1]
+        abc, angle, element, scale = self.unit_cell['abc'], self.unit_cell['angle'], self.unit_cell['element'], self.unit_cell['scale']
+        elements_all, coordinates, centers_all, site_label = add_molecules_cell(self.unit_cell['n_site'], abc, angle, element, scale)
 
-        index = [] # given neighboring pairs
-        for dk, dv in enumerate(self.dimer_label):
-            #a, b, c, d = dv.split(',')
-            #index.append([a,b,c,d])
-            index.append(dv.split(','))
+        n_tot = np.prod(self.unit_cell['n_site'])*self.n_mol
+        i = int(n_tot//2) # center site
+        print('center site i:', i, site_label[i])
+        distances = []
+        for j in range(n_tot):
+            distances.append(np.linalg.norm(centers_all[i]-centers_all[j]))
+        distances = np.array(distances)
+
+        npairs = 6
+        order = distances.argsort()[:npairs+1]
+
+        print('site_label:')
+        for k in range(npairs+1):
+            print('%3d: %10s %12.5f' % (order[k]+1, site_label[order[k]], distances[order[k]]))
+
+        mol = 'H2OBPc'
+        energy, coupling = [], []
+        for k in order[1:npairs+1]:
+            outfile = '../pbe0/'+mol+'-'+str(i+1)+'-'+str(k+1)+'-dimer'+'_%4.2f-dc.out' % distances[k]
+            e, c = read_energy_coupling(outfile)
+            energy.append(e)
+            coupling.append(c)
+
+        self.energy = np.array(energy[0])
+        self.coupling_j = np.array(coupling)
+        self.coupling_g = np.zeros_like(self.coupling_g)
+        self.coupling_a = np.zeros_like(self.coupling_a)
+
+        # given neighboring pairs
+        index = [list(map(int, site_label[order[k]].split(','))) for k in range(len(order))]
+        #print('index:\n', index)
 
         neighbor_index = [None]*self.n_mol
         i = index[0][3]
@@ -364,7 +403,8 @@ class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
         for j in range(1, len(index)):
             a, b, c, d = index[j]
             index[j] = [-a, -b, -c, abs(d-1)]
-        neighbor_index[abs(i-1)] = np.array(index[1:])
+        #neighbor_index[abs(i-1)] = np.array(index[1:])
+        neighbor_index[abs(i-1)] = np.zeros_like(index[1:]) #TODO: is this right???
 
         self.neighbor_index = np.array(neighbor_index)
         self.ntype = self.neighbor_index.shape[1]
@@ -373,7 +413,7 @@ class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
     def get_exciton_couplings(self, coordinate):
         # nt is number of molecules in a unit cell
         # ns is number of states per molecule
-        nx, ny, nz, nt, ns = self.n_site, self.n_mol, self.nstate
+        (nx, ny, nz), nt, ns = self.n_site, self.n_mol, self.nstate
         hamiltonian = np.zeros((nx, ny, nz, nt, ns, nx, ny, nz, nt, ns))
 
         coordinate1 = np.copy(coordinate)
@@ -383,8 +423,9 @@ class ExcitonDynamicsStep3D(ExcitonDynamicsStep):
 
         for icount, (i, j, k, l) in enumerate(itertools.product(range(1, nx-1), range(1, ny-1), range(1, nz-1), range(nt))):
             coupling = np.einsum('tmij,m->tij', self.coupling_a, coordinate1[icount])
+            print('coupling:', coupling)
             for x, (a, b, c, d) in enumerate(self.neighbor_index[l]):
-                hamiltonian[i,j,k,l,:,i+a,j+b,k+c,d] = self.coupling_j[k] + coupling
+                hamiltonian[i,j,k,l,:,i+a,j+b,k+c,d] = self.coupling_j[x] + coupling
                 hamiltonian[i+a,j+b,k+c,d,i,j,k,l] = hamiltonian[i,j,k,0,:,i+a,j+b,k+c,d].transpose()
 
         return np.reshape(hamiltonian, (self.n_site_tot*self.nstate, -1))
@@ -561,6 +602,10 @@ if __name__ == '__main__':
     coupling_a[1,4,1,0] = 29. # meV/AA
     coupling_a[1,5,1,1] = 37. # meV/AA
     key['coupling_a'] = coupling_a
+
+    key['dimer_label'] = {}
+    key['cif'] = 'H2OBPc.cif'
+    key['n_site'] = np.array([6, 6, 1])
 
     obj = Dynamics(key, total_time=total_time)
     obj.kernel()
