@@ -88,7 +88,7 @@ def plot_wave_energy_frequency():
             elif i == 5:
                 ax1.set_xticks([50, 250, 500, 750, 1000])
 
-        unit = '$\mu$m' if 'um' in units['l'][i] else units['l'][i]
+        unit = '$\\mu$m' if 'um' in units['l'][i] else units['l'][i]
         ax1.set_xlabel('Wavelength ('+unit+')')
         ax1.set_ylabel('Energy ('+units['e'][i]+')')
         ax2.set_ylabel('Temperature ('+units['T'][i]+')')
