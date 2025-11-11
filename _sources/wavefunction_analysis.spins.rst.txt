@@ -4,6 +4,14 @@ wavefunction\_analysis.spins package
 Submodules
 ----------
 
+wavefunction\_analysis.spins.circuit module
+-------------------------------------------
+
+.. automodule:: wavefunction_analysis.spins.circuit
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 wavefunction\_analysis.spins.infinite\_mps\_block module
 --------------------------------------------------------
 
@@ -16,6 +24,14 @@ wavefunction\_analysis.spins.matrix\_product\_state module
 ----------------------------------------------------------
 
 .. automodule:: wavefunction_analysis.spins.matrix_product_state
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+wavefunction\_analysis.spins.qaoa module
+----------------------------------------
+
+.. automodule:: wavefunction_analysis.spins.qaoa
    :members:
    :show-inheritance:
    :undoc-members:

@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>wavefunction_analysis.manifold.riemannian &mdash; wavefunction_analysis  documentation</title>
+  <title>wavefunction_analysis.opt.riemannian &mdash; wavefunction_analysis  documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
 
@@ -60,7 +60,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">wavefunction_analysis.manifold.riemannian</li>
+      <li class="breadcrumb-item active">wavefunction_analysis.opt.riemannian</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -69,11 +69,11 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <h1>Source code for wavefunction_analysis.manifold.riemannian</h1><div class="highlight"><pre>
+  <h1>Source code for wavefunction_analysis.opt.riemannian</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">np</span><span class="p">,</span> <span class="n">scipy</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis.manifold</span><span class="w"> </span><span class="kn">import</span> <span class="n">gradient_descent</span><span class="p">,</span> <span class="n">conjugate_gradient</span><span class="p">,</span> <span class="n">newton_2nd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis.opt</span><span class="w"> </span><span class="kn">import</span> <span class="n">gradient_descent</span><span class="p">,</span> <span class="n">conjugate_gradient</span><span class="p">,</span> <span class="n">newton_2nd</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_ortho_basis</span><span class="p">,</span> <span class="n">print_matrix</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -83,7 +83,7 @@
 <span class="sd">&quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="get_random_matrix">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.get_random_matrix">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.get_random_matrix">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_random_matrix</span><span class="p">(</span><span class="n">ndim</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sym</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
     <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
 
@@ -106,7 +106,7 @@
 
 
 <div class="viewcode-block" id="solve_sylvester">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.solve_sylvester">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.solve_sylvester">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">solve_sylvester</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">B</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">solver</span><span class="o">=</span><span class="s1">&#39;iter&#39;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    solve X from `AX + XB = C` aka. Lyapunov, Stein equation</span>
@@ -137,7 +137,7 @@
 
 
 <div class="viewcode-block" id="Riemannian">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Riemannian">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Riemannian">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">Riemannian</span><span class="p">():</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ndim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x0</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">A</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">B</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">retraction</span><span class="o">=</span><span class="s1">&#39;qr&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -210,7 +210,7 @@
 
 
 <div class="viewcode-block" id="Riemannian.exp">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Riemannian.exp">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Riemannian.exp">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">exp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        geodesic mapping tangent vector v of x to other points on manifold</span>
@@ -224,7 +224,7 @@
 
 
 <div class="viewcode-block" id="Riemannian.log">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Riemannian.log">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Riemannian.log">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">log</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        geodesic mapping points on manifold to the tangent space of the first point</span>
@@ -235,7 +235,7 @@
 
 
 <div class="viewcode-block" id="Riemannian.retraction">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Riemannian.retraction">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Riemannian.retraction">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">retraction</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        approximation to exponential geodesic mapping</span>
@@ -246,7 +246,7 @@
 
 
 <div class="viewcode-block" id="Riemannian.inverse_retraction">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Riemannian.inverse_retraction">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Riemannian.inverse_retraction">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">inverse_retraction</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        approximation to logrithrim geodesic mapping</span>
@@ -257,7 +257,7 @@
 
 
 <div class="viewcode-block" id="Riemannian.projection">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Riemannian.projection">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Riemannian.projection">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">projection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        project a general matrix v to the tangent space of a point x on the manifold</span>
@@ -270,7 +270,7 @@
 
 
 <div class="viewcode-block" id="Riemannian.transport">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Riemannian.transport">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Riemannian.transport">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">transport</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">v0</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        parallel or vector transport moves tangent vector v0 at point x0 to point x1</span>
@@ -284,7 +284,7 @@
 
     <span class="c1">#TODO: on same point or two points?</span>
 <div class="viewcode-block" id="Riemannian.weingarten">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Riemannian.weingarten">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Riemannian.weingarten">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">weingarten</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        connection between tangent vectors</span>
@@ -294,7 +294,7 @@
 
 
 <div class="viewcode-block" id="Riemannian.check_tangent">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Riemannian.check_tangent">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Riemannian.check_tangent">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">check_tangent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        verify the obtained vector v is truly a tangent</span>
@@ -304,7 +304,7 @@
 
 
 <div class="viewcode-block" id="Riemannian.riemannian_gradient">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Riemannian.riemannian_gradient">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Riemannian.riemannian_gradient">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">riemannian_gradient</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">grad</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        project euclidean gradient to riemannian gradient of a function</span>
@@ -314,7 +314,7 @@
 
 
 <div class="viewcode-block" id="Riemannian.riemannian_hessian">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Riemannian.riemannian_hessian">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Riemannian.riemannian_hessian">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">riemannian_hessian</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">grad</span><span class="p">,</span> <span class="n">hess</span><span class="p">,</span> <span class="n">normal</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        project euclidean hessian to riemannian hessian of a function</span>
@@ -328,7 +328,7 @@
 
 
 <div class="viewcode-block" id="Riemannian.gradient_descent">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Riemannian.gradient_descent">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Riemannian.gradient_descent">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">gradient_descent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">nmax</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">thresh</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">,</span>
                          <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">method</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="c1"># assign a fixed suitable size by default</span>
@@ -343,7 +343,7 @@
 
 
 <div class="viewcode-block" id="Riemannian.conjugate_gradient">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Riemannian.conjugate_gradient">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Riemannian.conjugate_gradient">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">conjugate_gradient</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cg_method</span><span class="o">=</span><span class="s1">&#39;fletcher_reeves&#39;</span><span class="p">,</span>
                            <span class="n">nmax</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">thresh</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">method</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="c1"># assign a fixed suitable size by default</span>
@@ -363,13 +363,13 @@
 
 <span class="c1"># TODO: fix the N*N case</span>
 <div class="viewcode-block" id="OrthogonalGroup">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.OrthogonalGroup">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.OrthogonalGroup">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">OrthogonalGroup</span><span class="p">(</span><span class="n">Riemannian</span><span class="p">):</span> <span class="c1"># orthogonal group manifold</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    the points are n*n square matrix, n-dimensions and n-planes</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 <div class="viewcode-block" id="OrthogonalGroup.check_sanity">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.OrthogonalGroup.check_sanity">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.OrthogonalGroup.check_sanity">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">check_sanity</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">ndim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ndim</span><span class="p">)</span><span class="o">==</span><span class="mi">2</span> <span class="ow">and</span> <span class="n">ndim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">!=</span><span class="n">ndim</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
@@ -388,7 +388,7 @@
 
     <span class="c1"># x0 is nd square matrix</span>
 <div class="viewcode-block" id="OrthogonalGroup.func">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.OrthogonalGroup.func">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.OrthogonalGroup.func">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span> <span class="c1"># &lt;x|A|x&gt; / &lt;x|x&gt;</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;assume x is normalized&quot;&quot;&quot;</span>
         <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_A</span>
@@ -397,7 +397,7 @@
 
 
 <div class="viewcode-block" id="OrthogonalGroup.func_grad">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.OrthogonalGroup.func_grad">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.OrthogonalGroup.func_grad">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">func_grad</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span> <span class="c1"># 2 (I - |x&gt;&lt;x|) A|x&gt; = 2 (A - &lt;x|A|x&gt;I ) |x&gt;</span>
         <span class="c1"># the returned grad has been projected on the tangent space</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;assume x is normalized&quot;&quot;&quot;</span>
@@ -409,7 +409,7 @@
 
 
 <div class="viewcode-block" id="OrthogonalGroup.projection">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.OrthogonalGroup.projection">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.OrthogonalGroup.projection">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">projection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
         <span class="c1">#return (v - x * np.sum(np.einsum(&#39;m...,m...-&gt;...&#39;, x, v)))</span>
         <span class="k">return</span> <span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="n">x</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span></div>
@@ -417,7 +417,7 @@
 
 
 <div class="viewcode-block" id="OrthogonalGroup.retraction_norm">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.OrthogonalGroup.retraction_norm">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.OrthogonalGroup.retraction_norm">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">retraction_norm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;put (x+v) on the sphere&quot;&quot;&quot;</span>
         <span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">v</span><span class="o">*</span><span class="n">dt</span>
@@ -426,7 +426,7 @@
 
 
 <div class="viewcode-block" id="OrthogonalGroup.retraction_qr">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.OrthogonalGroup.retraction_qr">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.OrthogonalGroup.retraction_qr">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">retraction_qr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
         <span class="c1">#TODO: fix this bug!!!</span>
         <span class="n">x</span> <span class="o">+=</span> <span class="n">x</span> <span class="o">@</span> <span class="n">x</span>
@@ -436,14 +436,14 @@
 
 
 <div class="viewcode-block" id="OrthogonalGroup.retraction_polar">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.OrthogonalGroup.retraction_polar">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.OrthogonalGroup.retraction_polar">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">retraction_polar</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">x</span></div>
 
 
 
 <div class="viewcode-block" id="OrthogonalGroup.retraction_cayley">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.OrthogonalGroup.retraction_cayley">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.OrthogonalGroup.retraction_cayley">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">retraction_cayley</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
         <span class="c1">#TODO: where is the step size</span>
         <span class="n">I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
@@ -455,7 +455,7 @@
 
 
 <div class="viewcode-block" id="OrthogonalGroup.exp">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.OrthogonalGroup.exp">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.OrthogonalGroup.exp">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">exp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">scipy</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">expm</span><span class="p">(</span><span class="n">v</span><span class="o">*</span><span class="n">dt</span><span class="p">)</span> <span class="o">@</span> <span class="n">x</span></div>
 
@@ -463,7 +463,7 @@
 
     <span class="c1">#TODO: what about log?</span>
 <div class="viewcode-block" id="OrthogonalGroup.log">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.OrthogonalGroup.log">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.OrthogonalGroup.log">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">log</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
         <span class="k">return</span></div>
 </div>
@@ -472,7 +472,7 @@
 
 
 <div class="viewcode-block" id="Stiefel">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Stiefel">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Stiefel">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">Stiefel</span><span class="p">(</span><span class="n">OrthogonalGroup</span><span class="p">):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    `St(k,n) = {p \in F^{n*k} | p^\dagger B p = I_k}`</span>
@@ -482,7 +482,7 @@
 <span class="sd">    `T_p St(k,n) = {V \in F^{n*k} | p^\dagger B V + V^\dagger B p = 0_k}`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 <div class="viewcode-block" id="Stiefel.check_sanity">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Stiefel.check_sanity">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Stiefel.check_sanity">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">check_sanity</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">ndim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ndim</span><span class="p">)</span><span class="o">==</span><span class="mi">1</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ndim</span><span class="p">)</span><span class="o">==</span><span class="mi">2</span> <span class="ow">and</span> <span class="n">ndim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">&lt;</span><span class="n">ndim</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
@@ -508,7 +508,7 @@
 
 
 <div class="viewcode-block" id="Stiefel.projection">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Stiefel.projection">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Stiefel.projection">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">projection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        `Proj(p,V) = V - p Sym(p^\dagger B V)`</span>
@@ -520,7 +520,7 @@
 
 
 <div class="viewcode-block" id="Stiefel.retraction_qr">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Stiefel.retraction_qr">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Stiefel.retraction_qr">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">retraction_qr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        `Retr_p V = QD where QR = qr(p+V) and D=diag(sgn(diag(R)+.5))`</span>
@@ -535,7 +535,7 @@
 
 
 <div class="viewcode-block" id="Stiefel.retraction_polar">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Stiefel.retraction_polar">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Stiefel.retraction_polar">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">retraction_polar</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        `Retr_p V = U V^\dagger where UsV^\dagger = svd(p+V)`</span>
@@ -548,14 +548,14 @@
 
     <span class="c1">#TODO: implement qr method</span>
 <div class="viewcode-block" id="Stiefel.inverse_retraction_qr">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Stiefel.inverse_retraction_qr">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Stiefel.inverse_retraction_qr">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">inverse_retraction_qr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
         <span class="k">return</span></div>
 
 
 
 <div class="viewcode-block" id="Stiefel.inverse_retraction_polar">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Stiefel.inverse_retraction_polar">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Stiefel.inverse_retraction_polar">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">inverse_retraction_polar</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
         <span class="n">pt</span> <span class="o">=</span> <span class="n">x1</span><span class="o">.</span><span class="n">conj</span><span class="p">()</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">x2</span>
         <span class="c1">#TODO: it seems identity should be replaced by overlap metric</span>
@@ -565,7 +565,7 @@
 
 
 <div class="viewcode-block" id="Stiefel.weingarten">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Stiefel.weingarten">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Stiefel.weingarten">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">weingarten</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">grad</span><span class="p">,</span> <span class="n">normal</span><span class="p">):</span>
         <span class="c1"># grad is not used</span>
         <span class="n">tmp</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">normal</span>
@@ -579,7 +579,7 @@
 
     <span class="c1">#TODO: where is the time dt?</span>
 <div class="viewcode-block" id="Stiefel.exp">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Stiefel.exp">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Stiefel.exp">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">exp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        `exp_p V = (p \\ V) exp((p^\dagger V &amp; - V^\dagger V \\ I_n &amp; p^\dagger V)) (exp(-p^\dagger V) \\ 0_n)`</span>
@@ -598,14 +598,14 @@
 
     <span class="c1">#TODO: can we find log for stiefel?</span>
 <div class="viewcode-block" id="Stiefel.log">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Stiefel.log">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Stiefel.log">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">log</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
         <span class="k">return</span></div>
 
 
 
 <div class="viewcode-block" id="Stiefel.check_tangent">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Stiefel.check_tangent">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Stiefel.check_tangent">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">check_tangent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
         <span class="n">dot1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ji,jk-&gt;ik&#39;</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">conj</span><span class="p">(),</span> <span class="n">v</span><span class="p">)</span>
         <span class="n">dot2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ji,jk-&gt;ik&#39;</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">conj</span><span class="p">(),</span> <span class="n">x</span><span class="p">)</span>
@@ -621,7 +621,7 @@
 
 
 <div class="viewcode-block" id="Grassmann_Quotient">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">Grassmann_Quotient</span><span class="p">(</span><span class="n">Stiefel</span><span class="p">):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Grassmann is a quotient space from Stiefel</span>
@@ -632,7 +632,7 @@
 <span class="sd">    T_p Gr(k,n) = {V \in F^{n*n} | p^\dagger V = 0}`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 <div class="viewcode-block" id="Grassmann_Quotient.check_sanity">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.check_sanity">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.check_sanity">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">check_sanity</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">x0</span>
         <span class="n">p</span> <span class="o">=</span> <span class="n">x</span> <span class="o">@</span> <span class="n">x</span><span class="o">.</span><span class="n">conj</span><span class="p">()</span><span class="o">.</span><span class="n">T</span>
@@ -660,7 +660,7 @@
 
 
 <div class="viewcode-block" id="Grassmann_Quotient.projection">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.projection">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.projection">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">projection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        the resulted tangent vector is perpendicular to BX</span>
@@ -676,14 +676,14 @@
 
     <span class="c1">#TODO: should these be same?</span>
 <div class="viewcode-block" id="Grassmann_Quotient.retraction_qr">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.retraction_qr">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.retraction_qr">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">retraction_qr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span> <span class="c1"># same as stiefel</span>
         <span class="k">return</span></div>
 
 
 
 <div class="viewcode-block" id="Grassmann_Quotient.retraction_polar">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.retraction_polar">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.retraction_polar">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">retraction_polar</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span> <span class="c1"># same as stiefel</span>
         <span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">v</span><span class="o">*</span><span class="n">dt</span>
         <span class="n">u</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">vt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">svd</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">full_matrices</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
@@ -692,7 +692,7 @@
 
 
 <div class="viewcode-block" id="Grassmann_Quotient.inverse_retraction_polar">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.inverse_retraction_polar">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.inverse_retraction_polar">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">inverse_retraction_polar</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
         <span class="n">pt</span> <span class="o">=</span> <span class="n">x1</span><span class="o">.</span><span class="n">conj</span><span class="p">()</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">x2</span>
         <span class="n">pt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">pt</span><span class="p">)</span> <span class="c1"># get inverse</span>
@@ -702,7 +702,7 @@
 
 
 <div class="viewcode-block" id="Grassmann_Quotient.weingarten">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.weingarten">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.weingarten">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">weingarten</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">grad</span><span class="p">,</span> <span class="n">normal</span><span class="p">):</span>
         <span class="c1"># normal is not used</span>
         <span class="c1"># grad is euclidean gradient</span>
@@ -711,7 +711,7 @@
 
 
 <div class="viewcode-block" id="Grassmann_Quotient.exp">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.exp">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.exp">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">exp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        `exp_p (V) = p V cos(s) V^\dagger + U sin(s) V^\dagger`</span>
@@ -740,7 +740,7 @@
 
 
 <div class="viewcode-block" id="Grassmann_Quotient.log">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.log">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.log">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">log</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        adopted from alg. 1 from 10.1007/s10444-023-10090-8</span>
@@ -772,7 +772,7 @@
 
 
 <div class="viewcode-block" id="Grassmann_Quotient.horizontal_lift">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.horizontal_lift">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.horizontal_lift">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">horizontal_lift</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">lift</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        `\Delta = (0 &amp; - B^T \\ B &amp; 0)`</span>
@@ -803,14 +803,14 @@
 
 
 <div class="viewcode-block" id="Grassmann_Quotient.get_tangent">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.get_tangent">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.get_tangent">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_tangent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">horizontal_lift</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span></div>
 
 
 
 <div class="viewcode-block" id="Grassmann_Quotient.check_tangent">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.check_tangent">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.check_tangent">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">check_tangent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
         <span class="n">dot</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ji,jk-&gt;ik&#39;</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">conj</span><span class="p">(),</span> <span class="n">v</span><span class="p">)</span>
         <span class="n">is_tangent</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">dot</span><span class="p">)</span><span class="o">&lt;</span><span class="mf">1e-10</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span> <span class="c1"># all zeros</span>
@@ -823,7 +823,7 @@
 
 
 <div class="viewcode-block" id="Grassmann_Quotient.transport">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.transport">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.transport">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">transport</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">vg</span><span class="p">,</span> <span class="n">v0</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        parallel transport v0 at x0 along geodesic defined by vg</span>
@@ -846,7 +846,7 @@
 
 
 <div class="viewcode-block" id="Grassmann_Quotient.tangent_solver">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.tangent_solver">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.tangent_solver">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">tangent_solver</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">grad</span><span class="p">,</span> <span class="n">hess</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;direct&#39;</span><span class="p">:</span>
             <span class="n">v</span> <span class="o">=</span> <span class="n">solve_sylvester</span><span class="p">(</span><span class="n">hess</span><span class="p">,</span> <span class="p">(</span><span class="o">-</span><span class="n">x</span><span class="o">.</span><span class="n">T</span><span class="nd">@grad</span><span class="p">),</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">projection</span><span class="p">(</span><span class="n">grad</span><span class="p">))</span>
@@ -855,7 +855,7 @@
 
 
 <div class="viewcode-block" id="Grassmann_Quotient.newton_2nd">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann_Quotient.newton_2nd">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann_Quotient.newton_2nd">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">newton_2nd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gradf</span><span class="p">,</span> <span class="n">hessf</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span> <span class="n">nmax</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">thresh</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">):</span>
         <span class="k">def</span><span class="w"> </span><span class="nf">gradf</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
             <span class="k">return</span> <span class="mf">2.</span><span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_A</span> <span class="o">@</span> <span class="n">x</span><span class="p">)</span>
@@ -870,7 +870,7 @@
 
 
 <div class="viewcode-block" id="Grassmann">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.riemannian.Grassmann">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.riemannian.Grassmann">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">Grassmann</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="n">ndim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;ndim&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
     <span class="n">x0</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;x0&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>

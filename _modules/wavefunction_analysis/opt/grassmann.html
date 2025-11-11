@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>wavefunction_analysis.manifold.grassmann &mdash; wavefunction_analysis  documentation</title>
+  <title>wavefunction_analysis.opt.grassmann &mdash; wavefunction_analysis  documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
 
@@ -60,7 +60,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">wavefunction_analysis.manifold.grassmann</li>
+      <li class="breadcrumb-item active">wavefunction_analysis.opt.grassmann</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -69,7 +69,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <h1>Source code for wavefunction_analysis.manifold.grassmann</h1><div class="highlight"><pre>
+  <h1>Source code for wavefunction_analysis.opt.grassmann</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">scipy.linalg</span><span class="w"> </span><span class="kn">import</span> <span class="n">expm</span>
@@ -83,7 +83,7 @@
 <span class="n">np</span><span class="o">.</span><span class="n">set_printoptions</span><span class="p">(</span><span class="n">precision</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">suppress</span><span class="o">=</span><span class="kc">True</span><span class="p">,)</span>
 
 <div class="viewcode-block" id="geodesic_exp">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.geodesic_exp">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.geodesic_exp">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">geodesic_exp</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">full</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">scipy.linalg</span><span class="w"> </span><span class="kn">import</span> <span class="n">expm</span>
 
@@ -101,7 +101,7 @@
 
 
 <div class="viewcode-block" id="cs_decompose">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.cs_decompose">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.cs_decompose">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">cs_decompose</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">full</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
     <span class="n">U</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">Vt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">svd</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">full_matrices</span><span class="o">=</span><span class="n">full</span><span class="p">)</span>
     <span class="c1">#print(&#39;singular values:&#39;, s, np.cos(s), np.sin(s))</span>
@@ -115,7 +115,7 @@
 
 
 <div class="viewcode-block" id="geodesic_svd">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.geodesic_svd">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.geodesic_svd">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">geodesic_svd</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
     <span class="n">v</span><span class="p">,</span> <span class="n">o</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">shape</span>
     <span class="n">U</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">Vt</span> <span class="o">=</span> <span class="n">cs_decompose</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">)</span>
@@ -142,7 +142,7 @@
 
 
 <div class="viewcode-block" id="geodesic_svd_compact">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.geodesic_svd_compact">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.geodesic_svd_compact">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">geodesic_svd_compact</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">T</span><span class="p">):</span>
     <span class="n">U</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">Vt</span> <span class="o">=</span> <span class="n">cs_decompose</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">full</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
@@ -155,7 +155,7 @@
 
 
 <div class="viewcode-block" id="Grassmann">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Grassmann">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Grassmann">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">Grassmann</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mf</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">S</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">Q</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">Y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">P</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">update_method</span><span class="o">=</span><span class="s1">&#39;steepest_descent&#39;</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_mf</span> <span class="o">=</span> <span class="n">mf</span>
@@ -187,7 +187,7 @@
 
 
 <div class="viewcode-block" id="Grassmann.barzilai_borwein_step">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Grassmann.barzilai_borwein_step">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Grassmann.barzilai_borwein_step">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">barzilai_borwein_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">G0</span><span class="p">,</span> <span class="n">G1</span><span class="p">,</span> <span class="n">T0</span><span class="p">):</span>
         <span class="n">dG</span> <span class="o">=</span> <span class="n">G1</span> <span class="o">-</span> <span class="n">G0</span>
         <span class="n">alpha</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ij,ij-&gt;&#39;</span><span class="p">,</span> <span class="n">dG</span><span class="p">,</span> <span class="n">T0</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ij,ij-&gt;&#39;</span><span class="p">,</span> <span class="n">dG</span><span class="p">,</span> <span class="n">dG</span><span class="p">)</span>
@@ -196,7 +196,7 @@
 
 
 <div class="viewcode-block" id="Grassmann.polak_ribiere_step">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Grassmann.polak_ribiere_step">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Grassmann.polak_ribiere_step">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">polak_ribiere_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">G0</span><span class="p">,</span> <span class="n">G1</span><span class="p">,</span> <span class="n">T0</span><span class="p">):</span>
         <span class="n">dG</span> <span class="o">=</span> <span class="n">G1</span> <span class="o">-</span> <span class="n">G0</span>
         <span class="n">beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ij,ij-&gt;&#39;</span><span class="p">,</span> <span class="n">dG</span><span class="p">,</span> <span class="n">G1</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ij,ij-&gt;&#39;</span><span class="p">,</span> <span class="n">G0</span><span class="p">,</span> <span class="n">G0</span><span class="p">)</span>
@@ -205,14 +205,14 @@
 
 
 <div class="viewcode-block" id="Grassmann.init_guess">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Grassmann.init_guess">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Grassmann.init_guess">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">init_guess</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
 
 
 
 <div class="viewcode-block" id="Grassmann.kernel">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Grassmann.kernel">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Grassmann.kernel">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">C</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
         <span class="n">tol</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="nb">float</span><span class="p">(</span><span class="n">tol</span><span class="p">))</span>
 
@@ -257,17 +257,17 @@
 
 
 <div class="viewcode-block" id="Projection_Grassmann">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Projection_Grassmann">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Projection_Grassmann">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">Projection_Grassmann</span><span class="p">(</span><span class="n">Grassmann</span><span class="p">):</span>
 <div class="viewcode-block" id="Projection_Grassmann.init_guess">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Projection_Grassmann.init_guess">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Projection_Grassmann.init_guess">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">init_guess</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_P</span></div>
 
 
 
 <div class="viewcode-block" id="Projection_Grassmann.project_tangent_space">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Projection_Grassmann.project_tangent_space">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Projection_Grassmann.project_tangent_space">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">project_tangent_space</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">G</span><span class="p">):</span>
         <span class="c1"># [P, [P, G]] at point P, where P^2=P and G is a symmetric matrix</span>
         <span class="n">PG</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ij,jk-&gt;ik&#39;</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">G</span><span class="p">)</span>
@@ -279,10 +279,10 @@
 
 
 <div class="viewcode-block" id="Quotient_Grassmann">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Quotient_Grassmann">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Quotient_Grassmann">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">Quotient_Grassmann</span><span class="p">(</span><span class="n">Grassmann</span><span class="p">):</span>
 <div class="viewcode-block" id="Quotient_Grassmann.init_guess">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Quotient_Grassmann.init_guess">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Quotient_Grassmann.init_guess">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">init_guess</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">Y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_Y</span><span class="p">)</span>
         <span class="n">Y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ji,jk-&gt;ik&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">L</span><span class="p">,</span> <span class="n">Y</span><span class="p">)</span>
@@ -291,7 +291,7 @@
 
 
 <div class="viewcode-block" id="Quotient_Grassmann.project_tangent_space">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Quotient_Grassmann.project_tangent_space">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Quotient_Grassmann.project_tangent_space">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">project_tangent_space</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">G</span><span class="p">):</span>
         <span class="c1"># (I - YY^T) G Y</span>
         <span class="n">P</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ij,kj-&gt;ik&#39;</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">Y</span><span class="p">)</span>
@@ -301,7 +301,7 @@
 
 
 <div class="viewcode-block" id="Quotient_Grassmann.tangent_parallel_transport">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Quotient_Grassmann.tangent_parallel_transport">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Quotient_Grassmann.tangent_parallel_transport">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">tangent_parallel_transport</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="n">T</span><span class="p">):</span>
         <span class="n">U</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">Vt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">svd</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">full_matrices</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
         <span class="n">sVt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;i,ik-&gt;ik&#39;</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">Vt</span><span class="p">)</span>
@@ -318,7 +318,7 @@
 
 
 <div class="viewcode-block" id="Quotient_Grassmann.conjugate_gradient_step">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Quotient_Grassmann.conjugate_gradient_step">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Quotient_Grassmann.conjugate_gradient_step">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">conjugate_gradient_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">G0</span><span class="p">,</span> <span class="n">G1</span><span class="p">,</span> <span class="n">T0</span><span class="p">):</span>
         <span class="n">dT</span><span class="p">,</span> <span class="n">dG</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tangent_parallel_transport</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">G0</span><span class="p">,</span> <span class="n">T0</span><span class="p">)</span>
         <span class="n">gamma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ij,ij-&gt;&#39;</span><span class="p">,</span> <span class="n">G1</span><span class="o">-</span><span class="n">dG</span><span class="p">,</span> <span class="n">G1</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ij,ij-&gt;&#39;</span><span class="p">,</span> <span class="n">G0</span><span class="p">,</span> <span class="n">G0</span><span class="p">)</span>
@@ -327,7 +327,7 @@
 
 
 <div class="viewcode-block" id="Quotient_Grassmann.update">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Quotient_Grassmann.update">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Quotient_Grassmann.update">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">T</span><span class="p">):</span>
         <span class="n">Y</span> <span class="o">=</span> <span class="n">geodesic_svd_compact</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">T</span><span class="p">)</span>
 
@@ -341,10 +341,10 @@
 
 
 <div class="viewcode-block" id="Involution_Grassmann">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Involution_Grassmann">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Involution_Grassmann">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">Involution_Grassmann</span><span class="p">(</span><span class="n">Grassmann</span><span class="p">):</span>
 <div class="viewcode-block" id="Involution_Grassmann.init_guess">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Involution_Grassmann.init_guess">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Involution_Grassmann.init_guess">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">init_guess</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nocc</span><span class="p">),</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nvir</span><span class="p">))))</span>
 
@@ -355,7 +355,7 @@
 
 
 <div class="viewcode-block" id="Involution_Grassmann.project_tangent_space">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Involution_Grassmann.project_tangent_space">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Involution_Grassmann.project_tangent_space">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">project_tangent_space</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">V</span><span class="p">,</span> <span class="n">G</span><span class="p">):</span>
         <span class="n">G</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ij,jk,lk-&gt;il&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Z</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Z</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ji,jk,kl-&gt;il&#39;</span><span class="p">,</span> <span class="n">V</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="n">V</span><span class="p">)[</span><span class="bp">self</span><span class="o">.</span><span class="n">nocc</span><span class="p">:,</span> <span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">nocc</span><span class="p">]</span></div>
@@ -366,7 +366,7 @@
 
 
 <div class="viewcode-block" id="Involution_Grassmann.update">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.grassmann.Involution_Grassmann.update">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.grassmann.Involution_Grassmann.update">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">T</span><span class="p">):</span>
         <span class="c1">#print(&#39;C:\n&#39;, C)</span>
         <span class="c1">#print(&#39;I:\n&#39;, I)</span>

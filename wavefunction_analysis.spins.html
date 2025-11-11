@@ -19,8 +19,8 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="wavefunction_analysis.string_path package" href="wavefunction_analysis.string_path.html" />
-    <link rel="prev" title="wavefunction_analysis.quantum_computing package" href="wavefunction_analysis.quantum_computing.html" /> 
+    <link rel="next" title="wavefunction_analysis.utils package" href="wavefunction_analysis.utils.html" />
+    <link rel="prev" title="wavefunction_analysis.property package" href="wavefunction_analysis.property.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -47,15 +47,20 @@
 <li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="wavefunction_analysis.html">wavefunction_analysis package</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.dynamics.html">wavefunction_analysis.dynamics package</a></li>
-<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.entanglement.html">wavefunction_analysis.entanglement package</a></li>
-<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.manifold.html">wavefunction_analysis.manifold package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.embedding.html">wavefunction_analysis.embedding package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.opt.html">wavefunction_analysis.opt package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.plot.html">wavefunction_analysis.plot package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.polariton.html">wavefunction_analysis.polariton package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.property.html">wavefunction_analysis.property package</a></li>
-<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.quantum_computing.html">wavefunction_analysis.quantum_computing package</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">wavefunction_analysis.spins package</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-wavefunction_analysis.spins.circuit">wavefunction_analysis.spins.circuit module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#wavefunction_analysis.spins.circuit.beta_layer"><code class="docutils literal notranslate"><span class="pre">beta_layer()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wavefunction_analysis.spins.circuit.create_circuit"><code class="docutils literal notranslate"><span class="pre">create_circuit()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wavefunction_analysis.spins.circuit.create_qubits_2d"><code class="docutils literal notranslate"><span class="pre">create_qubits_2d()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wavefunction_analysis.spins.circuit.gamma_layer"><code class="docutils literal notranslate"><span class="pre">gamma_layer()</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="#module-wavefunction_analysis.spins.infinite_mps_block">wavefunction_analysis.spins.infinite_mps_block module</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#wavefunction_analysis.spins.infinite_mps_block.apply_gate_on_mps"><code class="docutils literal notranslate"><span class="pre">apply_gate_on_mps()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wavefunction_analysis.spins.infinite_mps_block.build_evolution_gate"><code class="docutils literal notranslate"><span class="pre">build_evolution_gate()</span></code></a></li>
@@ -84,6 +89,11 @@
 <li class="toctree-l4"><a class="reference internal" href="#wavefunction_analysis.spins.matrix_product_state.zipper_from_right"><code class="docutils literal notranslate"><span class="pre">zipper_from_right()</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#module-wavefunction_analysis.spins.qaoa">wavefunction_analysis.spins.qaoa module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#wavefunction_analysis.spins.qaoa.QAOA"><code class="docutils literal notranslate"><span class="pre">QAOA</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wavefunction_analysis.spins.qaoa.QAOA_Ising"><code class="docutils literal notranslate"><span class="pre">QAOA_Ising</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="#module-wavefunction_analysis.spins.spin_hamil">wavefunction_analysis.spins.spin_hamil module</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#wavefunction_analysis.spins.spin_hamil.get_prod_spin_list"><code class="docutils literal notranslate"><span class="pre">get_prod_spin_list()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wavefunction_analysis.spins.spin_hamil.get_spin"><code class="docutils literal notranslate"><span class="pre">get_spin()</span></code></a></li>
@@ -99,7 +109,6 @@
 <li class="toctree-l3"><a class="reference internal" href="#module-wavefunction_analysis.spins">Module contents</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.string_path.html">wavefunction_analysis.string_path package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.utils.html">wavefunction_analysis.utils package</a></li>
 </ul>
 </li>
@@ -134,6 +143,38 @@
 <h1>wavefunction_analysis.spins package<a class="headerlink" href="#wavefunction-analysis-spins-package" title="Link to this heading"></a></h1>
 <section id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
+</section>
+<section id="module-wavefunction_analysis.spins.circuit">
+<span id="wavefunction-analysis-spins-circuit-module"></span><h2>wavefunction_analysis.spins.circuit module<a class="headerlink" href="#module-wavefunction_analysis.spins.circuit" title="Link to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.circuit.beta_layer">
+<span class="sig-name descname"><span class="pre">beta_layer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">qubits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/spins/circuit.html#beta_layer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.spins.circuit.beta_layer" title="Link to this definition"></a></dt>
+<dd><p>Define the beta layer of the circuit.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.circuit.create_circuit">
+<span class="sig-name descname"><span class="pre">create_circuit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">qubits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/spins/circuit.html#create_circuit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.spins.circuit.create_circuit" title="Link to this definition"></a></dt>
+<dd><p>Create a quantum circuit with Hadamard gates on each qubit for
+equal superposition as real initial state.
+gamma: 𝛾 symbol holder as a parameter for U(gamma, C) operator
+beta: ß symbol holder as a parameter for U(beta, B) operator
+h: 2D array of magnetic field values
+return: cirq.Circuit object</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.circuit.create_qubits_2d">
+<span class="sig-name descname"><span class="pre">create_qubits_2d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nrow</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ncol</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/spins/circuit.html#create_qubits_2d"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.spins.circuit.create_qubits_2d" title="Link to this definition"></a></dt>
+<dd><p>Initialize qubits in a 2D grid.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.circuit.gamma_layer">
+<span class="sig-name descname"><span class="pre">gamma_layer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">qubits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/spins/circuit.html#gamma_layer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.spins.circuit.gamma_layer" title="Link to this definition"></a></dt>
+<dd><p>Define the gamma layer of the circuit.</p>
+</dd></dl>
+
 </section>
 <section id="module-wavefunction_analysis.spins.infinite_mps_block">
 <span id="wavefunction-analysis-spins-infinite-mps-block-module"></span><h2>wavefunction_analysis.spins.infinite_mps_block module<a class="headerlink" href="#module-wavefunction_analysis.spins.infinite_mps_block" title="Link to this heading"></a></h2>
@@ -585,6 +626,71 @@ Contract Tl from the right with 1). bra Mt at top,</p>
 </dd></dl>
 
 </section>
+<section id="module-wavefunction_analysis.spins.qaoa">
+<span id="wavefunction-analysis-spins-qaoa-module"></span><h2>wavefunction_analysis.spins.qaoa module<a class="headerlink" href="#module-wavefunction_analysis.spins.qaoa" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.qaoa.QAOA">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">QAOA</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nsite</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/spins/qaoa.html#QAOA"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.spins.qaoa.QAOA" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Quantum Approximate Optimization Algorithm class.</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.qaoa.QAOA.draw_circuit">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">draw_circuit</span></span><a class="headerlink" href="#wavefunction_analysis.spins.qaoa.QAOA.draw_circuit" title="Link to this definition"></a></dt>
+<dd><p>Draw the quantum circuit.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.qaoa.QAOA.energy_evaluation">
+<span class="sig-name descname"><span class="pre">energy_evaluation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/spins/qaoa.html#QAOA.energy_evaluation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.spins.qaoa.QAOA.energy_evaluation" title="Link to this definition"></a></dt>
+<dd><p>Evaluate the energy expectation value for given gamma and beta on circuit.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.qaoa.QAOA.energy_expectation">
+<span class="sig-name descname"><span class="pre">energy_expectation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">wf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/spins/qaoa.html#QAOA.energy_expectation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.spins.qaoa.QAOA.energy_expectation" title="Link to this definition"></a></dt>
+<dd><p>Calculate the energy expectation value for a given wavefunction.
+wf: wavefunction is an array of size 2**(nrow*ncol)</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.qaoa.QAOA.fd_gradient_evaluation">
+<span class="sig-name descname"><span class="pre">fd_gradient_evaluation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/spins/qaoa.html#QAOA.fd_gradient_evaluation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.spins.qaoa.QAOA.fd_gradient_evaluation" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.qaoa.QAOA.optimizer">
+<span class="sig-name descname"><span class="pre">optimizer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_steps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">150</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">thresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-05</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/spins/qaoa.html#QAOA.optimizer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.spins.qaoa.QAOA.optimizer" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.qaoa.QAOA.resolve_circuit_params">
+<span class="sig-name descname"><span class="pre">resolve_circuit_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/spins/qaoa.html#QAOA.resolve_circuit_params"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.spins.qaoa.QAOA.resolve_circuit_params" title="Link to this definition"></a></dt>
+<dd><p>Define the circuit parameters.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.qaoa.QAOA_Ising">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">QAOA_Ising</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nsite</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/spins/qaoa.html#QAOA_Ising"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.spins.qaoa.QAOA_Ising" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wavefunction_analysis.spins.qaoa.QAOA" title="wavefunction_analysis.spins.qaoa.QAOA"><code class="xref py py-class docutils literal notranslate"><span class="pre">QAOA</span></code></a></p>
+<p><cite>E = - sum_{ij} sigma_i sigma_j - h_i sigma_i</cite>
+h is the magnetic field on each spin</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.qaoa.QAOA_Ising.energy_expectation">
+<span class="sig-name descname"><span class="pre">energy_expectation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">wf</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/spins/qaoa.html#QAOA_Ising.energy_expectation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.spins.qaoa.QAOA_Ising.energy_expectation" title="Link to this definition"></a></dt>
+<dd><p>wf: wavefunction is an array of size 2**(nrow*ncol)</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wavefunction_analysis.spins.qaoa.QAOA_Ising.resolve_circuit_params">
+<span class="sig-name descname"><span class="pre">resolve_circuit_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/spins/qaoa.html#QAOA_Ising.resolve_circuit_params"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.spins.qaoa.QAOA_Ising.resolve_circuit_params" title="Link to this definition"></a></dt>
+<dd><p>Define the circuit parameters for Ising model.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
 <section id="module-wavefunction_analysis.spins.spin_hamil">
 <span id="wavefunction-analysis-spins-spin-hamil-module"></span><h2>wavefunction_analysis.spins.spin_hamil module<a class="headerlink" href="#module-wavefunction_analysis.spins.spin_hamil" title="Link to this heading"></a></h2>
 <dl class="py function">
@@ -701,8 +807,8 @@ boundary condition: open or periodic</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="wavefunction_analysis.quantum_computing.html" class="btn btn-neutral float-left" title="wavefunction_analysis.quantum_computing package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="wavefunction_analysis.string_path.html" class="btn btn-neutral float-right" title="wavefunction_analysis.string_path package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="wavefunction_analysis.property.html" class="btn btn-neutral float-left" title="wavefunction_analysis.property package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="wavefunction_analysis.utils.html" class="btn btn-neutral float-right" title="wavefunction_analysis.utils package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

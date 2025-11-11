@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>wavefunction_analysis.entanglement.mol_lo_tools &mdash; wavefunction_analysis  documentation</title>
+  <title>wavefunction_analysis.embedding.mol_lo_tools &mdash; wavefunction_analysis  documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
 
@@ -60,7 +60,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">wavefunction_analysis.entanglement.mol_lo_tools</li>
+      <li class="breadcrumb-item active">wavefunction_analysis.embedding.mol_lo_tools</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -69,12 +69,12 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <h1>Source code for wavefunction_analysis.entanglement.mol_lo_tools</h1><div class="highlight"><pre>
+  <h1>Source code for wavefunction_analysis.embedding.mol_lo_tools</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span><span class="w"> </span><span class="nn">scipy</span><span class="o">,</span><span class="w"> </span><span class="nn">numpy</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pyscf</span>
 
 <div class="viewcode-block" id="lo_weight_on_ao">
-<a class="viewcode-back" href="../../../wavefunction_analysis.entanglement.html#wavefunction_analysis.entanglement.mol_lo_tools.lo_weight_on_ao">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.embedding.html#wavefunction_analysis.embedding.mol_lo_tools.lo_weight_on_ao">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">lo_weight_on_ao</span><span class="p">(</span><span class="n">mol</span> <span class="p">:</span> <span class="n">pyscf</span><span class="o">.</span><span class="n">gto</span><span class="o">.</span><span class="n">Mole</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">coeff_ao_lo</span> <span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">ovlp_ao</span> <span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;A function to calculate the weight of local orbitals on atomic orbitals.</span>
 
@@ -110,7 +110,7 @@
 
 
 <div class="viewcode-block" id="lo_weight_on_atom">
-<a class="viewcode-back" href="../../../wavefunction_analysis.entanglement.html#wavefunction_analysis.entanglement.mol_lo_tools.lo_weight_on_atom">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.embedding.html#wavefunction_analysis.embedding.mol_lo_tools.lo_weight_on_atom">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">lo_weight_on_atom</span><span class="p">(</span><span class="n">mol</span> <span class="p">:</span> <span class="n">pyscf</span><span class="o">.</span><span class="n">gto</span><span class="o">.</span><span class="n">Mole</span><span class="p">,</span> <span class="n">coeff_ao_lo</span> <span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">ovlp_ao</span> <span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;A function to calculate the weight of local orbitals on atomic orbitals.</span>
 
@@ -150,7 +150,7 @@
 
 
 <div class="viewcode-block" id="lo_weight_on_frag">
-<a class="viewcode-back" href="../../../wavefunction_analysis.entanglement.html#wavefunction_analysis.entanglement.mol_lo_tools.lo_weight_on_frag">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.embedding.html#wavefunction_analysis.embedding.mol_lo_tools.lo_weight_on_frag">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">lo_weight_on_frag</span><span class="p">(</span><span class="n">frag_atms_list</span> <span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">mol</span> <span class="p">:</span> <span class="n">pyscf</span><span class="o">.</span><span class="n">gto</span><span class="o">.</span><span class="n">Mole</span><span class="p">,</span>
                       <span class="n">coeff_ao_lo</span> <span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                       <span class="n">ovlp_ao</span> <span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
@@ -196,7 +196,7 @@
 
 
 <div class="viewcode-block" id="partition_lo_to_atms">
-<a class="viewcode-back" href="../../../wavefunction_analysis.entanglement.html#wavefunction_analysis.entanglement.mol_lo_tools.partition_lo_to_atms">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.embedding.html#wavefunction_analysis.embedding.mol_lo_tools.partition_lo_to_atms">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">partition_lo_to_atms</span><span class="p">(</span><span class="n">mol</span> <span class="p">:</span> <span class="n">pyscf</span><span class="o">.</span><span class="n">gto</span><span class="o">.</span><span class="n">Mole</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                          <span class="n">coeff_ao_lo</span> <span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                          <span class="n">w2_atm_lo</span> <span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -243,7 +243,7 @@
 
 
 <div class="viewcode-block" id="partition_lo_to_frags">
-<a class="viewcode-back" href="../../../wavefunction_analysis.entanglement.html#wavefunction_analysis.entanglement.mol_lo_tools.partition_lo_to_frags">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.embedding.html#wavefunction_analysis.embedding.mol_lo_tools.partition_lo_to_frags">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">partition_lo_to_frags</span><span class="p">(</span><span class="n">frag_atms_list</span> <span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
                           <span class="n">mol</span> <span class="p">:</span> <span class="n">pyscf</span><span class="o">.</span><span class="n">gto</span><span class="o">.</span><span class="n">Mole</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                           <span class="n">coeff_ao_lo</span> <span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>

@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>wavefunction_analysis.manifold.optimization &mdash; wavefunction_analysis  documentation</title>
+  <title>wavefunction_analysis.opt.optimization &mdash; wavefunction_analysis  documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
 
@@ -60,7 +60,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">wavefunction_analysis.manifold.optimization</li>
+      <li class="breadcrumb-item active">wavefunction_analysis.opt.optimization</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -69,7 +69,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <h1>Source code for wavefunction_analysis.manifold.optimization</h1><div class="highlight"><pre>
+  <h1>Source code for wavefunction_analysis.opt.optimization</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">np</span>
 
 <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
@@ -78,7 +78,7 @@
 <span class="sd">x_{k+1} = retr_x_k (s_k grad f(x_k))</span>
 <span class="sd">&quot;&quot;&quot;</span>
 <div class="viewcode-block" id="gradient_descent">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.optimization.gradient_descent">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.optimization.gradient_descent">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">gradient_descent</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">gradf</span><span class="p">,</span> <span class="n">retraction</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span>
                      <span class="n">ls_method</span><span class="o">=</span><span class="s1">&#39;armijo&#39;</span><span class="p">,</span> <span class="n">nmax</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">thresh</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">,</span>
                      <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -122,7 +122,7 @@
 
 
 <div class="viewcode-block" id="line_search">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.optimization.line_search">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.optimization.line_search">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">line_search</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s1">&#39;armijo&#39;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    method options: float, newton, backtracking, armijo, steepest</span>
@@ -140,7 +140,7 @@
 
 
 <div class="viewcode-block" id="ls_steepest">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.optimization.ls_steepest">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.optimization.ls_steepest">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">ls_steepest</span><span class="p">(</span><span class="n">step</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
     <span class="c1"># we need a function</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">kernel</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -150,7 +150,7 @@
 
 
 <div class="viewcode-block" id="ls_backtracking">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.optimization.ls_backtracking">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.optimization.ls_backtracking">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">ls_backtracking</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">gradf</span><span class="p">,</span> <span class="n">retraction</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span>
                     <span class="n">tau</span><span class="o">=</span><span class="mf">.5</span><span class="p">,</span> <span class="n">r</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -185,7 +185,7 @@
 
 
 <div class="viewcode-block" id="ls_newton_raphson">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.optimization.ls_newton_raphson">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.optimization.ls_newton_raphson">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">ls_newton_raphson</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">gradf</span><span class="p">,</span> <span class="n">retraction</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="n">hessf</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;hessf&#39;</span><span class="p">)</span>
     <span class="n">inv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">hessf</span><span class="p">)</span>
@@ -197,7 +197,7 @@
 <span class="sd">conjugate gradient algorithm would change the search direction as well</span>
 <span class="sd">&quot;&quot;&quot;</span>
 <div class="viewcode-block" id="conjugate_gradient">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.optimization.conjugate_gradient">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.optimization.conjugate_gradient">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">conjugate_gradient</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">gradf</span><span class="p">,</span> <span class="n">retraction</span><span class="p">,</span> <span class="n">transport</span><span class="p">,</span> <span class="n">preconditioner</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span>
                        <span class="n">ls_method</span><span class="o">=</span><span class="s1">&#39;armijo&#39;</span><span class="p">,</span> <span class="n">cg_method</span><span class="o">=</span><span class="s1">&#39;fletcher_reeves&#39;</span><span class="p">,</span>
                        <span class="n">nmax</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">thresh</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">,</span>
@@ -252,7 +252,7 @@
 
 
 <div class="viewcode-block" id="choose_direction">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.optimization.choose_direction">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.optimization.choose_direction">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">choose_direction</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s1">&#39;fletcher_reeves&#39;</span><span class="p">):</span>
     <span class="n">cg_method</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="s1">&#39;cg_&#39;</span><span class="o">+</span><span class="n">method</span><span class="p">)</span>
 
@@ -264,7 +264,7 @@
 
 
 <div class="viewcode-block" id="cg_fletcher_reeves">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.optimization.cg_fletcher_reeves">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.optimization.cg_fletcher_reeves">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">cg_fletcher_reeves</span><span class="p">(</span><span class="n">transport</span><span class="p">,</span> <span class="n">preconditioner</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">g0</span><span class="p">,</span> <span class="n">g1</span><span class="p">):</span>
     <span class="n">pg0</span><span class="p">,</span> <span class="n">pg1</span> <span class="o">=</span> <span class="n">preconditioner</span><span class="p">(</span><span class="n">g0</span><span class="p">),</span> <span class="n">preconditioner</span><span class="p">(</span><span class="n">g1</span><span class="p">)</span>
 
@@ -273,7 +273,7 @@
 
 
 <div class="viewcode-block" id="cg_polak_ribiere">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.optimization.cg_polak_ribiere">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.optimization.cg_polak_ribiere">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">cg_polak_ribiere</span><span class="p">(</span><span class="n">transport</span><span class="p">,</span> <span class="n">preconditioner</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">g0</span><span class="p">,</span> <span class="n">g1</span><span class="p">):</span>
     <span class="n">dg</span> <span class="o">=</span> <span class="n">g1</span> <span class="o">-</span> <span class="n">transport</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">g0</span><span class="p">)</span>
     <span class="n">g1</span> <span class="o">=</span> <span class="n">preconditioner</span><span class="p">(</span><span class="n">g1</span><span class="p">)</span>
@@ -283,7 +283,7 @@
 
 
 <div class="viewcode-block" id="newton_2nd">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.optimization.newton_2nd">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.optimization.newton_2nd">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">newton_2nd</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">gradf</span><span class="p">,</span> <span class="n">hessf</span><span class="p">,</span> <span class="n">tangent_solver</span><span class="p">,</span> <span class="n">geodesic</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span>
                <span class="n">nmax</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">thresh</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="n">xi</span> <span class="o">=</span> <span class="n">x0</span>
@@ -317,7 +317,7 @@
 
 <span class="c1">#TODO: how to do trust_region?</span>
 <div class="viewcode-block" id="trust_region">
-<a class="viewcode-back" href="../../../wavefunction_analysis.manifold.html#wavefunction_analysis.manifold.optimization.trust_region">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.opt.html#wavefunction_analysis.opt.optimization.trust_region">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">trust_region</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">gradf</span><span class="p">,</span> <span class="n">hessf</span><span class="p">,</span> <span class="n">tangent_solver</span><span class="p">,</span> <span class="n">geodesic</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span>
                  <span class="n">nmax</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">thresh</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="n">xi</span> <span class="o">=</span> <span class="n">x0</span>

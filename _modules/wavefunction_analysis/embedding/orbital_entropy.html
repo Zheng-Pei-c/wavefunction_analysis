@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>wavefunction_analysis.entanglement.orbital_entropy &mdash; wavefunction_analysis  documentation</title>
+  <title>wavefunction_analysis.embedding.orbital_entropy &mdash; wavefunction_analysis  documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
 
@@ -60,7 +60,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">wavefunction_analysis.entanglement.orbital_entropy</li>
+      <li class="breadcrumb-item active">wavefunction_analysis.embedding.orbital_entropy</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -69,7 +69,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <h1>Source code for wavefunction_analysis.entanglement.orbital_entropy</h1><div class="highlight"><pre>
+  <h1>Source code for wavefunction_analysis.embedding.orbital_entropy</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">sys</span><span class="p">,</span> <span class="n">np</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">pyscf</span><span class="w"> </span><span class="kn">import</span> <span class="n">scf</span><span class="p">,</span> <span class="n">lib</span>
@@ -77,12 +77,12 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis.utils.pyscf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">print_matrix</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis.entanglement.mol_lo_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partition_lo_to_imps</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis.embedding.mol_lo_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partition_lo_to_imps</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_ortho_basis</span>
 
 
 <div class="viewcode-block" id="normalize_wf">
-<a class="viewcode-back" href="../../../wavefunction_analysis.entanglement.html#wavefunction_analysis.entanglement.orbital_entropy.normalize_wf">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.embedding.html#wavefunction_analysis.embedding.orbital_entropy.normalize_wf">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">normalize_wf</span><span class="p">(</span><span class="n">t2</span><span class="p">):</span>
     <span class="c1">#norm = np.linalg.norm(t2.ravel())</span>
     <span class="n">c2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;ijab,ijab&#39;</span><span class="p">,</span> <span class="n">t2</span><span class="p">,</span> <span class="n">t2</span><span class="p">)</span>
@@ -95,7 +95,7 @@
 
 
 <div class="viewcode-block" id="get_1rdm">
-<a class="viewcode-back" href="../../../wavefunction_analysis.entanglement.html#wavefunction_analysis.entanglement.orbital_entropy.get_1rdm">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.embedding.html#wavefunction_analysis.embedding.orbital_entropy.get_1rdm">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_1rdm</span><span class="p">(</span><span class="n">c0</span><span class="p">,</span> <span class="n">c2</span><span class="p">):</span>
     <span class="n">nocc</span><span class="p">,</span> <span class="n">nvir</span> <span class="o">=</span> <span class="n">c2</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
     <span class="n">c2d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="mf">2.</span><span class="o">*</span><span class="n">c2</span><span class="p">,</span> <span class="n">c2</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">2</span><span class="p">))</span> <span class="c1"># t_ijab - t_ijba</span>
@@ -117,7 +117,7 @@
 
 
 <div class="viewcode-block" id="get_2rdm">
-<a class="viewcode-back" href="../../../wavefunction_analysis.entanglement.html#wavefunction_analysis.entanglement.orbital_entropy.get_2rdm">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.embedding.html#wavefunction_analysis.embedding.orbital_entropy.get_2rdm">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_2rdm</span><span class="p">(</span><span class="n">c0</span><span class="p">,</span> <span class="n">c2</span><span class="p">):</span>
     <span class="n">nocc</span><span class="p">,</span> <span class="n">nvir</span> <span class="o">=</span> <span class="n">c2</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
     <span class="n">c2d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">c2</span><span class="p">,</span> <span class="n">c2</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">2</span><span class="p">))</span> <span class="c1"># t_ijab - t_ijba</span>
@@ -136,14 +136,14 @@
 
 
 <div class="viewcode-block" id="get_rdm_entropy">
-<a class="viewcode-back" href="../../../wavefunction_analysis.entanglement.html#wavefunction_analysis.entanglement.orbital_entropy.get_rdm_entropy">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.embedding.html#wavefunction_analysis.embedding.orbital_entropy.get_rdm_entropy">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_rdm_entropy</span><span class="p">(</span><span class="n">rho</span><span class="p">):</span>
     <span class="k">return</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s1">&#39;i...,i...-&gt;i...&#39;</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">rho</span><span class="p">))</span></div>
 
 
 
 <div class="viewcode-block" id="get_orbital_entropy_info">
-<a class="viewcode-back" href="../../../wavefunction_analysis.entanglement.html#wavefunction_analysis.entanglement.orbital_entropy.get_orbital_entropy_info">[docs]</a>
+<a class="viewcode-back" href="../../../wavefunction_analysis.embedding.html#wavefunction_analysis.embedding.orbital_entropy.get_orbital_entropy_info">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_orbital_entropy_info</span><span class="p">(</span><span class="n">s1</span><span class="p">,</span> <span class="n">s2</span><span class="p">,</span> <span class="n">imethod</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
     <span class="n">Iij</span> <span class="o">=</span> <span class="n">lib</span><span class="o">.</span><span class="n">direct_sum</span><span class="p">(</span><span class="s1">&#39;i+j-&gt;ij&#39;</span><span class="p">,</span> <span class="n">s1</span><span class="p">,</span> <span class="n">s1</span><span class="p">)</span> <span class="o">-</span> <span class="n">s2</span>
     <span class="k">if</span> <span class="n">imethod</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
@@ -173,8 +173,8 @@
     <span class="n">print_matrix</span><span class="p">(</span><span class="s1">&#39;p1:&#39;</span><span class="p">,</span> <span class="n">p1</span><span class="p">)</span>
 
 
-    <span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis.entanglement.mol_lo_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partition_lo_to_imps</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis.entanglement.fragment_entangle</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_localized_orbital</span><span class="p">,</span> <span class="n">get_localized_orbital_rdm</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis.embedding.mol_lo_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partition_lo_to_imps</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">wavefunction_analysis.embedding.fragment_entangle</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_localized_orbital</span><span class="p">,</span> <span class="n">get_localized_orbital_rdm</span>
     <span class="n">frgm_idx</span> <span class="o">=</span> <span class="p">[[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">mol</span><span class="o">.</span><span class="n">natm</span><span class="p">)]</span>
     <span class="n">ovlp_ao</span> <span class="o">=</span> <span class="n">mf</span><span class="o">.</span><span class="n">get_ovlp</span><span class="p">()</span>
     <span class="n">coeff_mo_in_ao</span> <span class="o">=</span> <span class="n">mo_coeff</span>
