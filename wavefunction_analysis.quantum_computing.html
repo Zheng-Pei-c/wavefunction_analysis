@@ -1,0 +1,188 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wavefunction_analysis.quantum_computing package &mdash; wavefunction_analysis  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="wavefunction_analysis.spins package" href="wavefunction_analysis.spins.html" />
+    <link rel="prev" title="wavefunction_analysis.property package" href="wavefunction_analysis.property.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            wavefunction_analysis
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="wavefunction_analysis.html">wavefunction_analysis package</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.dynamics.html">wavefunction_analysis.dynamics package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.entanglement.html">wavefunction_analysis.entanglement package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.manifold.html">wavefunction_analysis.manifold package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.opt.html">wavefunction_analysis.opt package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.plot.html">wavefunction_analysis.plot package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.polariton.html">wavefunction_analysis.polariton package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.property.html">wavefunction_analysis.property package</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">wavefunction_analysis.quantum_computing package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-wavefunction_analysis.quantum_computing.circuit">wavefunction_analysis.quantum_computing.circuit module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-wavefunction_analysis.quantum_computing.diag">wavefunction_analysis.quantum_computing.diag module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-wavefunction_analysis.quantum_computing.ising_qaoa">wavefunction_analysis.quantum_computing.ising_qaoa module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#wavefunction_analysis.quantum_computing.ising_qaoa.ising_model"><code class="docutils literal notranslate"><span class="pre">ising_model</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#module-wavefunction_analysis.quantum_computing">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.spins.html">wavefunction_analysis.spins package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.string_path.html">wavefunction_analysis.string_path package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wavefunction_analysis.utils.html">wavefunction_analysis.utils package</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">wavefunction_analysis</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="wavefunction_analysis.html">wavefunction_analysis package</a></li>
+      <li class="breadcrumb-item active">wavefunction_analysis.quantum_computing package</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/Zheng-Pei-c/wavefunction_analysis/edit/main/docs/wavefunction_analysis.quantum_computing.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="wavefunction-analysis-quantum-computing-package">
+<h1>wavefunction_analysis.quantum_computing package<a class="headerlink" href="#wavefunction-analysis-quantum-computing-package" title="Link to this heading"></a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
+</section>
+<section id="module-wavefunction_analysis.quantum_computing.circuit">
+<span id="wavefunction-analysis-quantum-computing-circuit-module"></span><h2>wavefunction_analysis.quantum_computing.circuit module<a class="headerlink" href="#module-wavefunction_analysis.quantum_computing.circuit" title="Link to this heading"></a></h2>
+</section>
+<section id="module-wavefunction_analysis.quantum_computing.diag">
+<span id="wavefunction-analysis-quantum-computing-diag-module"></span><h2>wavefunction_analysis.quantum_computing.diag module<a class="headerlink" href="#module-wavefunction_analysis.quantum_computing.diag" title="Link to this heading"></a></h2>
+</section>
+<section id="module-wavefunction_analysis.quantum_computing.ising_qaoa">
+<span id="wavefunction-analysis-quantum-computing-ising-qaoa-module"></span><h2>wavefunction_analysis.quantum_computing.ising_qaoa module<a class="headerlink" href="#module-wavefunction_analysis.quantum_computing.ising_qaoa" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="wavefunction_analysis.quantum_computing.ising_qaoa.ising_model">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ising_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nsite</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/quantum_computing/ising_qaoa.html#ising_model"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.quantum_computing.ising_qaoa.ising_model" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>E = - Z_i Z_j - h_i Z_i
+h is the magnetic field on each spin</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="wavefunction_analysis.quantum_computing.ising_qaoa.ising_model.beta_layer">
+<span class="sig-name descname"><span class="pre">beta_layer</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/quantum_computing/ising_qaoa.html#ising_model.beta_layer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.quantum_computing.ising_qaoa.ising_model.beta_layer" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wavefunction_analysis.quantum_computing.ising_qaoa.ising_model.energy_evaluation">
+<span class="sig-name descname"><span class="pre">energy_evaluation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/quantum_computing/ising_qaoa.html#ising_model.energy_evaluation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.quantum_computing.ising_qaoa.ising_model.energy_evaluation" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wavefunction_analysis.quantum_computing.ising_qaoa.ising_model.energy_expectation">
+<span class="sig-name descname"><span class="pre">energy_expectation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">wf</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/quantum_computing/ising_qaoa.html#ising_model.energy_expectation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.quantum_computing.ising_qaoa.ising_model.energy_expectation" title="Link to this definition"></a></dt>
+<dd><p>wf: wavefunction is an array of size 2**(nrow*ncol)</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wavefunction_analysis.quantum_computing.ising_qaoa.ising_model.fd_gradient_evaluation">
+<span class="sig-name descname"><span class="pre">fd_gradient_evaluation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/quantum_computing/ising_qaoa.html#ising_model.fd_gradient_evaluation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.quantum_computing.ising_qaoa.ising_model.fd_gradient_evaluation" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wavefunction_analysis.quantum_computing.ising_qaoa.ising_model.gamma_layer">
+<span class="sig-name descname"><span class="pre">gamma_layer</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/quantum_computing/ising_qaoa.html#ising_model.gamma_layer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.quantum_computing.ising_qaoa.ising_model.gamma_layer" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="wavefunction_analysis.quantum_computing.ising_qaoa.ising_model.optimizer">
+<span class="sig-name descname"><span class="pre">optimizer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_steps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">150</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">thresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-05</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/wavefunction_analysis/quantum_computing/ising_qaoa.html#ising_model.optimizer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#wavefunction_analysis.quantum_computing.ising_qaoa.ising_model.optimizer" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-wavefunction_analysis.quantum_computing">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-wavefunction_analysis.quantum_computing" title="Link to this heading"></a></h2>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="wavefunction_analysis.property.html" class="btn btn-neutral float-left" title="wavefunction_analysis.property package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="wavefunction_analysis.spins.html" class="btn btn-neutral float-right" title="wavefunction_analysis.spins package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Zheng Pei.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
