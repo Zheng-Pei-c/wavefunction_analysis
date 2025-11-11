@@ -1,6 +1,6 @@
 from wavefunction_analysis import sys, np
 from wavefunction_analysis.utils import print_matrix
-from wavefunction_analysis.entanglement.mol_lo_tools import partition_lo_to_imps
+from wavefunction_analysis.embedding.mol_lo_tools import partition_lo_to_imps
 
 def get_localized_orbital(mol, coeff, method='pipek_mezey'):
     from pyscf import lo

@@ -129,7 +129,7 @@ if __name__ == '__main__':
     from pyscf import scf, tdscf
     from wavefunction_analysis.utils.pyscf_parser import *
     from wavefunction_analysis.utils import print_matrix
-    from wavefunction_analysis.entanglement.fragment_entangle import EmbeddingMeanField
+    from wavefunction_analysis.embedding.fragment_entangle import EmbeddingMeanField
 
     infile = '../../samples/formic_acid_6_h2o.in'
     if len(sys.argv)>1: infile = sys.argv[1]

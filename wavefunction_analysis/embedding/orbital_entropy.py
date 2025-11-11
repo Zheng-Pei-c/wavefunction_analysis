@@ -5,7 +5,7 @@ from pyscf.mp.mp2 import MP2
 
 from wavefunction_analysis.utils.pyscf_parser import *
 from wavefunction_analysis.utils import print_matrix
-from wavefunction_analysis.entanglement.mol_lo_tools import partition_lo_to_imps
+from wavefunction_analysis.embedding.mol_lo_tools import partition_lo_to_imps
 from wavefunction_analysis.utils import get_ortho_basis
 
 
@@ -86,8 +86,8 @@ if __name__ == '__main__':
     print_matrix('p1:', p1)
 
 
-    from wavefunction_analysis.entanglement.mol_lo_tools import partition_lo_to_imps
-    from wavefunction_analysis.entanglement.fragment_entangle import get_localized_orbital, get_localized_orbital_rdm
+    from wavefunction_analysis.embedding.mol_lo_tools import partition_lo_to_imps
+    from wavefunction_analysis.embedding.fragment_entangle import get_localized_orbital, get_localized_orbital_rdm
     frgm_idx = [[i] for i in range(mol.natm)]
     ovlp_ao = mf.get_ovlp()
     coeff_mo_in_ao = mo_coeff
