@@ -1,5 +1,5 @@
 from wavefunction_analysis import itertools
-from wavefunction_analysis.quantum_computing import cirq, cirq_google
+from wavefunction_analysis.spins import cirq, cirq_google
 
 from cirq.contrib.svg import SVGCircuit
 

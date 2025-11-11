@@ -2,8 +2,8 @@ from wavefunction_analysis import np, itertools
 from wavefunction_analysis.utils import monitor_performance
 from wavefunction_analysis.plot import plt
 
-from wavefunction_analysis.quantum_computing import cirq, sympy
-from wavefunction_analysis.quantum_computing import create_qubits_2d, create_circuit
+from wavefunction_analysis.spins import cirq, sympy
+from wavefunction_analysis.spins import create_qubits_2d, create_circuit
 
 class QAOA(object):
     """Quantum Approximate Optimization Algorithm class."""

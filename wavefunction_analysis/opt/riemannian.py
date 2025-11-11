@@ -1,7 +1,7 @@
 import sys
 from wavefunction_analysis import np, scipy
 
-from wavefunction_analysis.manifold import gradient_descent, conjugate_gradient, newton_2nd
+from wavefunction_analysis.opt import gradient_descent, conjugate_gradient, newton_2nd
 from wavefunction_analysis.utils import get_ortho_basis, print_matrix
 
 """
