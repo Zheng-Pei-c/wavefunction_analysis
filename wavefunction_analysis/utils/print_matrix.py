@@ -88,3 +88,13 @@ def print_matrix(keyword, matrix, nwidth=6, nind=0, digits=[13,8,'f'],
 
     else:
         warnings.warn('the matrix has higher dimension than this funciton can handle.')
+
+
+def print_statistics(keyword, array, digits=[4,4]):
+    v_mean = np.mean(array)
+    v_std = np.std(array) / np.sqrt(len(array))
+
+    if keyword[-1] != ':': keyword += ':'
+    print(keyword + f' {v_mean:.{digits[0]}f} ± {v_std:.{digits[1]}f}')
+
+

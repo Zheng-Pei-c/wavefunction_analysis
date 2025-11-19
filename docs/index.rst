@@ -6,9 +6,18 @@
 wavefunction_analysis documentation
 ===================================
 
-**wavefunction_analysis** is a Python package for analyzing and visualizing
-quantum chemical wavefunctions, developed by Zheng Pei at `CC-ATS group <https://sites.google.com/view/ccats-group/home>`_.
-It dependes on the `PySCF <https://github.com/pyscf/pyscf>`_ package for quantum chemistry computations.
+**wavefunction_analysis** is a Python package for quantum chemistry developed by Zheng Pei at `CC-ATS group <https://sites.google.com/view/ccats-group/home>`_.
+It provides tools for analyzing and manipulating wavefunctions, including functionalities for computing various properties and visualizations.
+It also includes optimization algorithms for electronic structures based on Grassmann manifolds.
+Besides, it offers embedding techniques for multiscale simulations of electronic states.
+Molecular dynamics simulations are supported as well.
+The other major feature considers spin model Hamiltonian simulations using various numerical methods
+such as matrix product states, monte carlo, and quantum computing.
+It dependes on the `PySCF <https://github.com/pyscf/pyscf>`_ package for quantum chemistry computations;
+`qutip <https://qutip.org>`_ for spin model Hamiltonian simulations;
+and `cirq <https://quantumai.google/cirq>`_ for quantum computing simulations.
+Numpy, opt_einsum, and scipy are used for numerical matrix computations.
+
 
 Check out the :doc:`usage` section for further information.
 

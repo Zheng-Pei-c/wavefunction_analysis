@@ -6,7 +6,13 @@ from wavefunction_analysis.spins import cirq, sympy
 from wavefunction_analysis.spins import create_qubits_2d, create_circuit
 
 class QAOA(object):
-    """Quantum Approximate Optimization Algorithm class."""
+    r"""
+    Quantum Approximate Optimization Algorithm class.
+    prod_{k} U(beta_k, B) U(gamma_k, C) |s>
+    where |s> is the equal superposition initial state
+    U(gamma, C) = exp(-i gamma C) is the problem Hamiltonian
+    U(beta, B) = exp(-i beta B) is the mixer Hamiltonian
+    """
     def __init__(self, nsite, **kwargs):
         self.nsite = nsite
         self.nrow, self.ncol = nsite
@@ -19,13 +25,22 @@ class QAOA(object):
 
         # initialize circuit
         self.circuit = create_circuit(self.qubits, gamma=self.gamma,
-                                      beta=self.beta, **kwargs)
+                                      beta=self.beta, nlayers=self.nlayers,
+                                      **kwargs)
 
 
     def resolve_circuit_params(self, **kwargs):
-        """Define the circuit parameters."""
+        """
+        Define the circuit parameters.
+
+        Parameters
+            gamma : parameter for problem Hamiltonian (cost function)
+            beta : parameter for mixer Hamiltonian
+            nlayers : number of layers in the QAOA circuit
+        """
         self.gamma = None
         self.beta = None
+        self.nlayers = 0
 
         return kwargs
 
@@ -40,14 +55,25 @@ class QAOA(object):
     def energy_expectation(self, wf, **kwargs):
         """
         Calculate the energy expectation value for a given wavefunction.
-        wf: wavefunction is an array of size 2**(nrow*ncol)
+
+        Parameters
+            wf : wavefunction is an array of size 2**(nrow*ncol)
         """
         raise NotImplementedError
 
 
     @monitor_performance
     def energy_evaluation(self, gamma, beta):
-        """Evaluate the energy expectation value for given gamma and beta on circuit."""
+        """
+        Evaluate the energy expectation value for given gamma and beta on circuit.
+
+        Parameters
+            gamma : rotation angle of the targeted Hamiltonian
+            beta : rotation angle of the initial Hamiltonian
+
+        Returns
+            energy expectation of the simulated wavefunction from quantum circuit
+        """
         # start simulate
         simulator = cirq.Simulator()
         params = cirq.ParamResolver({self.gamma: gamma, self.beta: beta})
@@ -73,7 +99,20 @@ class QAOA(object):
 
 
     def optimizer(self, gamma, beta, eps=10**-3, max_steps=150, thresh=10**-5):
-        e = self.energy_evaluation(gamma, beta)
+        """
+        Optimize rotation angles
+
+        Parameters
+            gamma : array of rotation angles for targeted Hamiltonian
+            beta : array of rotation angles for initial Hamiltonian
+            eps : finite-difference step size
+            max_steps : max loop numbers of the optimization
+            thresh : convergence threshold of the energy
+
+        Returns
+            gamma, beta, energy
+        """
+        energy = self.energy_evaluation(gamma, beta)
         for i in range(max_steps):
             grad_g, grad_b = self.fd_gradient_evaluation(gamma, beta, eps)
 
@@ -81,13 +120,16 @@ class QAOA(object):
             gamma -= eps * grad_g
             beta  -= eps * grad_b
 
-            energy = self.energy_evaluation(gamma, beta)
+            e = self.energy_evaluation(gamma, beta)
             print('step: %3d, gamma: %4.2f, beta: %4.2f, grad_g: %5.3f, grad_b: %5.3f, energy: %8.5f'
                   % (i, gamma, beta, grad_g, grad_b, energy))
 
             if np.abs(energy - e) < thresh:
                 break
-            e = energy
+            energy = e
+
+        self.energy = energy
+        return gamma, beta, energy
 
 
 
@@ -100,20 +142,32 @@ class QAOA_Ising(QAOA):
         """Define the circuit parameters for Ising model."""
         self.gamma = sympy.Symbol('gamma')
         self.beta = sympy.Symbol('beta')
+        self.nlayers = kwargs.get('nlayers', 1)
 
         # magnetic field on each site
         h_field = kwargs.get('h_field', None)
         if h_field is None:
             h_field = .5*np.ones(self.nsite)
             kwargs['h_field'] = h_field # pass to circuit creation
+
+        # j couplings
+        j_coupling = kwargs.get('j_coupling', None)
+        if j_coupling is None:
+            j_coupling = np.ones(self.nsite)
+            kwargs['j_coupling'] = j_coupling
+
         self.h_field = h_field
+        self.j_coupling = j_coupling
 
         return kwargs
 
 
     def energy_expectation(self, wf, **kwargs):
         """
-        wf: wavefunction is an array of size 2**(nrow*ncol)
+        Calculate the energy expectation value for a given wavefunction.
+
+        Parameters
+            wf : wavefunction is an array of size 2**(nrow*ncol)
         """
         nrow, ncol = self.nrow, self.ncol
         nsite = nrow * ncol
