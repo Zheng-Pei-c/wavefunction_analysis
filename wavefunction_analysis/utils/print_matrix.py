@@ -7,6 +7,26 @@ print = functools.partial(print, flush=True)
 
 def print_matrix(keyword, matrix, nwidth=6, nind=0, digits=[13,8,'f'],
                  trans=False, dtype=float):
+    r"""
+    Print multi dimensional array in formatted way.
+
+    Parameters
+        keyword : string of the title line
+        matrix : multi dimensional array
+        nwidth : int, optional
+            number of columns to print in one block (default: 6)
+        nind : int for whether to print the row/column index
+            larger than 0 to print index (default: 0)
+        digits : list of int, optional
+            [width, precision, notation], where
+            width : total width of each number (default: 13)
+            precision : number of digits after decimal point (default: 8)
+            notation : 'f' for fixed-point, 'e' for scientific (default: 'f')
+        trans : bool, optional
+            whether to transpose the last two dimensions (default: False)
+        dtype : data type, optional
+            data type to convert the input matrix (default: float)
+    """
 
     if '\n' in keyword[-3:]: keyword = keyword[:-2]
     print(keyword)
@@ -91,6 +111,17 @@ def print_matrix(keyword, matrix, nwidth=6, nind=0, digits=[13,8,'f'],
 
 
 def print_statistics(keyword, array, digits=[4,4]):
+    r"""
+    Print mean value and standard deviation of a 1D array.
+
+    Parameters
+        keyword : string of the title line
+        array : 1D array
+        digits : list of int, optional
+            [precision_mean, precision_std], where
+            precision_mean : number of digits after decimal point for mean (default: 4)
+            precision_std : number of digits after decimal point for std (default: 4)
+    """
     v_mean = np.mean(array)
     v_std = np.std(array) / np.sqrt(len(array))
 
