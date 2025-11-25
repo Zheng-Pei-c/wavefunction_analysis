@@ -28,9 +28,10 @@ def remove_dagger(operator):
 
 def get_orbital_index(operator):
     """Extract the orbital index from the operator string."""
-    return operator[0]
+    return remove_dagger(operator).split('_')[0]
 
 
+_known_spins = ['alpha', 'beta', None] # known spin labels
 def get_spin_label(operator):
     """Extract the spin label from the operator string."""
     if '_' in operator:
@@ -41,7 +42,12 @@ def get_spin_label(operator):
             return 'beta'
         else:
             return spin
-    return None
+    return ''
+
+
+def get_spin_orbital_index(operator):
+    """Get the spin orbital index from the operator string."""
+    return get_orbital_index(operator) + '_' + str(get_spin_label(operator))
 
 
 def is_same_pattern(contraction1, contraction2):
@@ -78,9 +84,7 @@ def get_list(operators):
         operators_list : list of operator strings
     """
     if isinstance(operators, str):
-        if ',' in operators:
-            operators = operators.replace(',', ' ')
-        operators = operators.split()
+        operators = operators.replace(',', ' ').split()
     return operators
 
 
@@ -99,7 +103,6 @@ def wick_pairs(operators, exceptions=[], index=False):
     Returns
         pairs : a list of the possible contraction pairs of the operators
     """
-    known_spins = ['alpha', 'beta', None] # known spin labels
     operators = get_list(operators)
 
     if isinstance(exceptions, tuple):
@@ -133,7 +136,7 @@ def wick_pairs(operators, exceptions=[], index=False):
                 continue
 
             if (is_creator(op_i) and is_annihilator(op_j)) or (is_annihilator(op_i) and is_creator(op_j)):
-                if sp_i in known_spins and sp_j in known_spins:
+                if sp_i in _known_spins and sp_j in _known_spins:
                     if sp_i == sp_j: # both known spins and should match
                         pairs.append((i, j))
                 else:
@@ -208,33 +211,29 @@ def wick_contraction(operators, pairs, expand=True):
     return contractions[::-1] # reverse the order for convenience
 
 
-def wick_delta(contractions, latex=False):
+def wick_delta(contractions):
     """
     Convert contraction pairs into delta functions.
 
     Parameters
         contractions : list of contraction patterns in the form of strings
-        latex : if True, format the output of delta strings for LaTeX rendering
 
     Returns
         deltas : list of delta function strings representing the contractions
     """
     if isinstance(contractions[0], list): # loop over multiple contraction patterns
-        return [wick_delta(pair, latex=latex) for pair in contractions]
+        return [wick_delta(pair) for pair in contractions]
 
     if len(contractions[0]) == 2:
         raise ValueError(f'Contractions should have indices as well to determine signs.\n' +
                          f'Use wick_pairs() with index=True option before wick_contraction.')
 
-    delta = '\\delta' if latex else 'delta'
-    underline = '_\\' if latex else '_'
-
     index = []
     deltas = []
     for (i1, i2, op1, op2) in contractions:
-        orb1 = get_orbital_index(op1) + underline + get_spin_label(op1)
-        orb2 = get_orbital_index(op2) + underline + get_spin_label(op2)
-        deltas.append(delta+'_{'+orb1+','+orb2+'}')
+        orb1 = get_spin_orbital_index(op1)
+        orb2 = get_spin_orbital_index(op2)
+        deltas.append('delta_{'+orb1+','+orb2+'}')
         index.append((i1, i2))
 
     sign = find_delta_sign(index, dtype=str)
@@ -270,6 +269,68 @@ def find_delta_sign(contractions_index, dtype=str):
         return sign
 
 
+def contract_hamil_delta(hamiltonian, deltas):
+    """
+    Contract the Hamiltonian operator with delta functions.
+
+    Parameters
+        hamiltonian : Hamiltonian operator string
+        deltas : list of delta function strings
+
+    Returns
+        strings : list of contracted Hamiltonian terms as strings
+    """
+    if isinstance(deltas, str): # single set of contraction pattern
+        deltas = [deltas]
+
+    hamiltonian = get_list(hamiltonian)
+    n_hs = len(hamiltonian)
+    if n_hs == 0: # overlap return the deltas directly
+        return [d.replace(',', ' ') for d in deltas]
+    h = 'h' if n_hs == 2 else 'g'
+
+    strings = []
+    for delta in deltas:
+        sign = delta[0]
+        delta_terms = delta[1:].split()
+        h_terms = hamiltonian.copy()
+        print('h_terms before contraction:', h_terms)
+
+        # find matching indices in Hamiltonian terms
+        for i, h_op in enumerate(h_terms):
+            h_orb = get_spin_orbital_index(h_op)
+
+            for j, d in enumerate(delta_terms):
+                if not d.startswith('delta'):
+                    continue
+
+                # extract orbital indices from delta function
+                content = d[d.index('{')+1:d.index('}')]
+                orb1, orb2 = content.split(',')
+
+                if h_orb == orb1:
+                    delta_terms[j] = ''  # mark for removal
+                    h_terms[i] = orb2
+                elif h_orb == orb2:
+                    delta_terms[j] = ''  # mark for removal
+                    h_terms[i] = orb1
+
+        # reorder hamiltonian
+        #h_contracted = h_terms
+        h_contracted = [''] * n_hs
+        for i in range(n_hs//2):
+            h_contracted[2*i], h_contracted[2*i+1] = h_terms[i], h_terms[-1-i]
+            if i in {1,2}: h_contracted[2*i-1] += ';' # separate electrons
+        h_contracted = h + '_{' + ' '.join(h_contracted) + '}'
+
+        term_str = ' '.join(delta_terms) + ' ' + h_contracted
+        # replace commas of delta with spaces, and semicolons with commas
+        term_str = term_str.replace(',', ' ').replace(';', ',')
+        strings.append(f'{sign} {term_str}\n')
+
+    return strings
+
+
 def sqo_evaluation(bra, hamiltonian, ket, exceptions=[], title='', latex=True):
     """
     Evaluate the Wick contractions for the given second-quantization operator (sqo) strings of bra, Hamiltonian, and ket,
@@ -293,7 +354,6 @@ def sqo_evaluation(bra, hamiltonian, ket, exceptions=[], title='', latex=True):
 
     operators = bra + ' ' + hamiltonian + ' ' + ket
     print('operators:\n', operators)
-    operators = get_list(operators)
     pairs = wick_pairs(operators, exceptions=exceptions, index=True)
     contractions = wick_contraction(operators, pairs, expand=True)
 
@@ -304,13 +364,34 @@ def sqo_evaluation(bra, hamiltonian, ket, exceptions=[], title='', latex=True):
             print(f'Contracting {op1} with {op2};')
     print('')
 
-    deltas = wick_delta(contractions, latex=latex)
-    string = ' '.join(deltas)
-    print('Contraction result:\n', string)
-    print('')
+    deltas = wick_delta(contractions)
+
+    strings = contract_hamil_delta(hamiltonian, deltas)
+    strings = ' '.join(strings)
+    print_math(strings, 'Contraction result:\n', latex=latex)
 
     return contractions, deltas
 
+
+def print_math(string, title, latex=False):
+    r"""
+    Print mathematical expression in string format.
+
+    Parameters
+        string : string of the mathematical expression
+        latex : bool, if True print in LaTeX format (default: False)
+    """
+    print(title)
+
+    if latex:
+        string = string.replace('ell', r'\ell')
+        string = string.replace('_', '_\\')
+        string = string.replace('delta_\\{', r'\delta_{')
+        string = string.replace('h_\\{', r'h_{')
+        string = string.replace('g_\\{', r'g_{')
+
+    print(string)
+    print('')
 
 
 if __name__ == '__main__':

@@ -9,6 +9,7 @@ A Python package for analyzing quantum chemical wavefunctions, built on top of [
 *   **Embedding Theory**: Utilizing Density Matrix Embedding Theory (DMET) and localized orbitals (e.g., Pipek-Mezey) to treat strong correlation in large systems.
 *   **Molecular Property Analysis**: Calculating response properties, EPR parameters, intermolecular interactions (SAPT), and Energy Density.
 *   **Spin Models**: Studying strongly correlated spin systems (Ising, Heisenberg) using Matrix Product States (DMRG), Monte Carlo simulations, and Quantum Computing algorithms (QAOA).
+*   **utils**: Utility tools such as PySCF parser, unit conversion, Wick's theorem contractions.
 
 For more details and API references, please visit the [wavefunction_analysis](https://zheng-pei-c.github.io/wavefunction_analysis/) webpage.
 
@@ -60,7 +61,30 @@ print(f"0.1 Hartree = {e_ev} eV")
 
 
 
-### 2. DMET Analysis
+### 2. Wick's Theorem Analysis
+
+Wick's theorem is a powerful tool for analyzing quantum chemical wavefunctions. 
+The contraction of Wick's theorem for spin-quantized operators can be automated using the `sqo_evaluation` function in the `wavefunction_analysis.utils.wick_contraction` module.
+Here is an example of how to perform automated Wick's theorem contractions (adapted from [`samples/wick_operators.py`](https://github.com/Zheng-Pei-c/wavefunction_analysis/blob/main/samples/wick_operators.py)).
+
+```python
+from wavefunction_analysis.utils.wick_contraction import sqo_evaluation
+
+# 1e Hamiltonian term
+h1 = 'p_sigma^dagger q_tau'
+
+# Open-shell excitation operators
+Tsa = 's_alpha^dagger a_alpha' # bra side
+Tbt = 'b_alpha^dagger t_alpha' # ket side
+exceptions = [tuple(Tsa.split()), tuple(Tbt.split())]
+
+# Evaluate contractions
+sqo_evaluation(Tsa, h1, Tbt, exceptions=exceptions, title='Open-shell excited-state 1e term contractions', latex=True)
+```
+
+
+
+### 3. DMET Analysis
 
 Here is an example of how to perform Density Matrix Embedding Theory (DMET) analysis on a water cluster (adapted from [`wavefunction_analysis/embedding/fragment_entangle.py`](https://github.com/Zheng-Pei-c/wavefunction_analysis/blob/main/wavefunction_analysis/embedding/fragment_entangle.py)).
 
@@ -100,7 +124,7 @@ get_embedding_system(mf, frgm_idx)
 
 
 
-### 3. Molecular Dynamics
+### 4. Molecular Dynamics
 
 You can run molecular dynamics simulations using the `dynamics` module. See [`wavefunction_analysis/dynamics/molecular_dynamics.py`](https://github.com/Zheng-Pei-c/wavefunction_analysis/blob/main/wavefunction_analysis/dynamics/molecular_dynamics.py) for more details.
 
@@ -139,13 +163,13 @@ The package contains the following modules:
 
 -   **`dynamics`**: Tools for simulating exciton dynamics and other time-dependent processes.
 -   **`embedding`**: Methods for embedding calculations.
--   **`opt`**: Optimization routines.
+-   **`opt`**: Optimization routines for electronic structure calculations (states or molecular orbitals).
 -   **`plot`**: Visualization tools for plotting results.
 -   **`polariton`**: Analysis of polaritonic systems.
--   **`property`**: Calculation of molecular properties (e.g., EPR parameters, SAPT dispersion).
--   **`spins`**: Spin-related analysis.
+-   **`property`**: Calculation of molecular properties (e.g., EPR parameters, SAPT dispersion, energy density, etc.).
+-   **`spins`**: Spin-related analysis based on various methods such as quantum Monte Carlo, density matrix renormalization group, quantum computing.
 
--   **`utils`**: General utility functions and PySCF parsers.
+-   **`utils`**: General utility functions and PySCF parsers, for instance, PySCF parser, unit conversion, Wick's theorem contractions, printing matrix, etc.
 
 
 
