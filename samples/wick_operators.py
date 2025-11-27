@@ -31,21 +31,32 @@ if __name__ == '__main__':
     for (i, j, k, l) in itertools.product(range(2), repeat=4):
         ijk.append((i, j, k, l))
 
-    for loop, (Tst, Tts, Tia, Tbj) in enumerate(itertools.product(Tst_mr, Tts_mr, Tia_mr, Tbj_mr)):
-        print('\nloop:', loop+1, ijk[loop])
-        exceptions = [tuple(Tst.split()), tuple(Tts.split()), tuple(Tia.split()), tuple(Tbj.split())]
+    for h in [h1, h2]:
+        term_type = 'metric' if h == '' else ('1e' if h == h1 else '2e')
+        title = f'Spin-flip excited-state {term_type} term contractions:'
 
-        for h in [h1, h2]:
-            term_type = 'metric' if h == '' else ('1e' if h == h1 else '2e')
-            title = f'Spin-flip excited-state {term_type} term contractions:'
+        for loop, (Tst, Tts, Tia, Tbj) in enumerate(itertools.product(Tst_mr, Tts_mr, Tia_mr, Tbj_mr)):
+            print('\nloop:', loop+1, ijk[loop])
+            exceptions = [tuple(Tst.split()), tuple(Tts.split()), tuple(Tia.split()), tuple(Tbj.split())]
+
             operators, factors = commutator(Tia, h, Tbj)
             for i, operator in enumerate(operators):
                 l, m, r = operator
-                bra = ' '.join([Tst, l])
-                ket = ' '.join([r, Tts])
+
+                # Skip invalid spin combinations
+                if Tst == Tst_mr[0] and l in {Tia_mr[1], Tbj_mr[0]}: #Ms=1
+                    continue
+                if Tst == Tst_mr[1] and l in {Tia_mr[0], Tbj_mr[1]}: #Ms=-1
+                    continue
+                if Tts == Tts_mr[0] and r in {Tbj_mr[1], Tia_mr[0]}: #Ms=1
+                    continue
+                if Tts == Tts_mr[1] and r in {Tbj_mr[0], Tia_mr[1]}: #Ms=-1
+                    continue
+
+                middle = ' '.join([l, m, r])
                 print(f'Operator {i+1} with factor {factors[i]}:')
-                print('bra:', bra, '\nm:', m, '\nket:', ket)
-                sqo_evaluation(bra, m, ket, exceptions=exceptions, title=title,
+                print('bra:', Tst, '\nmiddle:', middle, '\nket:', Tts)
+                sqo_evaluation(Tst, middle, Tts, exceptions=exceptions, title=title,
                                hamiltonian=h, latex=latex, diagram=False)
 
             print('')
