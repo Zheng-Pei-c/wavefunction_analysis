@@ -1,5 +1,6 @@
 from wavefunction_analysis import sys, np, itertools
 from wavefunction_analysis.spins import sympy
+from wavefunction_analysis.plot import get_plot_colors
 
 import unicodedata
 from collections import defaultdict
@@ -89,7 +90,7 @@ def get_list(operators):
 
 
 def wick_pairs(operators, exceptions=[], index=False):
-    """
+    r"""
     Pick all the possible Wick contraction pairs from a string of creation and annihilation operators.
 
     Parameters
@@ -233,8 +234,9 @@ def wick_delta(contractions):
     for (i1, i2, op1, op2) in contractions:
         orb1 = get_spin_orbital_index(op1)
         orb2 = get_spin_orbital_index(op2)
-        deltas.append('delta_{'+orb1+','+orb2+'}')
         index.append((i1, i2))
+        if orb1 != orb2: # only add delta if orbitals are different
+            deltas.append('delta_{'+orb1+','+orb2+'}')
 
     sign = find_delta_sign(index, dtype=str)
     return sign + ' '.join(deltas)
@@ -294,7 +296,6 @@ def contract_hamil_delta(hamiltonian, deltas):
         sign = delta[0]
         delta_terms = delta[1:].split()
         h_terms = hamiltonian.copy()
-        print('h_terms before contraction:', h_terms)
 
         # find matching indices in Hamiltonian terms
         for i, h_op in enumerate(h_terms):
@@ -328,21 +329,161 @@ def contract_hamil_delta(hamiltonian, deltas):
         term_str = term_str.replace(',', ' ').replace(';', ',')
         strings.append(f'{sign} {term_str}\n')
 
+    return combine_same_terms(strings)
+
+
+def combine_same_terms(contracted_strings):
+    """
+    Apply symmetry to two-electron integrals in the contracted strings.
+
+    Parameters
+        contracted_strings : list of operator strings
+
+    Returns
+        sym_strings : list of operator strings with symmetry applied
+    """
+    strings = []
+    strings_dict = defaultdict(list)
+    for s in contracted_strings:
+        if 'g_{' not in s:
+            strings.append(s)
+        else:
+            sign = s[0]
+            delta, g = s[1:].split(' g_{')
+            g = sign + ' g_{' + g.split('\n')[0]
+            strings_dict[delta].append(g)
+
+    for key, vals in strings_dict.items():
+        if len(vals) == 1:
+            strings.append(key + ' ' + vals[0] + '\n')
+        else:
+            strings.append('+ ' + key + '( '+ ''.join(vals) + ' )\n')
+
     return strings
 
 
-def sqo_evaluation(bra, hamiltonian, ket, exceptions=[], title='', latex=True):
+def plot_wick_diagram(operators, contractions, colors=None, width=None, end=''):
     """
-    Evaluate the Wick contractions for the given second-quantization operator (sqo) strings of bra, Hamiltonian, and ket,
+    Plot Wick contraction diagram using graphviz.
+
+    Parameters
+        operators : list of operator strings
+        contractions : list of contraction patterns
+        colors : list of colors for the contraction lines
+        width : line width for the contraction lines
+        end : symbols to append at the end of each line
+    """
+    if isinstance(contractions[0], list): # loop over multiple contraction patterns
+        return [plot_wick_diagram(operators, c, colors, width, end) for c in contractions]
+
+    operators = get_list(operators)
+    n_op = len(operators)
+
+    orbs = [remove_dagger(op) for op in operators]
+    creators = [is_creator(op) for op in operators]
+    creators = [r'^{\dagger}' if c else '' for c in creators]
+
+    if colors is None:
+        colors = get_plot_colors(n_op//2)
+    if width is None:
+        width = .5 # in ex
+
+    string = '\n'
+    for k, (i1, i2, _, _) in enumerate(contractions):
+        ops1 = ''
+        if i1 > 0:
+            for i in range(i1):
+                ops1 += r'\hat{a}_{%s}%s' % (orbs[i], creators[i])
+        ops2 = r'_{%s}%s' % (orbs[i1], creators[i1])
+        for i in range(i1+1, i2):
+            ops2 += r'\hat{a}_{%s}%s' % (orbs[i], creators[i])
+        string += r'{\color{%s}\contraction[%2.1fex]{%s}{\hat{a}}{%s}{\hat{a}} }' % (colors[k], (width*(n_op//2-k)), ops1, ops2) + '\n'
+
+    for i in range(n_op):
+        string += r'\hat{a}_{%s}%s ' % (orbs[i], creators[i])
+    string = string[:-1] + end + ' \\\\ \n'
+
+    return string
+
+
+def print_math(string, title, filename=None, latex=False):
+    r"""
+    Print mathematical expression in string format.
+
+    Parameters
+        string : string of the mathematical expression
+        title : title to print before the expression
+        filename : if provided, save the expression to the specified file
+        latex : bool, if True print in LaTeX format (default: False)
+    """
+    if latex:
+        string = string.replace('ell', r'\ell')
+        string = string.replace('delta', r'\delta')
+        string = string.replace('_', '_\\')
+        string = string.replace('_\\{', r'_{')
+
+    print(title)
+
+    if filename is not None:
+        with open(filename, 'w') as f:
+            f.write(string)
+    else:
+        print(string)
+        print('')
+
+
+def commutator(op1, op2, op3=None, sign='-'):
+    r"""
+    Compute the commutator [op1, op2] or double commutator
+    [[op1, op2, op3] = ([[op1, op2], op3] + [op1, [op2, op3]]) / 2
+    = (op1 op2 op3 + op3 op2 op1) - [[op1, op3]_+, op2]_+ / 2
+
+    Parameters
+        op1 : first operator string
+        op2 : second operator string
+        op3 : optional third operator string for double commutator
+        sign : sign between the two terms in the commutator (default: '-')
+
+    Returns
+        result : commutator result as a list of strings
+        factor : list of factors for each term in the result
+    """
+    if op3 is None:
+        if isinstance(op1, list) and isinstance(op2, list):
+            result = [[*op1, *op2], [*op2, *op1]]
+        elif isinstance(op1, list):
+            result = [[*op1, op2], [op2, *op1]]
+        elif isinstance(op2, list):
+            result = [[op1, *op2], [*op2, op1]]
+        else:
+            result = [[op1, op2], [op2, op1]]
+        factor = [1, -1] if sign == '-' else [1, 1]
+
+    else:
+        result = [[op1, op2, op3], [op3, op2, op1],
+                  [op1, op3, op2], [op3, op1, op2],
+                  [op2, op1, op3], [op2, op3, op1]]
+        factor = [1, 1] + [ -0.5 for _ in range(4)]
+    return result, factor
+
+
+def sqo_evaluation(bra, middle, ket, exceptions=[], title='', hamiltonian=None,
+                   latex=True, diagram=False, colors=None):
+    """
+    Evaluate the Wick contractions for the given second-quantization operator (sqo) strings of bra, middle, and ket,
     while excluding specified operator pairs from contraction.
 
     Parameters
         bra : left side excitation operator string
-        hamiltonian : Hamiltonian operator string
+        middle : middle operator string
         ket : right side excitation operator string
         exceptions : list of tuples, each containing a pair of operators to exclude from contraction
         title : optional title for the evaluation
+        hamiltonian : Hamiltonian operator string to be contracted with the deltas
+            is middle if None by default
         latex : if True, format the output of delta strings for LaTeX rendering
+        diagram : if True, plot the Wick contraction diagram
+        colors : list of colors for the contraction lines in the diagram
 
     Returns
         contractions : list of contraction patterns
@@ -351,18 +492,28 @@ def sqo_evaluation(bra, hamiltonian, ket, exceptions=[], title='', latex=True):
         bra = ' '.join(bra)
     if isinstance(ket, list): # in order of left-to-right
         ket = ' '.join(ket)
+    if hamiltonian is None: # take middle as hamiltonian by default
+        hamiltonian = middle
 
-    operators = bra + ' ' + hamiltonian + ' ' + ket
+    operators = bra + ' ' + middle + ' ' + ket
     print('operators:\n', operators)
     pairs = wick_pairs(operators, exceptions=exceptions, index=True)
     contractions = wick_contraction(operators, pairs, expand=True)
 
     print(title)
+    if len(contractions) == 0:
+        print('No valid Wick contraction patterns found.\n')
+        return contractions, '', ''
+
     for i, pattern in enumerate(contractions):
         print('Pattern:', i+1)
         for (i1, i2, op1, op2) in pattern:
             print(f'Contracting {op1} with {op2};')
     print('')
+
+    if diagram:
+        strings = plot_wick_diagram(operators, contractions, end=';', colors=colors)
+        print_math(' '.join(strings), 'Wick contraction diagram:\n', latex=latex)
 
     deltas = wick_delta(contractions)
 
@@ -370,28 +521,8 @@ def sqo_evaluation(bra, hamiltonian, ket, exceptions=[], title='', latex=True):
     strings = ' '.join(strings)
     print_math(strings, 'Contraction result:\n', latex=latex)
 
-    return contractions, deltas
+    return contractions, deltas, strings
 
-
-def print_math(string, title, latex=False):
-    r"""
-    Print mathematical expression in string format.
-
-    Parameters
-        string : string of the mathematical expression
-        latex : bool, if True print in LaTeX format (default: False)
-    """
-    print(title)
-
-    if latex:
-        string = string.replace('ell', r'\ell')
-        string = string.replace('_', '_\\')
-        string = string.replace('delta_\\{', r'\delta_{')
-        string = string.replace('h_\\{', r'h_{')
-        string = string.replace('g_\\{', r'g_{')
-
-    print(string)
-    print('')
 
 
 if __name__ == '__main__':
@@ -404,3 +535,4 @@ if __name__ == '__main__':
     print('contractions:', contractions)
     deltas = wick_delta(contractions)
     print('deltas:', deltas)
+    plot_wick_diagram(operators, contractions, end=';')
