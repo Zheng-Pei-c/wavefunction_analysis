@@ -221,8 +221,9 @@ The package contains the following modules:
 
 This project utilizes AI-assisted coding tools, including [GitHub Copilot](https://github.com/github/copilot.vim) and [Google Gemini](https://gemini.google.com/), for code generation and documentation.
 
+The implementation details can be found in papers cited in the source files and my [personal notes](https://zhengpeic.github.io/notes/).  
 
 
 ## License
 
-[MIT License](LICENSE)
+[GNU General Public License v3.0](LICENSE)
