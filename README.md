@@ -17,25 +17,56 @@ For more details and API references, please visit the [wavefunction_analysis](ht
 
 ## Installation
 
-Currently, this package does not have a `setup.py`. To use it, you need to add the package directory to your `PYTHONPATH`.
+You can install the package using `pip`.
+
+```bash
+git clone https://github.com/Zheng-Pei-c/wavefunction_analysis.git
+cd wavefunction_analysis
+pip install .
+```
+
+For development (editable mode):
+```bash
+pip install -e .
+```
+
+### Optional Dependencies
+To include optional dependencies like `pyscf` (required for electronic structure calculations) or `torch` (for GPU support):
+
+```bash
+pip install .[pyscf]
+pip install .[gpu]
+# or both
+pip install .[pyscf,gpu]
+```
+
+### Manual Installation (PYTHONPATH)
+
+Alternatively, you can add the package directory to your `PYTHONPATH`.
 
 ```bash
 git clone https://github.com/Zheng-Pei-c/wavefunction_analysis.git
 export PYTHONPATH=$PYTHONPATH:/path/to/wavefunction_analysis
 ```
 
+**Note:** If you choose this method, you must manually install the required dependencies listed in [`pyproject.toml`](pyproject.toml) or refer to the [Dependencies](#dependencies) section below.
+
 
 
 ## Dependencies
 
 -   [Python 3.x](https://www.python.org/)
--   [PySCF](https://github.com/pyscf/pyscf)
 -   [numpy](https://numpy.org/)
 -   [scipy](https://scipy.org/)
 -   [opt_einsum](https://github.com/dgasmith/opt_einsum)
--   [itertools](https://docs.python.org/3/library/itertools.html)
--   [Cirq](https://quantumai.google/cirq)
+-   [matplotlib](https://matplotlib.org/)
+-   [psutil](https://github.com/giampaolo/psutil) (Required for memory usage monitoring)
+-   [QuTiP](https://qutip.org/)
+-   [Cirq](https://quantumai.google/cirq) (Required for quantum computing applications)
+-   [Cirq-Google](https://pypi.org/project/cirq-google/)
 -   [SymPy](https://www.sympy.org/)
+-   [PySCF](https://github.com/pyscf/pyscf) (Required for electronic structure calculations)
+-   [PyTorch](https://pytorch.org/) (Required for GPU support)
 
 
 

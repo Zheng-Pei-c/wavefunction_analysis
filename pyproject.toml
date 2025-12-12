@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wavefunction_analysis"
+version = "0.1.0"
+description = "A Python package for analyzing quantum chemical wavefunctions"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {file = "LICENSE"}
+authors = [
+  {name = "Zheng Pei", email = "zheng.pei.c@gmail.com"},
+]
+dependencies = [
+  "numpy",
+  "scipy",
+  "opt_einsum",
+  "matplotlib",
+  "psutil",
+  "qutip",
+  "cirq",
+  "cirq-google",
+  "sympy",
+]
+
+[project.optional-dependencies]
+pyscf = ["pyscf"]
+gpu = ["torch"]
+
+[project.urls]
+"Homepage" = "https://github.com/Zheng-Pei-c/wavefunction_analysis"
+"Bug Tracker" = "https://github.com/Zheng-Pei-c/wavefunction_analysis/issues"
