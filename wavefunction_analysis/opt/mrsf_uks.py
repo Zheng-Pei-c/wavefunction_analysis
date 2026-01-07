@@ -196,7 +196,7 @@ def gen_tda_operation(mf, fock_ao=None, singlet=True, wfnsym=None):
         vk = vk.reshape((7, nz, nao, nao))
         # Eq. 2.14
         vk[1:5] = sign * (vj[1:5] + vk[1:5])
-        vk[6:] = -sign * vk[6:]
+        vk[5:] = -sign * vk[5:]
         v1ao = vk
 
         v1mo = numpy.zeros_like(zs_new, dtype=zs_new.dtype)

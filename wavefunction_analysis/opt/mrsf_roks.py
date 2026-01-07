@@ -99,6 +99,7 @@ def _gen_rhf_response(mf, mo_coeff=None, mo_occ=None,
                         'derivative is not available. Its contribution is '
                         'not included in the response function.')
         omega, alpha, hyb = ni.rsh_and_hybrid_coeff(mf.xc, mol.spin)
+        print('functional:', mf.xc, 'omega:', omega, 'alpha:', alpha, 'hyb:', hyb)
         hybrid = ni.libxc.is_hybrid_xc(mf.xc)
 
         # mf might be pbc.dft.RKS object with multigrid
@@ -116,42 +117,42 @@ def _gen_rhf_response(mf, mo_coeff=None, mo_occ=None,
 
         fxc *= .5
         def vind(dm1):
-            if hermi == 2:
-                v1 = numpy.zeros_like(dm1)
-            else:
-                # nr_rks_fxc_st requires alpha of dm1, dm1*.5 should be scaled
-                v1 = ni.nr_rks_fxc_st(mol, mf.grids, mf.xc, dm0, dm1, 0, True,
-                                   rho0, vxc, fxc, max_memory=max_memory)
+            #if hermi == 2:
+            #    v1 = numpy.zeros_like(dm1)
+            #else:
+            #    # nr_rks_fxc_st requires alpha of dm1, dm1*.5 should be scaled
+            #    v1 = ni.nr_rks_fxc_st(mol, mf.grids, mf.xc, dm0, dm1, 0, True,
+            #                       rho0, vxc, fxc, max_memory=max_memory)
             if hybrid:
                 if omega == 0:
                     vj, vk = mf.get_jk(mol, dm1, hermi)
+                    vj *= hyb
                     vk *= hyb
                 elif alpha == 0: # LR=0, only SR exchange
                     vj = mf.get_j(mol, dm1, hermi)
                     vk = mf.get_k(mol, dm1, hermi, omega=-omega)
+                    vj *= hyb
                     vk *= hyb
                 elif hyb == 0: # SR=0, only LR exchange
                     vj = mf.get_j(mol, dm1, hermi)
                     vk = mf.get_k(mol, dm1, hermi, omega=omega)
+                    vj *= alpha
                     vk *= alpha
                 else: # SR and LR exchange with different ratios
                     vj, vk = mf.get_jk(mol, dm1, hermi)
+                    vj *= hyb
                     vk *= hyb
-                    vk += mf.get_k(mol, dm1, hermi, omega=omega) * (alpha-hyb)
-                #if hermi != 2:
-                #    v1 += vj - .5 * vk
-                #else:
-                #    v1 -= .5 * vk
+                    if alpha-hyb != 0:
+                        vj2, vk2 = mf.get_jk(mol, dm1, hermi, omega=omega) * (alpha-hyb)
+                        vj += vj2
+                        vk += vk2
             elif hermi != 2:
-                v1 += mf.get_j(mol, dm1, hermi=hermi)
-            #return v1
+                vj, vk = numpy.zeros_like(dm1), numpy.zeros_like(dm1)
             return vj, -vk
 
-    elif singlet and hermi != 2:
+    elif hermi != 2:
         def vind(dm1):
             vj, vk = mf.get_jk(mol, dm1, hermi=hermi)
-            #v1 = vj - vk
-            #return v1
             return vj, -vk
 
     else:
@@ -251,7 +252,7 @@ def gen_tda_operation(mf, fock_ao=None, singlet=True, wfnsym=None):
         vk = vk.reshape((7, nz, nao, nao))
         # Eq. 2.14
         vk[1:5] = sign * (vj[1:5] + vk[1:5])
-        vk[6:] = -sign * vk[6:]
+        vk[5:] = -sign * vk[5:]
         v1ao = vk
 
         v1mo = lib.einsum('kxpq,qo,pv->kxov', v1ao, orboa, orbvb.conj())
@@ -465,7 +466,7 @@ class MRSF_TDA(tdscf.rks.TDA):
                     0)  # (Y_alpha_to_beta
                    for xi in x1]
 
-        print_matrix('amplitudes:', x1.reshape(-1,nocca,nvirb).transpose(0,2,1), nind=1)
+        #print_matrix('amplitudes:', x1.reshape(-1,nocca,nvirb).transpose(0,2,1), nind=1)
         if self.chkfile:
             lib.chkfile.save(self.chkfile, 'tddft/e', self.e)
             lib.chkfile.save(self.chkfile, 'tddft/xy', self.xy)
@@ -498,8 +499,8 @@ if __name__ == '__main__':
 
     spin = 2
     basis = '6-31g'
-    functional = 'hf' #'bhandhlyp'
-    nstates = 3
+    functional = 'bhandhlyp'
+    nstates = 11
 
     mol = gto.M(
             atom = atom,
@@ -510,9 +511,11 @@ if __name__ == '__main__':
     mf = scf.ROKS(mol)
     mf.xc = functional
     e0 = mf.kernel()
+    #print_matrix('mo_coeff:', mo_coeff)
 
     td = MRSF_TDA(mf)
     td.nstates = nstates
     td.verbose = 4
+    td.conv_tol = 1e-7
     e, xys = td.kernel()
     td.analyze()
