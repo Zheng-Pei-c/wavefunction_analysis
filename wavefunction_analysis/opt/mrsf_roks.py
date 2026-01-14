@@ -75,39 +75,8 @@ def mrsf_dimension_transform(nocc, nvir, nbas, singlet=True):
     #    U[0, noccb+1, 1] = 1.
 
     Ut = numpy.array((U[0], U[4], U[3], U[2], U[1], U[5], U[6])) # reorder U
-
-
-    def trans_zs(zs):
-        '''Transform amplitudes zs with Ut'''
-        zs = lib.einsum('kov,xov->kxov', Ut, zs)
-        zs[0,:,noccb,0] /= numpy.sqrt(2.)
-        if singlet:
-            zs[0,:,noccb+1,1] = -zs[0,:,noccb,0]
-        else: # triplet
-            zs[0,:,noccb,1] = 0.
-            zs[0,:,noccb+1,0] = 0.
-            zs[0,:,noccb+1,1] = zs[0,:,noccb,0]
-        zs[5,:,:, [0, 1]] = zs[5,:,:, [1, 0]] # swap columns of virtual O1 and O2 for UCO1CO2
-        zs[6,:, [noccb, noccb+1]] = zs[6,:, [noccb+1, noccb]] # swap rows of occupied O1 and O2 for UO1VO2V
-        return zs
-
-    def trans_vs(vs):
-        """Transform integral matrix vs with U"""
-
-        if singlet:
-            vs[0,:,noccb,0] = (vs[0,:,noccb,0] - vs[0,:,noccb+1,1]) / numpy.sqrt(2.)
-            vs[0,:,noccb+1,1] = 0.
-        else: # triplet
-            vs[0,:,noccb,0] = (vs[0,:,noccb,0] + vs[0,:,noccb+1,1]) / numpy.sqrt(2.)
-            vs[0,:,noccb,1] = 0.
-            vs[0,:,noccb+1,0] = 0.
-            vs[0,:,noccb+1,1] = 0.
-        vs[5,:,:, [0, 1]] = vs[5,:,:, [1, 0]] # swap columns back
-        vs[6,:, [noccb, noccb+1]] = vs[6,:, [noccb+1, noccb]] # swap rows back
-        vs = lib.einsum('kov,kxov->xov', U, vs) # sum over the contributions
-        return vs
-
-    return trans_zs, trans_vs
+    #U, Ut = U[1:], Ut[1:]  # remove CV row
+    return U, Ut
 
 
 # based on scf/_response_function.py
@@ -222,8 +191,7 @@ def gen_tda_operation(mf, fock_ao=None, singlet=True, wfnsym=None):
 
     # transform matrix
     sign = 1 if singlet else -1 # scale integrals Eq. 2.13
-    trans_zs, trans_vs = mrsf_dimension_transform([nocca, noccb], [nvira, nvirb], nao,
-                                     singlet=singlet)
+    U, Ut = mrsf_dimension_transform([nocca, noccb], [nvira, nvirb], nao)
 
     if wfnsym is not None and mol.symmetry:
         if isinstance(wfnsym, str):
@@ -236,6 +204,8 @@ def gen_tda_operation(mf, fock_ao=None, singlet=True, wfnsym=None):
     Fa_o, Fb_v = fock_mo[0][numpy.ix_(occidxa,occidxa)], fock_mo[1][numpy.ix_(viridxb,viridxb)]
     # beta virtual energy - alpha occupied energy
     e_ia = hdiag = numpy.diag(Fb_v) - numpy.diag(Fa_o)[:,None]
+    # numerically there is no difference after averaging O1O1 and O2O2 transitions
+    #e_ia[noccb,0] = e_ia[noccb+1,1] = (e_ia[noccb,0] + e_ia[noccb+1,1]) / 2.
     #print_matrix('e_ia:', e_ia, nind=1)
     if wfnsym is not None and mol.symmetry:
         hdiag[sym_forbid] = 0
@@ -253,12 +223,21 @@ def gen_tda_operation(mf, fock_ao=None, singlet=True, wfnsym=None):
             zs[:,sym_forbid] = 0
 
         # transform amplitudes
-        zs_new = trans_zs(zs.reshape(nz,nocca,nvirb))
+        zs = zs.reshape(nz, nocca, nvirb)
+        zs_new = lib.einsum('kov,xov->kxov', Ut, zs)
+        zs_new[0,:,noccb,0] /= numpy.sqrt(2.)
+        if singlet:
+            zs_new[0,:,noccb+1,1] = -zs_new[0,:,noccb,0]
+        else: # triplet
+            zs_new[0,:,noccb,1] = 0.
+            zs_new[0,:,noccb+1,0] = 0.
+            zs_new[0,:,noccb+1,1] = zs_new[0,:,noccb,0]
+        zs_new[5,:,:, [0, 1]] = zs_new[5,:,:, [1, 0]] # swap columns of virtual O1 and O2 for UCO1CO2
+        zs_new[6,:, [noccb, noccb+1]] = zs_new[6,:, [noccb+1, noccb]] # swap rows of occupied O1 and O2 for UO1VO2V
         dms = lib.einsum('kxov,pv,qo->kxpq', zs_new, orbvb, orboa.conj())
         dms[5:] = dms[5:].transpose(0,1,3,2) # use transpose for the last two dms
-        dms = dms.reshape(-1, nao, nao)
 
-        vj, vk = vresp(dms) # vk has included -1
+        vj, vk = vresp(dms.reshape(-1, nao, nao)) # vk has included -1
         vj = vj.reshape((7, nz, nao, nao))
         vk = vk.reshape((7, nz, nao, nao))
         # Eq. 2.14
@@ -273,7 +252,18 @@ def gen_tda_operation(mf, fock_ao=None, singlet=True, wfnsym=None):
         v1mo[0] += lib.einsum('xib,ab->xia', zs, Fb_v)
         v1mo[0] -= lib.einsum('xja,ji->xia', zs, Fa_o)
 
-        v1mo = trans_vs(v1mo)
+        if singlet:
+            v1mo[0,:,noccb,0] = (v1mo[0,:,noccb,0] - v1mo[0,:,noccb+1,1]) / numpy.sqrt(2.)
+            v1mo[0,:,noccb+1,1] = 0.
+        else: # triplet
+            v1mo[0,:,noccb,0] = (v1mo[0,:,noccb,0] + v1mo[0,:,noccb+1,1]) / numpy.sqrt(2.)
+            v1mo[0,:,noccb,1] = 0.
+            v1mo[0,:,noccb+1,0] = 0.
+            v1mo[0,:,noccb+1,1] = 0.
+
+        v1mo[5,:,:, [0, 1]] = v1mo[5,:,:, [1, 0]] # swap columns back
+        v1mo[6,:, [noccb, noccb+1]] = v1mo[6,:, [noccb+1, noccb]] # swap rows back
+        v1mo = lib.einsum('kov,kxov->xov', U, v1mo)  # sum over the contributions
 
         return v1mo.reshape(v1mo.shape[0],-1)
 
@@ -512,6 +502,17 @@ class MRSF_TDA(tdscf.rks.TDA):
         noccb = (self._scf.mo_occ==2).sum()
         nvira = nmo - nocca
         nvirb = nmo - noccb
+
+        # average the O1 and O2 amplitudes
+        x1 = x1.reshape(-1, nocca, nvirb)
+        x1[:,noccb,0] /= numpy.sqrt(2.)
+        if self.singlet:
+            x1[:,noccb+1,1] = -x1[:,noccb,0]
+        else:  # triplet
+            x1[:,noccb,1] = 0.
+            x1[:,noccb+1,0] = 0.
+            x1[:,noccb+1,1] = x1[:,noccb,0]
+
         self.xy = [(xi.reshape(nocca,nvirb),  # X_alpha_to_beta
                     0)  # (Y_alpha_to_beta
                    for xi in x1]
