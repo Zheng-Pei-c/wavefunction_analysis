@@ -1,56 +1,27 @@
-import numpy as np
-import itertools
+from wavefunction_analysis import sys, np, itertools
+from wavefunction_analysis.property.rdm_analysis import assemble_amplitudes
+#from wavefunction_analysis.utils import print_matrix
 
 from pyscf import scf, tdscf, gto
 
-#from wavefunction_analysis.utils import print_matrix
-
-def assemble_amplitudes(xys, nocc, nroots=None, rpa=False, itype='r'):
-    if nroots is None: nroots = len(xys)
-
-    if itype == 'r': # restricted
-        xs, ys = [None]*nroots, [None]*nroots
-        for i in range(nroots):
-            xs[i] = xys[i][0].reshape(nocc, -1)
-            if rpa:
-                ys[i] = xys[i][1].reshape(nocc, -1)
-        xs, ys = np.array(xs), np.array(ys)
-        if not rpa: ys = None
-
-    elif itype == 'u': # unrestricted
-        xs_a, ys_a = [None]*nroots, [None]*nroots
-        xs_b, ys_b = [None]*nroots, [None]*nroots
-        no_a, no_b = nocc
-        for i in range(nroots):
-            xs, ys = xys[i]
-            xs_a[i] = xs[0].reshape(no_a, -1)
-            xs_b[i] = xs[1].reshape(no_b, -1)
-            if rpa:
-                ys_a[i] = ys[0].reshape(no_a, -1)
-                ys_b[i] = ys[1].reshape(no_b, -1)
-        xs_a, xs_b = np.array(xs_a), np.array(xs_b)
-        if rpa:
-            ys_a, ys_b = np.array(ys_a), np.array(ys_b)
-        else:
-            ys_a, ys_b = None, None
-        xs, ys = [xs_a, xs_b], [ys_a, ys_b]
-
-    elif 'sf' in itype:
-        xs, ys = [None]*nroots, [None]*nroots
-        no_a, no_b = nocc # extype==1
-        if itype[-1] == '0': # for extype==0 swap spins
-            no_b, no_a = nocc
-        for i in range(nroots):
-            xs[i] = xys[i][0].reshape(no_a, -1)
-            if rpa:
-                ys[i] = xys[i][1].reshape(no_b, -1)
-        xs, ys = np.array(xs), np.array(ys)
-        if not rpa: ys = None
-
-    return xs, ys
-
-
 def cal_wf_overlap_r(Xm, Ym, Xn, Yn, Cm, Cn, S):
+    r"""
+    calculate wavefunction overlap between excited states at different nuclear configurations
+    for restricted case
+    Ovlp = < Psi_m | Psi_n >
+
+    Parameters
+        Xm : (nroots, nocc, nvir) ndarray excitation amplitudes at geometry m
+        Ym : (nroots, nocc, nvir) ndarray de-excitation amplitudes
+        Xn : (nroots, nocc, nvir) ndarray excitation amplitudes at geometry n
+        Yn : (nroots, nocc, nvir) ndarray de-excitation amplitudes
+        Cm : (nbasis, nbasis) ndarray mo_coeff at geometry m
+        Cn : (nbasis, nbasis) ndarray mo_coeff at geometry n
+        S  : (nbasis, nbasis) ndarray overlap matrix between geometry m and n
+
+    Returns
+        ovlp : ndarray
+    """
     # restricted case has same orbitals for alpha and beta electrons
     has_m = True if isinstance(Xm, np.ndarray) else False
     has_n = True if isinstance(Xn, np.ndarray) else False
@@ -126,6 +97,10 @@ def cal_wf_overlap_r(Xm, Ym, Xn, Yn, Cm, Cn, S):
 
 
 def cal_wf_overlap_u(Xm, Ym, Xn, Yn, Cm, Cn, S):
+    r"""
+    calculate wavefunction overlap between excited states at different nuclear configurations
+    for unrestricted case
+    """
     # unrestricted case, including alpha and beta spin orbitals
     has_m = (Xm is not None)
     has_n = (Xn is not None)
@@ -214,6 +189,10 @@ def cal_wf_overlap_u(Xm, Ym, Xn, Yn, Cm, Cn, S):
 
 
 def cal_wf_overlap_sf(Xm, Ym, Xn, Yn, Cm, Cn, S, extype=0):
+    r"""
+    calculate wavefunction overlap between excited states at different nuclear configurations
+    for ro spin-flip case
+    """
     # follow the spin-flip dft implemented at https://github.com/Haskiy/pyscf
     # extype=0: spin flip up, based on ms=-1 triplet ground-state
     # extype=1: spin flip down, based on ms=+1 triplet ground-state
@@ -285,6 +264,9 @@ def cal_wf_overlap_sf(Xm, Ym, Xn, Yn, Cm, Cn, S, extype=0):
 
 
 def cal_wf_overlap(Xm, Ym, Xn, Yn, Cm, Cn, S, itype='r'):
+    r"""
+    calculate wavefunction overlap between excited states at different nuclear configurations
+    """
     if itype == 'r':
         return cal_wf_overlap_r(Xm, Ym, Xn, Yn, Cm, Cn, S)
     elif itype == 'u':
@@ -331,6 +313,10 @@ def _overlap_eg(Xm, Yn, Cm=None, Cn=None, S=None, smo=None):
 
 
 def _overlap_ge(Xn, Ym, Cm=None, Cn=None, S=None, smo=None):
+    r"""
+    determinant overlap between excited and ground states
+    slow version using expicit loops
+    """
     # determinant overlap between excited and ground states
     has_y = True if isinstance(Ym, np.ndarray) else False
     _, no, nv = Xn.shape
@@ -353,6 +339,10 @@ def _overlap_ge(Xn, Ym, Cm=None, Cn=None, S=None, smo=None):
 
 
 def _overlap_ee(Xm, Ym, Xn, Yn, Cm=None, Cn=None, S=None, smo=None):
+    r"""
+    determinant overlap between excited states
+    slow version using expicit loops
+    """
     # determinant overlap between excited states
     has_y = True if (isinstance(Ym, np.ndarray) and isinstance(Yn, np.ndarray)) else False
     _, no, nv = Xn.shape
@@ -384,6 +374,9 @@ def _overlap_ee(Xm, Ym, Xn, Yn, Cm=None, Cn=None, S=None, smo=None):
 
 
 def cal_wf_overlap_r0(Xm, Ym, Xn, Yn, Cm, Cn, S):
+    r"""
+    slow version of wavefunction overlap of restricted case for checking
+    """
     has_m = True if isinstance(Xm, np.ndarray) else False
     has_n = True if isinstance(Xn, np.ndarray) else False
     has_y = True if (isinstance(Ym, np.ndarray) and isinstance(Yn, np.ndarray)) else False
@@ -435,6 +428,9 @@ def cal_wf_overlap_r0(Xm, Ym, Xn, Yn, Cm, Cn, S):
 
 
 def change_phase(x0, y0, x1, y1, mo0, mo1, ovlp):
+    r"""
+    change the phase of excited states at geometry 1 to match that at geometry 0
+    """
     nroots, no, nv = x1.shape
     ovlp = np.einsum('mp,mn,nq->pq', mo0, ovlp, mo1)
     idx = np.argmax(np.abs(ovlp), axis=0) # large index for each column
@@ -458,7 +454,8 @@ def change_phase(x0, y0, x1, y1, mo0, mo1, ovlp):
 
 
 def sign_fixing(mat):
-    """
+    r"""
+    fix the sign indeterminacy of wavefunction overlap matrix
     refer Zhou, Subotnik JCTC 2020, 10.1021/acs.jctc.9b00952
     """
     #U, s, Vt = np.linalg.svd(mat)
@@ -505,7 +502,7 @@ if __name__ == '__main__':
     rpa = 0
     nroots = 5
 
-    itype = 'sf-1' # 'r', 'u', 'sf-0', 'sf-1'
+    itype = 'r' #'r', 'u', 'sf-0', 'sf-1'
     #print('itype:', itype)
     if 'sf' in itype:
         if itype[-1] == '0': spin = -2
@@ -563,7 +560,7 @@ if __name__ == '__main__':
         else:
             nocc = [int((mf.mo_occ[0]>0).sum()), int((mf.mo_occ[1]).sum())]
         mo = mf.mo_coeff
-        xs, ys = assemble_amplitudes(td.xy, nocc, nroots, rpa, itype)
+        xs, ys = assemble_amplitudes(td.xy, nroots, rpa, itype)
 
         return xs, ys, mo
 
