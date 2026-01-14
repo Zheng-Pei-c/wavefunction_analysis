@@ -48,36 +48,66 @@ def mrsf_dimension_transform(nocc, nvir, nbas, singlet=True):
             [s or t, O2V, O1V, CO2, CO1, CO1CO2, O1VO2V]
             for ket side
     """
-    noa, nob = nocc
-    nva, nvb = nvir
-    print('noa:', noa, 'nob:', nob, 'nva:', nva, 'nvb:', nvb)
-    nova = novb = noa * nvb # excitation space dimension
+    nocca, noccb = nocc
+    nvira, nvirb = nvir
+    #print('nocca:', nocca, 'noccb:', noccb, 'nvira:', nvira, 'nvirb:', nvirb)
+    nova = novb = nocca * nvirb # excitation space dimension
     nov = nova * 2 # maximum number of roots
 
-    sqrt2 = 1. / numpy.sqrt(2.)
-
-    U = numpy.zeros((7, noa, nvb)) # dimention transformation
-    U[1, :nob, 0]   = 1. # UCO1  # C->O excitation Eqs. 2.6a and 2.7a
-    U[2, :nob, 1]   = 1. # UCO2
-    U[3, nob, 2:]   = 1. # UO1V  # O->V excitation Eqs. 2.6b and 2.7b
-    U[4, nob+1, 2:] = 1. # UO2V
+    U = numpy.zeros((7, nocca, nvirb)) # dimention transformation
+    U[1, :noccb, 0]   = 1. # UCO1  # C->O excitation Eqs. 2.6a and 2.7a
+    U[2, :noccb, 1]   = 1. # UCO2
+    U[3, noccb, 2:]   = 1. # UO1V  # O->V excitation Eqs. 2.6b and 2.7b
+    U[4, noccb+1, 2:] = 1. # UO2V
     U[5] = U[1] - U[2]   # UCO1CO2 where O is unoccupied
     U[6] = U[3] - U[4]   # UO1VO2V where O is occupied
 
     # CV + G + D + OO
     # Eqs. 2.4, 2.5, and 2.6c in JCP 2019.
-    U[0] = numpy.ones((noa, nvb))
-    if singlet:
-        U[0, nob, 0]   = sqrt2
-        U[0, nob+1, 1] = -sqrt2
-    else: # triplet
-        U[0, nob, 0]   = sqrt2
-        U[0, nob, 1]   = 0.
-        U[0, nob+1, 0] = 0.
-        U[0, nob+1, 1] = sqrt2
+    U[0] = numpy.ones((nocca, nvirb))
+    #if singlet:
+    #    U[0, noccb, 0]   = 1.
+    #    U[0, noccb+1, 1] = -1.
+    #else: # triplet
+    #    U[0, noccb, 0]   = 1.
+    #    U[0, noccb, 1]   = 0.
+    #    U[0, noccb+1, 0] = 0.
+    #    U[0, noccb+1, 1] = 1.
 
     Ut = numpy.array((U[0], U[4], U[3], U[2], U[1], U[5], U[6])) # reorder U
-    return U, Ut
+
+
+    def trans_zs(zs):
+        '''Transform amplitudes zs with Ut'''
+        zs = lib.einsum('kov,xov->kxov', Ut, zs)
+        zs[0,:,noccb,0] /= numpy.sqrt(2.)
+        if singlet:
+            zs[0,:,noccb+1,1] = -zs[0,:,noccb,0]
+        else: # triplet
+            zs[0,:,noccb,1] = 0.
+            zs[0,:,noccb+1,0] = 0.
+            zs[0,:,noccb+1,1] = zs[0,:,noccb,0]
+        zs[5,:,:, [0, 1]] = zs[5,:,:, [1, 0]] # swap columns of virtual O1 and O2 for UCO1CO2
+        zs[6,:, [noccb, noccb+1]] = zs[6,:, [noccb+1, noccb]] # swap rows of occupied O1 and O2 for UO1VO2V
+        return zs
+
+    def trans_vs(vs):
+        """Transform integral matrix vs with U"""
+
+        if singlet:
+            vs[0,:,noccb,0] = (vs[0,:,noccb,0] - vs[0,:,noccb+1,1]) / numpy.sqrt(2.)
+            vs[0,:,noccb+1,1] = 0.
+        else: # triplet
+            vs[0,:,noccb,0] = (vs[0,:,noccb,0] + vs[0,:,noccb+1,1]) / numpy.sqrt(2.)
+            vs[0,:,noccb,1] = 0.
+            vs[0,:,noccb+1,0] = 0.
+            vs[0,:,noccb+1,1] = 0.
+        vs[5,:,:, [0, 1]] = vs[5,:,:, [1, 0]] # swap columns back
+        vs[6,:, [noccb, noccb+1]] = vs[6,:, [noccb+1, noccb]] # swap rows back
+        vs = lib.einsum('kov,kxov->xov', U, vs) # sum over the contributions
+        return vs
+
+    return trans_zs, trans_vs
 
 
 # based on scf/_response_function.py
@@ -99,7 +129,7 @@ def _gen_rhf_response(mf, mo_coeff=None, mo_occ=None,
                         'derivative is not available. Its contribution is '
                         'not included in the response function.')
         omega, alpha, hyb = ni.rsh_and_hybrid_coeff(mf.xc, mol.spin)
-        print('functional:', mf.xc, 'omega:', omega, 'alpha:', alpha, 'hyb:', hyb)
+        #print('functional:', mf.xc, 'omega:', omega, 'alpha:', alpha, 'hyb:', hyb)
         hybrid = ni.libxc.is_hybrid_xc(mf.xc)
 
         # mf might be pbc.dft.RKS object with multigrid
@@ -175,8 +205,6 @@ def gen_tda_operation(mf, fock_ao=None, singlet=True, wfnsym=None):
     mol = mf.mol
     mo_coeff = mf.mo_coeff
     assert (mo_coeff.dtype == numpy.double)
-    mo_ea = mf.mo_energy.mo_ea
-    mo_eb = mf.mo_energy.mo_eb
     mo_occ = mf.mo_occ
     nao, nmo = mo_coeff.shape
     occidxa = mo_occ > 0
@@ -192,6 +220,11 @@ def gen_tda_operation(mf, fock_ao=None, singlet=True, wfnsym=None):
     nvira = orbva.shape[1]
     nvirb = orbvb.shape[1]
 
+    # transform matrix
+    sign = 1 if singlet else -1 # scale integrals Eq. 2.13
+    trans_zs, trans_vs = mrsf_dimension_transform([nocca, noccb], [nvira, nvirb], nao,
+                                     singlet=singlet)
+
     if wfnsym is not None and mol.symmetry:
         if isinstance(wfnsym, str):
             wfnsym = symm.irrep_name2id(mol.groupname, wfnsym)
@@ -199,30 +232,18 @@ def gen_tda_operation(mf, fock_ao=None, singlet=True, wfnsym=None):
         x_sym_a, x_sym_b = _get_x_sym_table(mf)
         sym_forbid = numpy.append(x_sym_a.ravel(), x_sym_b.ravel()) != wfnsym
 
-    # beta virtual energy - alpha occupied energy
     fock_mo = lib.einsum('mp,imn,nq->ipq', mo_coeff.conj(), fock_ao, mo_coeff)
-    e_ia = hdiag = numpy.diag(fock_mo[1])[viridxb] - numpy.diag(fock_mo[0])[occidxa,None]
-    #e_ia = hdiag = mo_eb[viridxb] - mo_ea[occidxa,None]
+    Fa_o, Fb_v = fock_mo[0][numpy.ix_(occidxa,occidxa)], fock_mo[1][numpy.ix_(viridxb,viridxb)]
+    # beta virtual energy - alpha occupied energy
+    e_ia = hdiag = numpy.diag(Fb_v) - numpy.diag(Fa_o)[:,None]
     #print_matrix('e_ia:', e_ia, nind=1)
     if wfnsym is not None and mol.symmetry:
         hdiag[sym_forbid] = 0
     hdiag = e_ia.ravel()
 
-    # it seems using pointers so don't move it above e_ia!!!
-    # otherwise one needs to use numpy.copy()
-    Fa_o, Fb_v = fock_mo[0, :nocca, :nocca], fock_mo[1, noccb:, noccb:]
-    # remove diagonal elements for 1e cotributions in vind()
-    Fa_o -= numpy.diag(numpy.diag(Fa_o))
-    Fb_v -= numpy.diag(numpy.diag(Fb_v))
-
     mem_now = lib.current_memory()[0]
     max_memory = max(2000, mf.max_memory*.8-mem_now)
     vresp = _gen_rhf_response(mf, hermi=0, max_memory=max_memory)
-
-    # transform matrix
-    sign = 1 if singlet else -1 # scale integrals Eq. 2.13
-    U, Ut = mrsf_dimension_transform([nocca, noccb], [nvira, nvirb], nao,
-                                     singlet=singlet)
 
     def vind(zs):
         nz = len(zs)
@@ -232,17 +253,7 @@ def gen_tda_operation(mf, fock_ao=None, singlet=True, wfnsym=None):
             zs[:,sym_forbid] = 0
 
         # transform amplitudes
-        zs = zs.reshape(nz,nocca,nvirb)
-        zs_new = lib.einsum('kov,xov->kxov', Ut, zs)
-        #if singlet:
-        #    zs_new[0,:,noccb,0]  /= numpy.sqrt(2.)
-        #    zs_new[0,:,noccb+1,1] = -zs_new[0,:,noccb,0]
-        #else:
-        #    zs_new[0,:,noccb,0]  /= numpy.sqrt(2.)
-        #    zs_new[0,:,noccb,1] = zs_new[0,:,noccb+1,0] = 0.
-        #    zs_new[0,:,noccb+1,1] = zs_new[0,:,noccb,0]
-        zs_new[5,:,:, [0, 1]] = zs_new[5,:,:, [1, 0]] # swap columns of virtual O1 and O2 for UCO1CO2
-        zs_new[6,:, [noccb, noccb+1]] = zs_new[6,:, [noccb+1, noccb]] # swap rows of occupied O1 and O2 for UO1VO2V
+        zs_new = trans_zs(zs.reshape(nz,nocca,nvirb))
         dms = lib.einsum('kxov,pv,qo->kxpq', zs_new, orbvb, orboa.conj())
         dms[5:] = dms[5:].transpose(0,1,3,2) # use transpose for the last two dms
         dms = dms.reshape(-1, nao, nao)
@@ -256,16 +267,13 @@ def gen_tda_operation(mf, fock_ao=None, singlet=True, wfnsym=None):
         v1ao = vk
 
         v1mo = lib.einsum('kxpq,qo,pv->kxov', v1ao, orboa, orbvb.conj())
-        v1mo[5,:,:, [0, 1]] = v1mo[5,:,:, [1, 0]] # swap columns back
-        v1mo[6,:, [noccb, noccb+1]] = v1mo[6,:, [noccb+1, noccb]] # swap rows back
-        v1mo = lib.einsum('kov,kxov->xov', U, v1mo) # sum over the contributions
-        #print_matrix('v1mo:', v1mo.reshape(nz,-1).T, nind=1)
 
         # add one-electron terms
         zs = zs_new[0]
-        v1mo += lib.einsum('xia,ia->xia', zs, e_ia)
-        v1mo += lib.einsum('xia,ab->xib', zs, Fb_v)
-        v1mo -= lib.einsum('xia,ij->xja', zs, Fa_o)
+        v1mo[0] += lib.einsum('xib,ab->xia', zs, Fb_v)
+        v1mo[0] -= lib.einsum('xja,ji->xia', zs, Fa_o)
+
+        v1mo = trans_vs(v1mo)
 
         return v1mo.reshape(v1mo.shape[0],-1)
 
@@ -363,21 +371,46 @@ def _contract_multipole(tdobj, ints, hermi=True, xy=None):
     #Incompatible to old numpy version
     #ints = numpy.einsum('...pq,pi,qj->...ij', ints, orbo, orbv.conj())
     ints = lib.einsum('xpq,pi,qj->xij', ints.reshape(-1,nao,nao), orbo, orbv.conj())
-    pol = numpy.array([numpy.einsum('xij,ij->x', ints, x) * 2 for x,y in xy])
+    pol = numpy.array([numpy.einsum('xij,ij->x', ints, x) for x,y in xy])
     if isinstance(xy[0][1], numpy.ndarray):
         if hermi:
-            pol += [numpy.einsum('xij,ij->x', ints, y) * 2 for x,y in xy]
+            pol += [numpy.einsum('xij,ij->x', ints, y) for x,y in xy]
         else:  # anti-Hermitian
-            pol -= [numpy.einsum('xij,ij->x', ints, y) * 2 for x,y in xy]
+            pol -= [numpy.einsum('xij,ij->x', ints, y) for x,y in xy]
     pol = pol.reshape((nstates,)+pol_shape)
     return pol
+
+
+def spin_square(tdobj):
+    r"""
+    Calculate <S^2> expectation value for each excited state.
+    S^2 = Sz^2 + 0.5 * (S+ S- + S- S+)
+    """
+    mo_coeff = tdobj._scf.mo_coeff
+    mo_occ = tdobj._scf.mo_occ
+    nocca = numpy.count_nonzero(mo_occ > 0)
+    noccb = numpy.count_nonzero(mo_occ == 2)
+    nmo = mo_coeff.shape[1]
+
+    ovlp = tdobj._scf.get_ovlp()
+
+
+    ss = []
+    for x, y in tdobj.xy:
+        s_plus = lib.einsum('ia,ja->ij', x, x)
+        s_minus = lib.einsum('ia,ja->ij', y, y)
+        s_z = 0.5 * (lib.einsum('ia,ia->', x, x) - lib.einsum('ia,ia->', y, y))
+        s2 = (s_z * (s_z + 1)
+              + lib.trace(s_plus @ s_minus))
+        ss.append(s2)
+    return numpy.array(ss)
 
 
 
 class MRSF_TDA(tdscf.rks.TDA):
 
     singlet = True
-    positive_eig_threshold = -0.3 # keep ground-state
+    #positive_eig_threshold = -0.3 # keep ground-state
 
     def gen_vind(self, mf=None):
         '''Generate function to compute Ax'''
@@ -401,17 +434,32 @@ class MRSF_TDA(tdscf.rks.TDA):
         viridxb = ~occidxb
         e_ia = (mo_eb[viridxb] - mo_ea[occidxa,None]).ravel()
         nova = e_ia.size
+        noccb = len(mo_eb[occidxb])
+        nvirb = len(mo_eb[viridxb])
         nstates = min(nstates, nova)
 
         # Find the nstates-th lowest energy gap
-        e_threshold = numpy.partition(e_ia, nstates-1)[nstates-1]
+        # add one more state (rather than using nstates-1)
+        e_threshold = numpy.partition(e_ia, nstates)[nstates]
         e_threshold += self.deg_eia_thresh
 
         #print_matrix('e_ia:', e_ia[e_ia<=e_threshold])
         idx = numpy.where(e_ia <= e_threshold)[0]
         x0 = numpy.zeros((idx.size, nova))
+        skip = False
         for i, j in enumerate(idx):
-            x0[i, j] = 1  # Koopmans' excitations
+            if j != noccb*nvirb and j != (noccb+1)*nvirb+1:
+                x0[i, j] = 1  # Koopmans' excitations
+            elif j == noccb*nvirb and not skip: # O1O1 excitation
+                #x0[i, (noccb+1)*nvirb+1] = 1.
+                x0[i, noccb*nvirb] = 1.
+                skip = True
+            elif j == (noccb+1)*nvirb+1 and not skip: # O2O2 excitation
+                # forced to be same as O1O1 excitation later
+                #x0[i, (noccb+1)*nvirb+1] = 1.
+                #x0[i, noccb*nvirb] = 1.
+                skip = True
+        x0 = x0[~(x0 == 0).all(axis=1)]  # remove zero columns
 
         if return_symmetry:
             if mf.mol.symmetry:
@@ -440,7 +488,9 @@ class MRSF_TDA(tdscf.rks.TDA):
         precond = self.get_precond(hdiag)
 
         def pickeig(w, v, nroots, envs):
-            idx = numpy.where(w > self.positive_eig_threshold)[0]
+            #idx = numpy.where(w > self.positive_eig_threshold)[0]
+            idx = numpy.where(numpy.abs(w) > 1e-5)[0]
+            #idx = numpy.argsort(w)[:nroots]
             return w[idx], v[:,idx], idx
 
         x0sym = None
@@ -496,11 +546,17 @@ if __name__ == '__main__':
     #"""
 
     atom = """Be      0.000000      0.000000      0.000000"""
+#    atom = """
+#           O           0.000000    0.000000    0.1191992
+#           H          -0.759081    0.000000   -0.4767968
+#           H           0.759081    0.000000   -0.4767968
+#    """
 
     spin = 2
     basis = '6-31g'
     functional = 'bhandhlyp'
-    nstates = 11
+    nstates = 12
+    rpa = 0
 
     mol = gto.M(
             atom = atom,
@@ -511,11 +567,20 @@ if __name__ == '__main__':
     mf = scf.ROKS(mol)
     mf.xc = functional
     e0 = mf.kernel()
-    #print_matrix('mo_coeff:', mo_coeff)
 
     td = MRSF_TDA(mf)
     td.nstates = nstates
     td.verbose = 4
-    td.conv_tol = 1e-7
     e, xys = td.kernel()
     td.analyze()
+
+    from wavefunction_analysis.property import assemble_amplitudes, cal_rdm1, cal_dipoles
+    dip_mat = mol.intor('int1e_r', comp=3)
+    coeff = mf.mo_coeff
+    xy = assemble_amplitudes(td.xy, rpa=rpa, itype='ro-sf')
+    #rdm1 = cal_rdm1(xy, coeff, scale=1., itype='trans')
+    #dipoles = cal_dipoles(dip_mat, rdm1)
+    #print_matrix('transition dipoles:', dipoles)
+    rdm1 = cal_rdm1(xy, coeff, scale=1., itype='diff')
+    dipoles = cal_dipoles(dip_mat, rdm1)
+    print_matrix('difference dipoles:', dipoles)

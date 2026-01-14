@@ -1,26 +1,8 @@
 from wavefunction_analysis import sys, np
 from wavefunction_analysis.utils import print_matrix
+from wavefunction_analysis.property.rdm_analysis import assemble_amplitudes
 
 from pyscf.scf import _vhf
-
-def reshape_xys(xy, nstates=None, itype='r'):
-    if nstates == 1:
-        return reshape_xys([xy], None, itype)
-
-    xs, ys = [], []
-    if itype == 'u':
-        xsa, xsb, ysa, ysb = [], [], [], []
-        for i, _xy in enumerate(xy):
-            (xia, xib), (yia, yib) = _xy
-            xsa.append(xia)
-            xsb.append(xib)
-            ysa.append(yia)
-            ysb.append(yib)
-        xs, ys = [np.array(xsa), np.array(xsb)], [np.array(ysa), np.array(ysb)]
-
-    # (nroots, nocc, nvir)
-    return xs, ys
-
 
 def get_xys_in_ao(mo_coeff, xs, ys, has_y=False, scale=1):
     # scale is 2 for restricted
@@ -31,7 +13,7 @@ def get_xys_in_ao(mo_coeff, xs, ys, has_y=False, scale=1):
 
 
 def build_trans_density(mo_coeff, amps, itype='r', has_y=False):
-    xs, ys = reshape_xys(amps, itype=itype)
+    xs, ys = assemble_amplitudes(amps, itype=itype, rpa=has_y)
 
     if itype == 'r':
         return get_xys_in_ao(mo_coeff, xs, ys, itype, has_y, scale=2)

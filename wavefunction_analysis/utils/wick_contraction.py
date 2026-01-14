@@ -329,7 +329,7 @@ def contract_hamil_delta(hamiltonian, deltas):
         term_str = term_str.replace(',', ' ').replace(';', ',')
         strings.append(f'{sign} {term_str}\n')
 
-    return combine_same_terms(strings)
+    return strings #combine_same_terms(strings)
 
 
 def combine_same_terms(contracted_strings):
@@ -518,8 +518,7 @@ def sqo_evaluation(bra, middle, ket, exceptions=[], title='', hamiltonian=None,
     deltas = wick_delta(contractions)
 
     strings = contract_hamil_delta(hamiltonian, deltas)
-    strings = ' '.join(strings)
-    print_math(strings, 'Contraction result:\n', latex=latex)
+    print_math(' '.join(strings), 'Contraction result:\n', latex=latex)
 
     return contractions, deltas, strings
 
