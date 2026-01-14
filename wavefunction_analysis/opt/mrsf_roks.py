@@ -430,7 +430,8 @@ class MRSF_TDA(tdscf.rks.TDA):
 
         # Find the nstates-th lowest energy gap
         # add one more state (rather than using nstates-1)
-        e_threshold = numpy.partition(e_ia, nstates)[nstates]
+        extra = 0 if self.singlet else 2
+        e_threshold = numpy.partition(e_ia, nstates+extra)[nstates+extra]
         e_threshold += self.deg_eia_thresh
 
         #print_matrix('e_ia:', e_ia[e_ia<=e_threshold])
@@ -441,13 +442,14 @@ class MRSF_TDA(tdscf.rks.TDA):
             if j != noccb*nvirb and j != (noccb+1)*nvirb+1:
                 x0[i, j] = 1  # Koopmans' excitations
             elif j == noccb*nvirb and not skip: # O1O1 excitation
+                # forced to be same as O1O1 excitation later
                 #x0[i, (noccb+1)*nvirb+1] = 1.
                 x0[i, noccb*nvirb] = 1.
                 skip = True
             elif j == (noccb+1)*nvirb+1 and not skip: # O2O2 excitation
                 # forced to be same as O1O1 excitation later
                 #x0[i, (noccb+1)*nvirb+1] = 1.
-                #x0[i, noccb*nvirb] = 1.
+                x0[i, noccb*nvirb] = 1.
                 skip = True
         x0 = x0[~(x0 == 0).all(axis=1)]  # remove zero columns
 
@@ -585,3 +587,18 @@ if __name__ == '__main__':
     rdm1 = cal_rdm1(xy, coeff, scale=1., itype='diff')
     dipoles = cal_dipoles(dip_mat, rdm1)
     print_matrix('difference dipoles:', dipoles)
+
+    mol = gto.M(
+            atom = atom,
+            spin = 0,
+            basis = basis,
+            )
+    mf = scf.RKS(mol)
+    mf.xc = functional
+    e0 = mf.kernel()
+    print('dip_moment:', mf.dip_moment(unit='AU'))
+    td = tdscf.rks.TDA(mf)
+    td.nstates = nstates
+    td.verbose = 4
+    e, xys = td.kernel()
+    td.analyze()
