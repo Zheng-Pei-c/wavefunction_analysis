@@ -87,13 +87,13 @@ def cal_wf_overlap_r(Xm, Ym, Xn, Yn, Cm, Cn, S):
         # e-g * g-e
         ovlp_mn = np.einsum('m,n->mn', ovlp1, ovlp3)
         if has_y:
-            ovlp_mn += np.einsum('m,n->mn', ovlp2, ovlp4)
+            ovlp_mn -= np.einsum('m,n->mn', ovlp2, ovlp4)
 
         # e-e * g-g
         ovlp_mn *= 2. # first contribution is same as e-g * g-e
         ovlp_mn += np.einsum('mia,njb,ji,ab->mn', Xm, Xn, vec0, vec3)
         if has_y:
-            ovlp_mn += np.einsum('mia,njb,ij,ba->mn', Ym, Yn, vec0, vec3)
+            ovlp_mn -= np.einsum('mia,njb,ij,ba->mn', Ym, Yn, vec0, vec3)
 
         ovlp_mn *= 2.*ovlp_00
         return np.block([[ovlp_00, ovlp_0n.reshape(1,-1)], [ovlp_m0.reshape(-1,1), ovlp_mn]])
@@ -181,12 +181,12 @@ def cal_wf_overlap_u(Xm, Ym, Xn, Yn, Cm, Cn, S):
             # e-g * g-e and first contribution of e-e * g-g
             ovlp_mn += 2.*np.einsum('m,n->mn', ovlp1[s], ovlp3[s])
             if has_y:
-                ovlp_mn += 2.*np.einsum('m,n->mn', ovlp2[s], ovlp4[s])
+                ovlp_mn -= 2.*np.einsum('m,n->mn', ovlp2[s], ovlp4[s])
 
             # e-e * g-g
             ovlp_mn += np.einsum('mia,njb,ji,ab->mn', Xm[s], Xn[s], vec0[s], vec3[s])
             if has_y:
-                ovlp_mn += np.einsum('mia,njb,ij,ba->mn', Ym[s], Yn[s], vec0[s], vec3[s])
+                ovlp_mn -= np.einsum('mia,njb,ij,ba->mn', Ym[s], Yn[s], vec0[s], vec3[s])
 
         ovlp_mn *= ovlp_00
         return np.block([[ovlp_00, ovlp_0n.reshape(1,-1)], [ovlp_m0.reshape(-1,1), ovlp_mn]])
@@ -433,7 +433,7 @@ def cal_wf_overlap_r0(Xm, Ym, Xn, Yn, Cm, Cn, S):
         # e-g * g-e
         ovlp_mn += np.einsum('im,jn->mn', ovlp1, ovlp3)
         if has_y:
-            ovlp_mn += np.einsum('jm,in->mn', ovlp2, ovlp4)
+            ovlp_mn -= np.einsum('jm,in->mn', ovlp2, ovlp4)
 
         return 2.*np.block([[dot_0**2/2., ovlp_0n.reshape(1,-1)], [ovlp_m0.reshape(-1,1), ovlp_mn]])
 
