@@ -1,14 +1,22 @@
 from wavefunction_analysis import sys, np, itertools
 from wavefunction_analysis.property.rdm_analysis import assemble_amplitudes
-#from wavefunction_analysis.utils import print_matrix
+from wavefunction_analysis.utils import print_matrix
+from wavefunction_analysis.utils import monitor_performance
 
 from pyscf import scf, tdscf, gto
 
+@monitor_performance
 def cal_wf_overlap_r(Xm, Ym, Xn, Yn, Cm, Cn, S):
     r"""
-    calculate wavefunction overlap between excited states at different nuclear configurations
+    Calculate wavefunction overlap between excited states at different nuclear configurations
     for restricted case
     Ovlp = < Psi_m | Psi_n >
+
+    Matrix determinant lemma is used.
+    vec1: `S_vo S_oo^-1` in ov (transpose is used)
+    vec2: `S_oo^-1 S_ov` in ov
+    vec3: `(S_vv - S_vo S_oo^-1 S_ov)` in vv
+    vec4: `S_oo^-1` in oo
 
     Parameters
         Xm : (nroots, nocc, nvir) ndarray excitation amplitudes at geometry m
@@ -40,21 +48,20 @@ def cal_wf_overlap_r(Xm, Ym, Xn, Yn, Cm, Cn, S):
 
     # Cramer's rule
     # Ax_j = b_j <=> x_j = det(A_j(b_j)) / det(A) where A_j(b_j) is replacing A's j-column with b_j
-    vec1 = np.linalg.solve(smo_oo.T, smo[no:,:no].T) # replace rows
-    vec2 = np.linalg.solve(smo_oo, smo[:no,no:]) # replace columns
-
-    #vec3 = np.linalg.solve(smo_oo, Xm.transpose(1,0,2).reshape(no, -1))
-    #vec3 = vec3.reshape(no, nroots, nv).transpose(1,0,2)
-    #vec4 = smo[no:,no:] - np.einsum('ia,ib->ab', vec1, smo[:no,no:])
-    #vec4 = np.einsum('ab,kib->kia', vec4, Xn)
-
+    vec0 = np.linalg.inv(smo_oo) # S_oo^-1
+    vec1 = np.einsum('aj,ji->ia', smo[no:,:no], vec0) # replace rows
+    vec2 = np.einsum('ij,jb->ib', vec0, smo[:no,no:]) # replace columns
+    # rank-2 perturbation from matrix determinant lemma
+    vec3 = smo[no:,no:] - np.einsum('aj,jb->ab', smo[no:,:no], vec2)
 
     # excited-ground
     if has_m:
+        Xm = Xm.conj()
         ovlp1 = np.einsum('kia,ia->k', Xm, vec1)
         ovlp_m0 = np.copy(ovlp1)
 
         if has_y:
+            Ym = Ym.conj()
             ovlp2 = np.einsum('kia,ia->k', Ym, vec2)
             ovlp_m0 += ovlp2
 
@@ -80,22 +87,19 @@ def cal_wf_overlap_r(Xm, Ym, Xn, Yn, Cm, Cn, S):
         # e-g * g-e
         ovlp_mn = np.einsum('m,n->mn', ovlp1, ovlp3)
         if has_y:
-            ovlp_mn -= np.einsum('m,n->mn', ovlp2, ovlp4)
+            ovlp_mn += np.einsum('m,n->mn', ovlp2, ovlp4)
 
         # e-e * g-g
-        for a, i in itertools.product(range(nv), range(no)):
-            ts0 = np.copy(smo[:no,:])
-            ts0[i,:] = smo[no+a,:]
-            vec3 = np.linalg.solve(ts0[:,:no], ts0[:,no:])
-            ovlp_mn += np.einsum('m,njb,jb->mn', Xm[:,i,a], Xn, vec3) * vec1[i,a]
-
-            if has_y:
-                ovlp_mn -= np.einsum('mjb,n,jb->mn', Ym, Yn[:,i,a], vec3) *vec1[i,a]
+        ovlp_mn *= 2. # first contribution is same as e-g * g-e
+        ovlp_mn += np.einsum('mia,njb,ji,ab->mn', Xm, Xn, vec0, vec3)
+        if has_y:
+            ovlp_mn += np.einsum('mia,njb,ij,ba->mn', Ym, Yn, vec0, vec3)
 
         ovlp_mn *= 2.*ovlp_00
         return np.block([[ovlp_00, ovlp_0n.reshape(1,-1)], [ovlp_m0.reshape(-1,1), ovlp_mn]])
 
 
+@monitor_performance
 def cal_wf_overlap_u(Xm, Ym, Xn, Yn, Cm, Cn, S):
     r"""
     calculate wavefunction overlap between excited states at different nuclear configurations
@@ -124,22 +128,28 @@ def cal_wf_overlap_u(Xm, Ym, Xn, Yn, Cm, Cn, S):
 
     # Cramer's rule
     # Ax_j = b_j <=> x_j = det(A_j(b_j)) / det(A) where A_j(b_j) is replacing A's j-column with b_j
-    vec1, vec2 = [None]*2, [None]*2
+    vec0, vec1, vec2, vec3 = [None]*2, [None]*2, [None]*2, [None]*2
     for s in range(2):
-        vec1[s] = np.linalg.solve(smo_oo[s].T, smo[s,nocc[s]:,:nocc[s]].T) # replace rows
-        vec2[s] = np.linalg.solve(smo_oo[s], smo[s,:nocc[s],nocc[s]:]) # replace columns
+        no = nocc[s]
+        vec0[s] = np.linalg.inv(smo_oo[s]) # S_oo^-1
+        vec1[s] = np.einsum('aj,ji->ia', smo[s,no:, :no], vec0[s]) # replace rows
+        vec2[s] = np.einsum('ij,jb->ib', vec0[s], smo[s,:no,no:]) # replace columns
+        # rank-2 perturbation from matrix determinant lemma
+        vec3[s] = smo[s,no:,no:] - np.einsum('aj,jb->ab', smo[s,no:,:no], vec2[s])
 
 
     # excited-ground
     if has_m:
         ovlp1 = np.empty((2, nroots))
         for s in range(2):
+            Xm[s] = Xm[s].conj()
             ovlp1[s] = np.einsum('kia,ia->k', Xm[s], vec1[s])
         ovlp_m0 = np.copy(ovlp1)
 
         if has_y:
             ovlp2 = np.empty((2, nroots))
             for s in range(2):
+                Ym[s] = Ym[s].conj()
                 ovlp2[s] = np.einsum('kia,ia->k', Ym[s], vec2[s])
             ovlp_m0 += ovlp2
 
@@ -168,21 +178,15 @@ def cal_wf_overlap_u(Xm, Ym, Xn, Yn, Cm, Cn, S):
     if has_m and has_n:
         ovlp_mn = np.zeros((nroots, nroots))
         for s in range(2):
-            # e-g * g-e
-            ovlp_mn += np.einsum('m,n->mn', ovlp1[s], ovlp3[s])
+            # e-g * g-e and first contribution of e-e * g-g
+            ovlp_mn += 2.*np.einsum('m,n->mn', ovlp1[s], ovlp3[s])
             if has_y:
-                ovlp_mn -= np.einsum('m,n->mn', ovlp2[s], ovlp4[s])
+                ovlp_mn += 2.*np.einsum('m,n->mn', ovlp2[s], ovlp4[s])
 
             # e-e * g-g
-            no, nv = nocc[s], nvir[s]
-            for a, i in itertools.product(range(nv), range(no)):
-                ts0 = np.copy(smo[s,:no,:])
-                ts0[i,:] = smo[s,no+a,:]
-                vec3 = np.linalg.solve(ts0[:,:no], ts0[:,no:])
-                ovlp_mn += np.einsum('m,njb,jb->mn', Xm[s][:,i,a], Xn[s], vec3) * vec1[s][i,a]
-
-                if has_y:
-                    ovlp_mn -= np.einsum('mjb,n,jb->mn', Ym[s], Yn[s][:,i,a], vec3) *vec1[s][i,a]
+            ovlp_mn += np.einsum('mia,njb,ji,ab->mn', Xm[s], Xn[s], vec0[s], vec3[s])
+            if has_y:
+                ovlp_mn += np.einsum('mia,njb,ij,ba->mn', Ym[s], Yn[s], vec0[s], vec3[s])
 
         ovlp_mn *= ovlp_00
         return np.block([[ovlp_00, ovlp_0n.reshape(1,-1)], [ovlp_m0.reshape(-1,1), ovlp_mn]])
@@ -295,6 +299,10 @@ def _overlap_eg(Xm, Yn, Cm=None, Cn=None, S=None, smo=None):
     has_y = True if isinstance(Yn, np.ndarray) else False
     _, no, nv = Xm.shape
 
+    Xm = Xm.conj()
+    if has_y:
+        Yn = Yn.conj()
+
     if not isinstance(smo, np.ndarray):
         _, smo = _overlap_gg(Cm, Cn, S, no)
     smo_oo = np.copy(smo[:no,:no])
@@ -347,6 +355,10 @@ def _overlap_ee(Xm, Ym, Xn, Yn, Cm=None, Cn=None, S=None, smo=None):
     has_y = True if (isinstance(Ym, np.ndarray) and isinstance(Yn, np.ndarray)) else False
     _, no, nv = Xn.shape
 
+    Xm = Xm.conj()
+    if has_y:
+        Ym = Ym.conj()
+
     if not isinstance(smo, np.ndarray):
         _, smo = _overlap_gg(Cm, Cn, S, no)
     smo_oo = np.copy(smo[:no,:no])
@@ -354,13 +366,7 @@ def _overlap_ee(Xm, Ym, Xn, Yn, Cm=None, Cn=None, S=None, smo=None):
     # g-e of Xm, e-g of Yn
     ovlp = 0.
     for a, i in itertools.product(range(nv), range(no)):
-        #tmp0 = np.copy(Cm[:,:no])
-        #tmp0[:,i] = Cm[:,no+a]
-
         for b, j in itertools.product(range(nv), range(no)):
-            #tmp1 = np.copy(Cn[:,:no])
-            #tmp1[:,j] = Cn[:,no+b]
-            #ts0 = np.einsum('pi,pq,qj->ij', tmp0, S, tmp1)
             ts0 = np.copy(smo_oo)
             ts0[i,:] = smo[no+a,:no]
             ts0[:,j] = smo[:no,no+b]
@@ -389,6 +395,11 @@ def cal_wf_overlap_r0(Xm, Ym, Xn, Yn, Cm, Cn, S):
 
     if not (has_m or has_n):
         return dot_0**2
+
+    if has_m:
+        Xm = Xm.conj()
+        if has_y:
+            Ym = Ym.conj()
 
     if has_m or has_y:
         ovlp1, ovlp4 = _overlap_eg(Xm, Yn, smo=smo)
@@ -422,7 +433,7 @@ def cal_wf_overlap_r0(Xm, Ym, Xn, Yn, Cm, Cn, S):
         # e-g * g-e
         ovlp_mn += np.einsum('im,jn->mn', ovlp1, ovlp3)
         if has_y:
-            ovlp_mn -= np.einsum('jm,in->mn', ovlp2, ovlp4)
+            ovlp_mn += np.einsum('jm,in->mn', ovlp2, ovlp4)
 
         return 2.*np.block([[dot_0**2/2., ovlp_0n.reshape(1,-1)], [ovlp_m0.reshape(-1,1), ovlp_mn]])
 
@@ -499,7 +510,7 @@ if __name__ == '__main__':
     charge = 0
     verbose = 0
 
-    rpa = 0
+    rpa = 1
     nroots = 5
 
     itype = 'r' #'r', 'u', 'sf-0', 'sf-1'
@@ -564,6 +575,8 @@ if __name__ == '__main__':
 
         return xs, ys, mo
 
+    from wavefunction_analysis.utils import set_performance_log
+    set_performance_log(debug=True)
 
     ovlp = gto.intor_cross('int1e_ovlp', mol0, mol1)
     x0, y0, mo0 = run_td(mol0, rpa, itype)
@@ -576,5 +589,4 @@ if __name__ == '__main__':
 
     state_ovlp = cal_wf_overlap(x0, y0, x1, y1, mo0, mo1, ovlp, itype)
     state_ovlp = sign_fixing(state_ovlp)
-    #print_matrix('state_ovlp:\n', state_ovlp)
-    print('state_ovlp:\n', state_ovlp)
+    print_matrix('state_ovlp:\n', state_ovlp)
