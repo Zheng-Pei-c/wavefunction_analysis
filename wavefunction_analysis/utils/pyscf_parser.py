@@ -1,109 +1,11 @@
-import sys
-import numpy as np
+from wavefunction_analysis import sys, np
+from wavefunction_analysis.utils import print_matrix
+from wavefunction_analysis.utils.parser import parser, section_names
 
 from pyscf import scf, tdscf, gto
 from pyscf.lib import logger
 
-from wavefunction_analysis.utils import print_matrix
 #import qed
-
-
-section_names = ['molecule', 'rem', 'polariton']
-
-
-def read_molecule(data):
-    charge, spin = [], []
-    coords, atmsym, xyz = [], [], []
-
-    for line in data:
-        info = line.split()
-        if len(info) == 2:
-            charge.append(int(info[0]))
-            spin.append(int((int(info[1]) - 1))) # pyscf using 2S=nalpha-nbeta rather than (2S+1)
-            atmsym.append([])
-            xyz.append([])
-            coords.append('')
-        elif len(info) == 4:
-            coords[-1] += line + '\n'
-            atmsym[-1].append(info[0])
-            for x in range(3):
-                xyz[-1].append(float(info[x+1]))
-
-    nfrag = len(charge) - 1 if len(charge) > 1 else 1
-    if len(charge) == 1:
-        charge = charge[0]
-        spin = spin[0]
-        atmsym = atmsym[0]
-        xyz = xyz[0]
-        coords = coords[0]
-    elif len(charge) > 1:
-        # move the complex info to the end
-        charge.append(charge.pop(0))
-        spin.append(spin.pop(0))
-        atmsym.append(atmsym.pop(0))
-        xyz.append(xyz.pop(0))
-        coords.append(coords.pop(0))
-        # add complex coords
-        for n in range(len(charge)-1):
-            coords[-1] += coords[n]
-            for i in range(len(atmsym[n])):
-                atmsym[-1].append(atmsym[n][i])
-                for x in range(3):
-                    xyz[-1].append(xyz[n][i*3+x])
-
-    #for n in range(len(charge)):
-    #    print('charge and spin: ', charge[n], spin[n])
-    #    print('coords:\n', coords[n])
-    return nfrag, charge, spin, coords, atmsym, xyz
-
-
-def read_keyword_block(data):
-    rem_keys = {}
-    for line in data:
-        if '!' not in line:
-            info = line.split()
-        elif len(line.split('!')[0]) > 0:
-            info = line.split('!')[0].split()
-        else:
-            info = []
-
-        if len(info) == 2:
-            rem_keys[info[0].lower()] = convert_string(info[1])
-        elif len(info) > 2:
-            rem_keys[info[0].lower()] = [convert_string(x) for x in info[1:]]
-
-    #print('rem_keys: ', rem_keys)
-    return rem_keys
-
-
-def convert_string(string):
-    if string.isdigit():
-        return int(string)
-    elif string.lstrip('-').replace('.','',1).isdigit():
-        return float(string)
-    else: return string
-
-
-def parser(file_name):
-    infile = open(file_name, 'r')
-    lines = infile.read().split('$')
-    #print('lines:\n', lines)
-
-    parameters = {}
-    for section in lines:
-        data = section.split('\n')
-        name = data[0].lower()
-        #function = 'read_' + name
-        #if function in globals():
-        #    parameters[name] = eval('read_'+name)(data)
-        if name == 'molecule':
-            parameters[name] = read_molecule(data)
-        else:
-            parameters[name] = read_keyword_block(data)
-
-    print('parameters:\n', parameters)
-    return parameters
-
 
 def build_atom(atmsym, coords):
     atom = ''

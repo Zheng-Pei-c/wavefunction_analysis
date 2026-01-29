@@ -1,6 +1,9 @@
 import numpy as np
 
 def istype(data, dtype=float):
+    r"""
+    Check if the data can be converted to the given data type.
+    """
     try:
         f = dtype(data)
         return True
@@ -9,6 +12,9 @@ def istype(data, dtype=float):
 
 
 def read_time(filename):
+    r"""
+    Read the total wall time from the output file.
+    """
     keyword = 'total wall time:'
     with open(filename, 'r') as infile:
         for line in infile:
@@ -20,10 +26,24 @@ def read_time(filename):
 
 
 def read_number(filename, keyword, n=-1, o=1, dtype=int):
-    """
-    o takes 1 or -1 for the reading order when n>=0
-    when n == -1: o takes the begin and end indices
-    ftype can be int, float, or simply string
+    r"""
+    Read numbers from the output file.
+
+    Parameters
+        filename : str
+            The output file name
+        keyword : str
+            The keyword to search for the target lines
+        n : int
+            when n>=0: the nth number in the line (0-based)
+            when n==-1: o is the begin and end indices of the number in the line
+        o : int or tuple
+            o takes 1 or -1 for the reading order when n>=0
+            when n == -1: o takes the begin and end indices
+        dtype : can be int, float, or simply string
+
+    Returns
+        numbers : array of desired data type
     """
     numbers = []
     with open(filename, 'r') as infile:
@@ -38,7 +58,30 @@ def read_number(filename, keyword, n=-1, o=1, dtype=int):
     return np.array(numbers, dtype=dtype)
 
 
-def read_array(filename, keyword=None, nline=0, ncol=4, nrange=[0,4], dtype=float, same=True):
+def read_array(filename, keyword=None, nline=0, ncol=4, nrange=[0,4],
+               dtype=float, same=True):
+    r"""
+    Read an array from the output file.
+
+    Parameters
+        filename : str
+            The output file name
+        keyword : str
+            The keyword to search for the target lines
+            when keyword is None, read the whole file
+        nline : int
+            The number of lines to read after the keyword line
+        ncol : int
+            The expected number of columns in each line
+        nrange : list of two int
+            The begin and end indices of the target data in each line
+        dtype : can be int, float, or simply string
+        same : bool
+            When same is True, only read the lines with all data of the same type
+
+    Returns
+        array : array of desired data type
+    """
     array = []
     def kernel(line):
         data = line.split()
@@ -70,7 +113,32 @@ def read_array(filename, keyword=None, nline=0, ncol=4, nrange=[0,4], dtype=floa
     return np.array(array)
 
 
-def read_matrix(filename, nrow, ncol, keyword, nwidth=6, nind=0, nskip=0, dtype=float):
+def read_matrix(filename, nrow, ncol, keyword, nwidth=6, nind=0, nskip=0,
+                dtype=float):
+    r"""
+    Read a matrix from the output file.
+
+    Parameters
+        filename : str
+            The output file name
+        nrow : int
+            The number of rows of the matrix
+        ncol : int
+            The number of columns of the matrix
+        keyword : str
+            The keyword to search for the target lines
+        nwidth : int
+            The number of columns in each batch
+            when nwidth == -1, nwidth = ncol
+        nind : int
+            The number of index columns at the beginning of each row
+        nskip : int
+            The number of rows to skip after the keyword line
+        dtype : can be int, float, or simply string
+
+    Returns
+        matrix : (nrow, ncol) array
+    """
     if nwidth == -1: nwidth = ncol
 
     nbatch = ncol // nwidth

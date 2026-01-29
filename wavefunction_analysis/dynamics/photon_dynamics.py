@@ -1,6 +1,4 @@
-import numpy as np
-from scipy.linalg import expm
-
+from wavefunction_analysis import np
 from wavefunction_analysis.utils import print_matrix, convert_units
 from wavefunction_analysis.utils import put_keys_kwargs_to_object
 from wavefunction_analysis.dynamics import harmonic_oscillator
@@ -20,7 +18,7 @@ def get_trans_amplitude(ntot, coupling=1., energy=None, vector=False):
     return trans
 
 
-class PhotonDynamicsStep():
+class PhotonStep():
     def __init__(self, key, **kwargs):
         key.setdefault('frequency', 0.05)
         key.setdefault('freq_unit', 'hartree')
@@ -68,6 +66,7 @@ class PhotonDynamicsStep():
 
 
     def update_density(self, molecular_dipole, dt, half=1):
+        from scipy.linalg import expm
         if half == 2:
             return
 
@@ -104,7 +103,7 @@ class PhotonDynamicsStep():
         return kwargs
 
 
-class PhotonDynamicsStep2(harmonic_oscillator):
+class PhotonStep2(harmonic_oscillator):
     def convert_parameter_units(self, unit_dict):
         self.n_site = 3 #xyz
         self.frequency = convert_units(self.frequency, self.freq_unit, 'hartree')
@@ -143,7 +142,7 @@ if __name__ == '__main__':
     key = {}
     key['c_lambda'] = c_lambda
 
-    photon = PhotonDynamicsStep(**key)
+    photon = PhotonStep(**key)
 
     energy = []
     for i in range(nsteps):

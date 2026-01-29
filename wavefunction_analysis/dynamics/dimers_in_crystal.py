@@ -29,6 +29,8 @@ def read_unit_cell_info(ciff):
                 beta = float(cols[1].split('(')[0])/RAD
             elif ncols == 2 and cols[0] == '_cell_angle_gamma':
                 gamma = float(cols[1].split('(')[0])/RAD
+            elif ncols == 2 and cols[0] == '_cell_formula_units_Z':
+                n_mol = int(cols[1])
             if ncols > 10 and cols[6][0:1] == 'U':
                 #print("ncols:", ncols, "line:", line)
                 elements.append(cols[1])
@@ -41,7 +43,7 @@ def read_unit_cell_info(ciff):
     #Eq. 7, alpha_star is the angle between y* and z* in the reciprocal space
     alpha_star = arccos((cos(beta)*cos(gamma)-cos(alpha))/sin(beta)/sin(gamma))
 
-    return [a,b,c], [alpha,beta,gamma,alpha_star], elements, scales
+    return [a,b,c], [alpha,beta,gamma,alpha_star], elements, scales, n_mol
 
 
 def add_molecule(ix, iy, iz, inverse, abc, angles, elements, scales):
@@ -160,7 +162,7 @@ def get_center_of_mass(atmsym, coords):
 
 if __name__ == '__main__':
     mol = 'H2OBPc'
-    abc, angles, elements, scales = read_unit_cell_info(mol+'.cif')
+    abc, angles, elements, scales, n_mol = read_unit_cell_info(mol+'.cif')
     print('abc:', abc, 'angles:', angles)
     natoms = len(elements)
     print('natoms:', natoms)

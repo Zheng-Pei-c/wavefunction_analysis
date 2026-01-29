@@ -1,14 +1,11 @@
-import numpy as np
-import scipy
-
-from pyscf import scf, gto, grad
-
+from wavefunction_analysis import np
 from wavefunction_analysis.polariton import polariton_ns
 from wavefunction_analysis.utils import print_matrix, convert_units
 from wavefunction_analysis.utils import put_keys_kwargs_to_object
 from wavefunction_analysis.utils import get_ortho_basis
 from wavefunction_analysis.utils.pyscf_parser import build_atom, build_molecule
 
+from pyscf import scf, gto, grad
 
 def cal_idempotency(P, S=None):
     if S is None:
@@ -192,7 +189,7 @@ def run_pyscf_gs(scf_method, mol, functional, *args, **kwargs):
 
 
 
-class ElectronicDynamicsStep():
+class ElectronicStep():
     def __init__(self, key, **kwargs):
         # default values
         key.setdefault('electron_software', 'pyscf')
@@ -267,7 +264,7 @@ class ElectronicDynamicsStep():
 
 
 
-class ExtendedLagElectronicDynamicsStep(ElectronicDynamicsStep):
+class ExtendedLagStep(ElectronicStep):
     """
     refer: Niklasson 2009 JCP 10.1063/1.3148075
            Niklasson 2017 JCP 10.1063/1.4985893
@@ -460,7 +457,7 @@ class ExtendedLagElectronicDynamicsStep(ElectronicDynamicsStep):
 
 
 
-class CurvyElectronicDynamicsStep(ElectronicDynamicsStep):
+class CurvyStep(ElectronicStep):
     """
     refer: Herbert 2004 JCP 10.1063/1.1814934
     """
@@ -592,7 +589,8 @@ class CurvyElectronicDynamicsStep(ElectronicDynamicsStep):
 
 
     def cy_update_density(self, P, Z):
-        expdelta = scipy.linalg.expm(self.cy_delta)
+        from scipy.linalg import expm
+        expdelta = expm(self.cy_delta)
         P = np.einsum('ij,jk,lk->il', expdelta, P, expdelta)
         self.Pao = np.einsum('ji,jk,kl->il', Z, P, Z)
 
@@ -606,7 +604,7 @@ class CurvyElectronicDynamicsStep(ElectronicDynamicsStep):
 
 
 
-class GrassmannElectronicDynamicsStep(ElectronicDynamicsStep):
+class GrassmannStep(ElectronicStep):
 
     def __init__(self, key):
         super().__init__(key)

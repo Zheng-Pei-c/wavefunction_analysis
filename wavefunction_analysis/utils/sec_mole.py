@@ -1,6 +1,67 @@
 from wavefunction_analysis import sys, np
 
+def read_molecule(data):
+    r"""
+    Read molecule section info from a list of strings.
+
+    Parameters:
+        data: list of strings containing molecule information
+
+    Returns:
+        nfrag: number of fragments
+        charge: list of charges for each fragment
+        spin: list of spins for each fragment
+        coords: list of coordinate strings for each fragment
+        atmsym: list of atom symbols for each fragment
+        xyz: list of xyz coordinates for each fragment
+    """
+    charge, spin = [], []
+    coords, atmsym, xyz = [], [], []
+
+    for line in data:
+        info = line.split()
+        if len(info) == 2:
+            charge.append(int(info[0]))
+            spin.append(int((int(info[1]) - 1))) # pyscf using 2S=nalpha-nbeta rather than (2S+1)
+            atmsym.append([])
+            xyz.append([])
+            coords.append('')
+        elif len(info) == 4:
+            coords[-1] += line + '\n'
+            atmsym[-1].append(info[0])
+            for x in range(3):
+                xyz[-1].append(float(info[x+1]))
+
+    nfrag = len(charge) - 1 if len(charge) > 1 else 1
+    if len(charge) == 1:
+        charge = charge[0]
+        spin = spin[0]
+        atmsym = atmsym[0]
+        xyz = xyz[0]
+        coords = coords[0]
+    elif len(charge) > 1:
+        # move the complex info to the end
+        charge.append(charge.pop(0))
+        spin.append(spin.pop(0))
+        atmsym.append(atmsym.pop(0))
+        xyz.append(xyz.pop(0))
+        coords.append(coords.pop(0))
+        # add complex coords
+        for n in range(len(charge)-1):
+            coords[-1] += coords[n]
+            for i in range(len(atmsym[n])):
+                atmsym[-1].append(atmsym[n][i])
+                for x in range(3):
+                    xyz[-1].append(xyz[n][i*3+x])
+
+    #for n in range(len(charge)):
+    #    print('charge and spin: ', charge[n], spin[n])
+    #    print('coords:\n', coords[n])
+    return nfrag, charge, spin, coords, atmsym, xyz
+
+
 def read_geometry(infile, probe=1):
+    r"""Read geometry from an xyz file."""
     geometry = []
 
     if probe == 1: # all
@@ -36,6 +97,7 @@ def read_geometry(infile, probe=1):
 
 
 def read_geometries_standard(infile, screen='User input: 2 of 2'):
+    r"""Read standard geometries from an output file."""
     geometries = []
     with open(infile, 'r') as infile:
         for line in infile:
@@ -60,12 +122,14 @@ def read_geometries_standard(infile, screen='User input: 2 of 2'):
 
 
 def read_symbols_coords(infile, probe=1):
+    r"""Read symbols and coordinates from an xyz file."""
     geometry = read_geometry(infile, probe)
 
     return get_symbols_coords(geometry)
 
 
 def get_symbols_coords(geometry, string=False):
+    r"""Get symbols and coordinates from geometry list or string."""
     if string:
         geometry = [atom.split() for atom in geometry]
         geometry = sum(geometry, []) # convert to 1d list
@@ -82,6 +146,7 @@ def get_symbols_coords(geometry, string=False):
 
 
 def write_geometry(infile, geometry, energy=None, open_file_method='w'):
+    r"""Write geometry to an input file."""
     if 'stdout' in infile:
         f = sys.stdout
     else:
@@ -105,6 +170,7 @@ def write_geometry(infile, geometry, energy=None, open_file_method='w'):
 
 
 def write_symbols_coords(infile, symbols, coords, energy=None, open_file_method='w'):
+    r"""Write symbols and coordinates to an xyz file."""
     if 'stdout' in infile:
         f = sys.stdout
     else:
@@ -128,6 +194,7 @@ def write_symbols_coords(infile, symbols, coords, energy=None, open_file_method=
 
 
 def switch_atoms(geometry, atom_list):
+    r"""Switch atoms in geometry according to atom_list."""
     if len(atom_list) != len(set(atom_list)):
         raise ValueError('atom_list has %2d duplicates' % (len(atom_list) - len(set(atom_list))))
     if len(atom_list) > len(geometry)//4:
@@ -144,7 +211,8 @@ def switch_atoms(geometry, atom_list):
 
 def write_mol_info(infile, charge='0', multiplicity='1', open_file_method='w',
                    itype=0):
-    """
+    r"""
+    Write molecule section info to input file.
     itype: 0 normal job; 1 second job; 2 fragment
     """
     with open(infile, open_file_method) as f:
@@ -161,6 +229,11 @@ def write_mol_info(infile, charge='0', multiplicity='1', open_file_method='w',
 
 def write_mol_info_geometry(infile, charge='0', multiplicity='1',
                             frgm=False, **kwargs):
+    r"""
+    Write molecule section info with geometry to input file.
+    frgm: whether it is a fragment section
+    kwargs: geometry or symbols and coords
+    """
 
     if frgm == False:
         write_mol_info(infile, charge, multiplicity, 'w+', 0)
@@ -176,6 +249,9 @@ def write_mol_info_geometry(infile, charge='0', multiplicity='1',
 
 
 def write_rem_info(infile, method='pbe0', basis='6-31g', open_file_method='a+'):
+    r"""
+    Write rem section info to input file.
+    """
     with open(infile, open_file_method) as f:
         f.write('$rem\n')
         f.write('method         %s\n' % method)
@@ -187,7 +263,8 @@ def write_rem_info(infile, method='pbe0', basis='6-31g', open_file_method='a+'):
 
 
 def get_rotation_matrix(theta, axis='x'):
-    """
+    r"""
+    Return the rotation matrix for a rotation of angle theta around a given axis.
     [cos -sin]
     [sin  cos]
     """
@@ -210,7 +287,17 @@ def get_rotation_matrix(theta, axis='x'):
 
 
 def get_moment_of_inertia(weights, coords, fix_sign=False):
-    """make sure to use coordinates in bohr"""
+    r"""
+    Return the moment of inertia tensor of a molecule.
+
+    Parameters:
+        weights: list of atomic masses or charges
+        coords: numpy array of atomic coordinates in bohr
+        fix_sign: whether to fix the sign of the principal axes
+
+    Returns:
+        U: moment of inertia tensor
+    """
     # weights is charges or masses
     center = get_molecular_center(weights, coords)
     coords = coords - center
@@ -255,6 +342,14 @@ def get_moment_of_inertia(weights, coords, fix_sign=False):
 
 
 def get_charge_or_mass(symbols, itype='charge', isotope_avg=True):
+    r"""
+    Return the list of atomic charges or masses for given atom symbols.
+
+    Parameters:
+        symbols: list of atom symbols
+        itype: 'charge' or 'mass'
+        isotope_avg: whether to use average mass for isotopes
+    """
     from pyscf.data.elements import charge, MASSES, ISOTOPE_MAIN
     chgs = []
     for i in range(len(symbols)):
@@ -271,6 +366,15 @@ def get_charge_or_mass(symbols, itype='charge', isotope_avg=True):
 
 
 def get_molecular_center(weights, coords, itype='charge', isotope_avg=True):
+    r"""
+    Return the center of charges or masses of a molecule.
+
+    Parameters:
+        weights: list of atomic masses or charges
+        coords: numpy array of atomic coordinates in bohr
+        itype: 'charge' or 'mass'
+        isotope_avg: whether to use average mass for isotopes
+    """
     # weights is charges or masses
     if isinstance(weights[0], str): # atom symbols
         weights = get_charge_or_mass(weights, itype, isotope_avg)
@@ -279,6 +383,9 @@ def get_molecular_center(weights, coords, itype='charge', isotope_avg=True):
 
 
 def get_center_property(weights, props, itype='charge', isotope_avg=True):
+    r"""
+    Return the center of a property weighted by charges or masses.
+    """
     # weights is charges or masses
     if isinstance(weights[0], str): # atom symbols
         weights = get_charge_or_mass(weights, itype, isotope_avg)
@@ -287,6 +394,9 @@ def get_center_property(weights, props, itype='charge', isotope_avg=True):
 
 
 def translate_molecule(symbols, coords, origin=None, itype='charge', isotope_avg=True):
+    r"""
+    Translate the molecule to a new origin.
+    """
     # default origin is the center of charges/masses of the molecule
     if origin is None:
         weights = get_charge_or_mass(symbols, itype, isotope_avg)
@@ -297,12 +407,14 @@ def translate_molecule(symbols, coords, origin=None, itype='charge', isotope_avg
 
 
 def align_principal_axes(charges, coords):
+    r"""Align the molecule along its principal axes."""
     U = get_moment_of_inertia(charges, coords, True)
 
     return np.einsum('nx,xy->ny', coords, U)
 
 
 def standard_orientation(symbols, coords, tol=4):
+    r"""Get the molecular coordinates at the standard orientation."""
     # translate to center of charge
     coords, chgs = translate_molecule(symbols, coords, itype='charge')
     coords, _ = _standard_orientation(coords, None, tol)
@@ -312,7 +424,10 @@ def standard_orientation(symbols, coords, tol=4):
 
 
 def standard_orientation2(symbols, coords, var, tol=4):
-    """we need the intermediate translation and principal matrices"""
+    r"""
+    Get the molecular coordinates and a geometry-dependent variable at the standard orientation.
+    Here, we need the intermediate translation and principal matrices
+    """
     # translate to center of charge
     chgs = get_charge_or_mass(symbols, itype='charge')
     origin = get_molecular_center(chgs, coords)
@@ -328,6 +443,9 @@ def standard_orientation2(symbols, coords, var, tol=4):
 
 
 def _standard_orientation(coords, var=None, tol=4):
+    r"""
+    Get the molecular coordinates and a geometry-dependent variable at the standard orientation.
+    """
     tol = np.power(10, -float(tol)) #1e-tol
 
     # var is a geometry-dependent object (vector/matrix)
@@ -378,6 +496,9 @@ def _standard_orientation(coords, var=None, tol=4):
 
 
 def cal_dihedral_angle(vectors):
+    r"""
+    Calculate the dihedral angle between two planes defined by 2 or 4 vectors.
+    """
     n = vectors.shape[0]
     if n == 2:
         v1, v2 = vectors
@@ -393,6 +514,9 @@ def cal_dihedral_angle(vectors):
 
 
 def rotate_molecule(coords0, axis, theta):
+    r"""
+    Rotate the molecule around a given axis by an angle theta.
+    """
     from scipy.spatial.transform import Rotation
     if type(axis) is list: # axis lies in the molecule
         v1, v2 = coords0[axis[0]], coords0[axis[1]]

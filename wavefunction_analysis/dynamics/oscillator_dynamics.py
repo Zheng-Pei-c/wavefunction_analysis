@@ -1,5 +1,4 @@
-import numpy as np
-
+from wavefunction_analysis import np
 from wavefunction_analysis.utils import print_matrix, convert_units
 from wavefunction_analysis.utils import put_keys_kwargs_to_object
 from wavefunction_analysis.utils.sec_mole import get_molecular_center, get_moment_of_inertia
@@ -13,6 +12,7 @@ def get_boltzmann_beta(temperature):
 
 
 class harmonic_oscillator():
+    r"""Harmonic oscillator class."""
     def __init__(self, key={}, **kwargs):
         """
         needed parameters:
@@ -45,9 +45,13 @@ class harmonic_oscillator():
 
 
     def init_coordinate_velocity(self, n_site=None, init_method=None):
-        """
-        generate the initial oscillator coordinate and velocities
-        n_site: number of total molecular sites
+        r"""
+        Generate the initial oscillator coordinate and velocity.
+
+        Parameters
+            n_site: number of total molecular sites
+            init_method: method to initialize coordinate and velocity
+                'thermo': Boltzmann distribution at init_temp
         """
         if n_site is None: n_site = self.n_site
         if init_method is None: init_method = self.init_method
@@ -93,6 +97,16 @@ class harmonic_oscillator():
 
 
     def update_coordinate_velocity(self, force, half=1, **kwargs):
+        r'''
+        Update the oscillator coordinate and velocity, as well as the energy.
+
+        Parameters
+            force : force acting on the oscillator
+            half : 1 or 2, indicating the first or second half of the update
+
+        Returns
+            force : projected force after the update (only for half=2)
+        '''
         if isinstance(self.frequency, np.ndarray) or isinstance(self.frequency, float): # add oscillator force first
             force -= np.einsum('i,i,ix->ix', self.mass, self.omega2, self.coordinate)
 
@@ -121,12 +135,14 @@ class harmonic_oscillator():
 
 
     def euler_step(self, force):
+        r"""Simple Euler integration step."""
         self.velocity += self.dt * np.einsum('ix,i->ix', force, 1./self.mass)
         self.coordinate += self.dt * self.velocity
         self.get_energy(self.velocity)
 
 
     def leapfrog_step(self, force):
+        r"""Leapfrog integration step."""
         old_velocity = np.copy(self.velocity)
         self.velocity += self.dt * np.einsum('ix,i->ix', force, 1./self.mass)
         self.coordinate += self.dt * self.velocity
@@ -136,6 +152,7 @@ class harmonic_oscillator():
 
 
     def velocity_verlet_step(self, force, half):
+        r"""Velocity Verlet integration step."""
         self.velocity += .5 * self.dt * np.einsum('ix,i->ix', force, 1./self.mass)
         if half == 1:
             self.coordinate += self.dt * self.velocity
@@ -144,6 +161,7 @@ class harmonic_oscillator():
 
 
     def recursive_exploration_step(self, force, force_func, **kwargs):
+        r"""Recursive exploration integration step."""
         N = self.recursive_numbers # >=1
         dt = self.dt
         mass = self.mass
@@ -171,6 +189,7 @@ class harmonic_oscillator():
 
 
     def get_kinetic_energy(self, velocity, mass=None):
+        r"""Calculate the kinetic energy and temperature."""
         if mass is None: mass = self.mass
 
         v2 = np.einsum('ix,ix->i', velocity, velocity)
@@ -179,6 +198,7 @@ class harmonic_oscillator():
 
 
     def get_potential_energy(self, mass=None, coordinate=None, omega2=None):
+        r"""Calculate the potential energy."""
         if mass is None: mass = self.mass
         if coordinate is None: coordinate = self.coordinate
         if omega2 is None: omega2 = self.omega2
@@ -188,6 +208,7 @@ class harmonic_oscillator():
 
 
     def get_energy(self, velocity, mass=None, coordinate=None, omega2=None):
+        r"""Calculate the total energy."""
         if mass is None: mass = self.mass
 
         self.get_kinetic_energy(velocity, mass)
@@ -213,6 +234,21 @@ def angular_property(mass, coords, props):
 
 
 def remove_trans_rotat_velocity(velocity, mass, coords):
+    r"""
+    Remove the translational and rotational components from the velocity.
+
+    Parameters
+        velocity : ndarray
+            The velocities of the particles (shape: (n_particles, 3)).
+        mass : ndarray
+            The masses of the particles (shape: (n_particles,)).
+        coords : ndarray
+            The coordinates of the particles (shape: (n_particles, 3)).
+
+    Returns
+        velocity : ndarray
+            The projected velocities with translational and rotational components removed.
+    """
     # remove translation (ie. center of mass velocity)
     p_com = np.einsum('i,ix->x', mass, velocity) / len(mass)
     velocity -= np.einsum('i,x->ix', 1./mass, p_com)
@@ -230,6 +266,21 @@ def remove_trans_rotat_velocity(velocity, mass, coords):
 
 
 def remove_trans_rotat_force(force, mass, coords):
+    r"""
+    Remove the translational and rotational components from the force.
+
+    Parameters
+        force : ndarray
+            The forces acting on the particles (shape: (n_particles, 3)).
+        mass : ndarray
+            The masses of the particles (shape: (n_particles,)).
+        coords : ndarray
+            The coordinates of the particles (shape: (n_particles, 3)).
+
+    Returns
+        force : ndarray
+            The projected forces with translational and rotational components removed.
+    """
     # remove translation (ie. center of mass force)
     f_com = np.sum(force, axis=0) / np.sum(mass)
     force -= np.einsum('i,x->ix', mass, f_com)
@@ -247,7 +298,48 @@ def remove_trans_rotat_force(force, mass, coords):
 
 
 
-class NuclearDynamicsStep(harmonic_oscillator):
+class OscillatorStep(harmonic_oscillator):
+    r"""Oscillator dynamics step class."""
+    def convert_parameter_units(self, unit_dict):
+        r"""
+        required input:
+            mass in amu
+            frequency in meV
+        """
+        from pyscf.data.nist import AMU2AU, HARTREE2EV
+        # Boltzmann coefficient is 1/(k_B * T)
+        self.beta_b = get_boltzmann_beta(self.init_temp)
+        self.mass *= AMU2AU
+        self.frequency /= (HARTREE2EV*1000)
+        self.omega2 = self.frequency**2 # for computational efficiency
+
+        if self.debug > 0:
+            #print('KT:', 1./self.beta_b, 1./self.beta_b*HARTREE2EV*1000)
+            print_matrix('oscillator mass (au):', self.mass)
+            print_matrix('oscillator omega (au):', self.frequency)
+
+
+    def get_phonon_hamiltonian(self, velocity=None, mass=None, coordinate=None,
+                               omega2=None):
+        print('Are we using get_phonon_hamiltonian??')
+        # get phonon energy on each site
+        if velocity is None: velocity = self.velocity
+        if mass is None: mass = self.mass
+        if coordinate is None: coordinate = self.coordinate
+        if omega2 is None: omega2 = self.omega2
+
+        # the first index of velocity and coordinate is mass related
+        mass2 = np.copy(mass) *.5
+        self.hamiltonian = np.einsum('i,in,in->n', mass2, velocity, velocity)
+        v2 = np.einsum('i,i->i', mass2, omega2)
+        self.hamiltonian += np.einsum('i,in,in->n', v2, coordinate, coordinate)
+
+        return self.hamiltonian
+
+
+
+class NuclearStep(harmonic_oscillator):
+    r"""Nuclear dynamics step class."""
     def convert_parameter_units(self, unit_dict):
         self.natoms = len(self.atmsym)
 
@@ -268,6 +360,16 @@ class NuclearDynamicsStep(harmonic_oscillator):
 
 
     def init_coordinate_velocity(self, init_method=None):
+        r"""
+        Generate the initial nuclear coordinate and velocity.
+
+        Parameters
+            init_method: method to initialize coordinate and velocity
+                'restart': read in from stored variables
+                'kick': zero initial velocity
+                'thermo': Boltzmann distribution at init_temp
+                'random': random velocity with given kinetic energy
+        """
         # coordinate has been given
         if init_method is None: init_method = self.init_method
 
@@ -294,9 +396,7 @@ class NuclearDynamicsStep(harmonic_oscillator):
 
 
     def init_velocity_thermo(self, temp=None, seed=1385448536):
-        """
-        random velocity following Boltzmann distribution
-        """
+        r"""Generate random velocity following Boltzmann distribution."""
         if temp is None: temp = self.init_temp
 
         beta_b = get_boltzmann_beta(temp)
@@ -313,9 +413,7 @@ class NuclearDynamicsStep(harmonic_oscillator):
 
 
     def init_velocity_random(self, etrans=None, sigma=1e-4, scale=.1, seed=12345):
-        """
-        random kinetic energy for atoms at three directions
-        """
+        r"""Generate random kinetic energy for atoms at three directions."""
         if etrans is None: etrans = self.etrans
         #etrans = convert_units(etrans*scale, 'eh', 'kcal')
 
@@ -336,6 +434,8 @@ class NuclearDynamicsStep(harmonic_oscillator):
 
 
     def project_velocity(self, velocity, mass=None, coords=None):
+        r"""
+        Project out the translational and rotational components from the velocity."""
         if mass is None: mass = self.mass
         if coords is None: coords = self.coordinate
 
@@ -343,6 +443,7 @@ class NuclearDynamicsStep(harmonic_oscillator):
 
 
     def project_force(self, force, mass=None, coords=None):
+        r"""Project out the translational and rotational components from the force."""
         if mass is None: mass = self.mass
         if coords is None: coords = self.coordinate
 
@@ -351,6 +452,7 @@ class NuclearDynamicsStep(harmonic_oscillator):
 
 
     def update_coordinate_velocity(self, force, half=1, **kwargs):
+        r"""Update the nuclear coordinate and velocity."""
         super().update_coordinate_velocity(force, half, **kwargs)
         if half == 2:
             mass = self.mass

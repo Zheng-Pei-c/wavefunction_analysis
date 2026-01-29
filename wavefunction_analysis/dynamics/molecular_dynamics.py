@@ -1,18 +1,14 @@
-import sys
-import numpy as np
-
-from wavefunction_analysis.dynamics import (
-        ElectronicDynamicsStep,
-        GrassmannElectronicDynamicsStep,
-        CurvyElectronicDynamicsStep,
-        ExtendedLagElectronicDynamicsStep,
-        ExcitonDynamicsStep,
-        PhotonDynamicsStep,
-        PhotonDynamicsStep2,
-        NuclearDynamicsStep,
-        OscillatorDynamicsStep,
-        )
+from wavefunction_analysis import sys, np
 from wavefunction_analysis.utils import print_matrix, convert_units
+from wavefunction_analysis.dynamics import (
+        ElectronicStep,
+        GrassmannStep,
+        CurvyStep,
+        ExtendedLagStep,
+        PhotonStep,
+        PhotonStep2,
+        NuclearStep,
+        )
 from wavefunction_analysis.plot import plt
 
 kT_AU_to_Kelvin = 0.25 * 9.1093826e-31 * (1.60217653e-19**2 / 8.854187817e-12 / 6.6260693e-34)**2 / 1.3806505e-23
@@ -40,30 +36,25 @@ class MolecularDynamics():
 
 
     def set_nuclear_step(self, key):
-        if self.ed_method == 'exciton':
-            return OscillatorDynamicsStep(key)
-        else:
-            return NuclearDynamicsStep(key)
+        return NuclearStep(key)
 
 
     def set_electronic_step(self, key, **kwargs):
         if self.ed_method == 'extended_lag':
-            return ExtendedLagElectronicDynamicsStep(key, **kwargs)
+            return ExtendedLagStep(key, **kwargs)
         elif self.ed_method == 'curvy':
-            return CurvyElectronicDynamicsStep(key, **kwargs)
+            return CurvyStep(key, **kwargs)
         elif self.ed_method == 'grassmann':
-            return GrassmannElectronicDynamicsStep(key, **kwargs)
+            return GrassmannStep(key, **kwargs)
         elif self.ed_method == 'normal':
-            return ElectronicDynamicsStep(key, **kwargs)
-        elif self.ed_method == 'exciton':
-            return ExcitonDynamicsStep(key, **kwargs)
+            return ElectronicStep(key, **kwargs)
 
 
     def set_photon_step(self, key, **kwargs):
         if self.ph_method == 'quantum':
-            return PhotonDynamicsStep(key, **kwargs)
+            return PhotonStep(key, **kwargs)
         if self.ph_method == 'quantum2':
-            return PhotonDynamicsStep2(key, **kwargs)
+            return PhotonStep2(key, **kwargs)
         else:
             return None
 
@@ -166,6 +157,8 @@ class MolecularDynamics():
             self.md_time_velocity[ti] = ndstep.velocity
             self.md_time_dipole[ti] = dipole
 
+    kernel = run_dynamics
+
 
     def plot_time_variables(self, fig_name=None):
         time_line = np.linspace(0, convert_units(self.total_time, 'au', 'fs'), self.nsteps)
@@ -213,7 +206,7 @@ def plot_time_variables(total_time, nsteps, dists, energies):
 
 
 if __name__ == '__main__':
-    mdtype = int(sys.argv[1])
+    mdtype = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 
     key = {}
     key['atmsym'] = ['H', 'He']
