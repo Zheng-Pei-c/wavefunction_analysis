@@ -64,10 +64,15 @@ class Exciton():
         nx, ny, nz = self.n_cell
         cells = itertools.product(range(nx), range(ny), range(nz))
         self.cells = getattr(self, 'cells', list(cells))
-        print('cells:', self.cells)
+        print('number of cells:', len(self.cells))
+        if self.debug > 1:
+            print('cells:', self.cells)
 
         cells = self.cells
         neighbor_index = self.neighbor_index
+
+        # dictionary for cell index searching. O(1) loopup
+        cell_dict = {tuple(row): idx for idx, row in enumerate(cells)}
 
         # premap the hamiltonian coupling index
         hamil_index = []
@@ -76,13 +81,12 @@ class Exciton():
                 # l and d are the molecule index in the unit cell
                 a, b, c = i+a, j+b, k+c
                 vec = np.array([a, b, c])
-                jc = np.where(np.all(cells == vec[None,:], axis=1))[0]
-                if jc.size == 1:
-                    hamil_index.append([icount, l, int(jc[0]), d, x])
-                elif jc.size > 1:
-                    raise ValueError('Duplicate cell found for index:', a, b, c)
+                jc = cell_dict.get(tuple(vec), None)
+                if jc:
+                    hamil_index.append([icount, l, jc, d, x])
         self.hamil_index = hamil_index
-        print('hamil_index:', self.hamil_index)
+        if self.debug >= 2:
+            print('hamil_index:', self.hamil_index)
 
         # get total number of sites
         self.n_mol = self.unit_cell['n_mol']
@@ -111,8 +115,6 @@ class Exciton():
         self.coupling_j = convert_units(self.coupling_j, unit_dict.get('coupling_j', 'ev'), 'eh')
         self.coupling_g = convert_units(self.coupling_g, unit_dict.get('coupling_g', 'ev'), 'eh') / BOHR
         self.coupling_a = convert_units(self.coupling_a, unit_dict.get('coupling_a', 'ev'), 'eh') / BOHR
-
-        self.center_coords = convert_units(self.center_coords, unit_dict.get('coordinate', 'aa'), 'bohr')
 
 
     def check_sanity(self):
@@ -677,4 +679,18 @@ if __name__ == '__main__':
     import sys
     infile = sys.argv[1]
     obj = setup_exciton_dynamics(infile)
-    obj.kernel()
+    #obj.kernel()
+
+    obj.edstep.get_hamiltonian()
+    #print_matrix('Exciton Hamiltonian (au):', obj.edstep.hamiltonian)
+    e, f = obj.edstep.cal_spectra()
+    e = convert_units(e, 'eh', 'nm')
+
+    method = 'lorentzian'
+    from wavefunction_analysis.plot import plt, broadening
+    fig, ax = plt.subplots()
+    e, f = broadening(e, f, wid=3, method=method, d=20)
+    ax.plot(e, f.real)
+    ax.set_xlabel('Exciton wavelength (nm)')
+    ax.set_ylabel('Oscillator strength (au)')
+    plt.show()

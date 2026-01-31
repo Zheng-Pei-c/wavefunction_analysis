@@ -1,4 +1,4 @@
-from wavefunction_analysis import np
+from wavefunction_analysis import np, itertools
 from wavefunction_analysis.utils import read_number, read_array, print_matrix
 from wavefunction_analysis.dynamics.dimers_in_crystal import read_unit_cell_info, add_molecules_cell, add_molecule
 
@@ -181,7 +181,6 @@ def set_model(neighbor_index, distances, model='AB', n_cell=[10,1,1],
         print('Unknown model type %s changed to any.' % model)
     # interchangable model types
     if model == 'BACA': model = 'ABAC'
-    print('Model type:', model)
 
     # figure out dimensions
     if isinstance(n_cell, int): n_cell = [n_cell]
@@ -242,8 +241,16 @@ def set_model(neighbor_index, distances, model='AB', n_cell=[10,1,1],
         min_id = np.min(_cells)
         if min_id < 0:
             cells[i] -= min_id
-    cells = cells.T.reshape(2, -1, 3)
+    cells = cells.T
 
+    if model == 'any': # include unconnected cells
+        ci, cj = np.min(cells, axis=0), np.max(cells, axis=0)
+        rx, ry, rz = range(ci[0], cj[0]+1), range(ci[1], cj[1]+1), range(ci[2], cj[2]+1)
+        cells = list(itertools.product(rx, ry, rz))
+
+    cells = np.reshape(cells, (-1, 2, 3))
+    if model == 'any':
+        cells = cells[:nx//2] # get rid of extra cells
 
     # expand to higher dimensions
     if ndim >= 2:
@@ -258,13 +265,14 @@ def set_model(neighbor_index, distances, model='AB', n_cell=[10,1,1],
             cells = np.append(cells, cells_t, axis=0)
 
     cells = cells.reshape(-1, 3)
-    print('number of cells:', len(cells))
-    #print(np.array(cells))
+
+    #print('number of cells:', len(cells))
+    #print(cells)
 
 
     # apply distance cutoff
     neighbor_index = neighbor_index[:np.sum(distances <= r_cutoff)]
-    print('neighbor count after cutoff:', len(neighbor_index))
+    #print('neighbor count after cutoff:', len(neighbor_index))
     #print(neighbor_index)
 
     return cells, neighbor_index
