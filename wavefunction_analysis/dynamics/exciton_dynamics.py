@@ -4,8 +4,8 @@ from wavefunction_analysis import np, itertools
 from wavefunction_analysis.utils import (
         parser, print_matrix, convert_units, Sampler,
         put_keys_kwargs_to_object, put_kwargs_to_keys)
-from wavefunction_analysis.dynamics.dimers_in_crystal import add_molecules_cell, read_unit_cell_info
-from wavefunction_analysis.dynamics.process_exciton_parameters import process_parameters
+from wavefunction_analysis.dynamics.dimers_in_crystal import add_molecule
+from wavefunction_analysis.dynamics.process_exciton_parameters import process_parameters, set_model
 
 class Exciton():
     r"""
@@ -60,13 +60,46 @@ class Exciton():
 
     def process_parameters(self):
         r"""Process the input parameters and get real parameters."""
-        # find out the unit cell information
+        # build the list of unit cells
+        nx, ny, nz = self.n_cell
+        cells = itertools.product(range(nx), range(ny), range(nz))
+        self.cells = getattr(self, 'cells', list(cells))
+        print('cells:', self.cells)
+
+        cells = self.cells
+        neighbor_index = self.neighbor_index
+
+        # premap the hamiltonian coupling index
+        hamil_index = []
+        for icount, (i, j, k) in enumerate(cells):
+            for x, (l, (a, b, c, d)) in enumerate(neighbor_index):
+                # l and d are the molecule index in the unit cell
+                a, b, c = i+a, j+b, k+c
+                vec = np.array([a, b, c])
+                jc = np.where(np.all(cells == vec[None,:], axis=1))[0]
+                if jc.size == 1:
+                    hamil_index.append([icount, l, int(jc[0]), d, x])
+                elif jc.size > 1:
+                    raise ValueError('Duplicate cell found for index:', a, b, c)
+        self.hamil_index = hamil_index
+        print('hamil_index:', self.hamil_index)
 
         # get total number of sites
         self.n_mol = self.unit_cell['n_mol']
-        self.n_site = np.prod(self.n_cell) * self.n_mol
+        self.n_cell = icount + 1
+        self.n_site = self.n_cell * self.n_mol
 
-        # TODO: add length for c2 calculation
+        # add length for c2 calculation
+        abc, angles, scales = self.unit_cell['abc'], self.unit_cell['angles'], self.unit_cell['scales']
+        center = np.array([.5 * (scales[4] + scales[8])])
+        length = np.zeros((self.n_cell, self.n_mol, 3))
+        for icount, (i, j, k) in enumerate(cells):
+            for s in range(self.n_mol):
+                length[icount,s] = add_molecule(i,j,k,s+1,abc,angles,None,center)
+
+        length = length.reshape(self.n_site, 3)
+        self.length = length - np.mean(length, axis=0)
+        #print_matrix('length (AA):', self.length)
 
 
     def convert_parameter_units(self, unit_dict={}):
@@ -78,6 +111,8 @@ class Exciton():
         self.coupling_j = convert_units(self.coupling_j, unit_dict.get('coupling_j', 'ev'), 'eh')
         self.coupling_g = convert_units(self.coupling_g, unit_dict.get('coupling_g', 'ev'), 'eh') / BOHR
         self.coupling_a = convert_units(self.coupling_a, unit_dict.get('coupling_a', 'ev'), 'eh') / BOHR
+
+        self.center_coords = convert_units(self.center_coords, unit_dict.get('coordinate', 'aa'), 'bohr')
 
 
     def check_sanity(self):
@@ -91,7 +126,7 @@ class Exciton():
             self.dipole = np.tile(self.dipole, (self.n_site, 1,1))
 
         if self.coupling_j.ndim == 3:
-            self.coupling_j = np.tile(self.coupling_j, (np.prod(self.n_cell), 1,1,1))
+            self.coupling_j = np.tile(self.coupling_j, (self.n_cell, 1,1,1))
 
         #print_matrix('Exciton energy (au):', self.energy)
         #print_matrix('Exciton coupling_j (au):', self.coupling_j)
@@ -107,21 +142,14 @@ class Exciton():
     def exciton_couplings(self, coupling_j=None, neighbor_index=None, **kwargs):
         r"""Build the exciton couplings part of exciton Hamiltonian."""
         if coupling_j is None: coupling_j = self.coupling_j
-        if neighbor_index is None: neighbor_index = self.neighbor_index
+        hamil_index = self.hamil_index
 
-        (nx, ny, nz), nt, ns = self.n_cell, self.n_mol, self.nstate
-        # n_site = nx*ny*nz*nt
-        hamiltonian = np.zeros((nx, ny, nz, nt, ns, nx, ny, nz, nt, ns))
+        n_cell, nt, ns = self.n_cell, self.n_mol, self.nstate
+        # n_site = n_cell*nt
+        hamiltonian = np.zeros((n_cell, nt, ns, n_cell, nt, ns))
 
-        for icount, (i, j, k) in enumerate(itertools.product(range(nx), range(ny), range(nz))):
-            _coupling_j = coupling_j[icount]
-            for x, (l, (a, b, c, d)) in enumerate(neighbor_index):
-                # l and d are the molecule index in the unit cell
-                a, b, c = i+a, j+b, k+c
-                if 0<=a<nx and 0<=b<ny and 0<=c<nz:
-                    hamiltonian[i,j,k,l,:,a,b,c,d] = _coupling_j[x]
-                #else:
-                #    print(a, b, c)
+        for (left, l, right, d, x) in hamil_index:
+            hamiltonian[left,l,:,right,d] = coupling_j[left, x]
 
         hamiltonian = hamiltonian.reshape(self.n_site*ns, -1)
         hamiltonian += hamiltonian.conj().T
@@ -148,7 +176,7 @@ class Exciton():
         return self.hamiltonian
 
 
-    def get_initial_coefficients(self, H=None, method='thermal', **kwargs):
+    def get_initial_coefficients(self, H=None, method=None, **kwargs):
         r"""
         Get the initial exciton coefficients from the exciton Hamiltonian.
 
@@ -163,17 +191,20 @@ class Exciton():
         Returns
             c2 : (nsite*nstate) square of exciton coefficients
         """
+        if H is None: H = self.get_hamiltonian(**kwargs)
+        if method is None: method = getattr(self, 'initial_method', 'random')
+
         if method == 'random':
             n = kwargs.get('n_site_init', 1)
             rng = np.random.default_rng(kwargs.get('seed', None))
             idx = rng.integers(0, self.n_site*self.nstate, size=n*self.nstate)
             values = rng.random(n*self.nstate) + 1j * rng.random(n*self.nstate)
+            values /= np.linalg.norm(values)
             coeffs0 = np.zeros(self.n_site*self.nstate, dtype=complex)
             for i, v in zip(idx, values):
                 coeffs0[i] += v
 
         elif method in {'ground', 'thermal'}:
-            if H is None: H = self.get_hamiltonian(**kwargs)
             evals, evecs = np.linalg.eigh(H)
 
             if method == 'ground':
@@ -257,8 +288,8 @@ class Exciton():
             c2 = np.einsum('i,i->i', coefficients.conj(), coefficients)
 
         c2 = np.reshape(c2, (self.n_site, -1))
-        correlation = np.einsum('n,ni->', self.length**2, c2)
-        correlation -= np.einsum('n,ni->', self.length, c2)**2
+        correlation = np.einsum('nx,nx,ni->x', self.length, self.length, c2)
+        correlation -= np.einsum('nx,ni->x', self.length, c2)**2
         #print('correlation: %8.6f %10.8f' % correlation.real, correlation.imag)
         return correlation
 
@@ -488,7 +519,7 @@ class ExcitonDynamics():
 
         # variables needed
         self.total_energy = np.zeros(self.total_time)
-        self.correlation = np.zeros(self.total_time)
+        self.correlation = np.zeros((self.total_time, 3))
         self.ipr = np.zeros(self.total_time)
         self.c2 = []
 
@@ -553,11 +584,11 @@ class ExcitonDynamicsMC(ExcitonDynamics):
         edstep = self.edstep
 
         c2 = edstep.get_initial_coefficients()
-#        correlation, ipr = edstep.analyze_wf_property(c2=c2)
+        correlation, ipr = edstep.analyze_wf_property(c2=c2)
 
         self.c2.append(c2)
-#        self.correlation[0] = correlation
-#        self.ipr[0] = ipr
+        self.correlation[0] = correlation
+        self.ipr[0] = ipr
 
         self.total_energy[0] = edstep.cal_energy()
 
@@ -572,11 +603,11 @@ class ExcitonDynamicsMC(ExcitonDynamics):
         for ti in range(1, self.total_time):
             edstep.update_parameters()
             c2 = edstep.update_coefficients(exp_h=exp_h())
-#            correlation, ipr = edstep.analyze_wf_property(c2=c2)
+            correlation, ipr = edstep.analyze_wf_property(c2=c2)
 
             self.c2.append(c2)
-#            self.correlation[ti] = correlation
-#            self.ipr[ti] = ipr
+            self.correlation[ti] = correlation
+            self.ipr[ti] = ipr
 
             self.total_energy[ti] = edstep.cal_energy()
 
@@ -585,6 +616,7 @@ class ExcitonDynamicsMC(ExcitonDynamics):
 
         self.total_energy = convert_units(self.total_energy, 'eh', 'ev')
         print_matrix('total_energy (eV):', self.total_energy)
+        print_matrix('correlation (bohr^2):', self.correlation)
 
 
 
@@ -625,7 +657,14 @@ def setup_exciton_dynamics(infile, key={}, total_time=300):
     if key.get('cif', None):
         data = process_parameters(key['cif'], key['n_cell_param'],
                                   key['param_dir'], key['nstate'])
-        key.update(data) # real parameters
+    cells, neighbor_index = set_model(data['neighbor_index'],
+                                      data['distances'],
+                                      key.get('model', 'AB'),
+                                      key.get('n_cell', [5,5,5]),
+                                      key.get('r_cutoff', 10))
+    data['cells'] = cells
+    data['neighbor_index'] = neighbor_index
+    key.update(data) # real parameters
 
     if do_mc:
         obj = ExcitonDynamicsMC(key)

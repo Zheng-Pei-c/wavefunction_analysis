@@ -1,6 +1,6 @@
 from wavefunction_analysis import np
 from wavefunction_analysis.utils import read_number, read_array, print_matrix
-from wavefunction_analysis.dynamics.dimers_in_crystal import read_unit_cell_info, add_molecules_cell
+from wavefunction_analysis.dynamics.dimers_in_crystal import read_unit_cell_info, add_molecules_cell, add_molecule
 
 def read_energy_coupling(outfile, nstate=2):
     r"""
@@ -112,6 +112,20 @@ def process_parameters(cif_file, n_cell, outfile_dir, nstate=2, npairs=50,
                 print('%2d ' %d, end='')
             print(' %10.5f' % distances[order[k]])
 
+    # get neighbor index list
+    neighbor_index = []
+    for j, idx in enumerate(index[1:], start=1):
+        k = index[0][3] # B molecule as center
+        if sort[j] < sort[0]: # A molecule as center
+            k = abs(1-k)
+            a, b, c, d = idx
+            # reverse the coupling direction
+            # checked by index from using center (i -= 1)
+            idx = [-a, -b, -c, abs(1-d)]
+
+        neighbor_index.append([k, idx])
+
+
     # read energy, dipoles, and couplings from output files
     energy, coupling, trans_dipole = [], [], []
     for k in order[1:npairs+1]:
@@ -125,49 +139,132 @@ def process_parameters(cif_file, n_cell, outfile_dir, nstate=2, npairs=50,
 
     energy, coupling = np.array(energy), np.array(coupling)
 
-    index = np.array(index, dtype=int)
-
-    coupling_parameter = [[] for _ in range(3)]
-    coupling_index_label = [[] for _ in range(3)]
-    center_idx = index[0] # B molecule
-    previous_idx = np.array([-999, -999, -999], dtype=int)
-    for k, idx in enumerate(index[1:]):
-        if idx[3] == center_idx[3]: # same molecules in different cells B-B
-            if not np.all(-idx[:3] == previous_idx[:3]): # remove the opposite direction parameters
-                if debug:
-                    print('BB idx:', idx, 'dist:', distances[order[k+1]])
-                    print_matrix('coupling:', coupling[k])
-                # same direction with transposed coupling due to the mirror symmetry between the two molecules
-                # so that same coupling for opposite direction
-                coupling_index_label[0].append(idx[:3]) # A-A
-                coupling_parameter[0].append(coupling[k].T) # A-A
-                coupling_index_label[1].append(idx[:3]) # B-B
-                coupling_parameter[1].append(coupling[k]) # B-B
-                previous_idx = idx
-        else: # different molecules in different cells B-A
-            if debug:
-                print('BA idx:', idx, 'dist:', distances[order[k+1]])
-                print_matrix('coupling:', coupling[k])
-            coupling_index_label[2].append(idx[:3])
-            coupling_parameter[2].append(coupling[k])
-            # inverse direction with transposed coupling A-B
-            # added during the hamiltonian transpose
-
-
-    # get neighbor index list
-    neighbor_index = []
-    for j, idx in enumerate(index[1:], start=1):
-        k = index[0][3] # B molecule as center
-        if sort[j] < sort[0]: # A molecule as center
-            k = abs(1-k)
-            a, b, c, d = idx
-            idx = [-a, -b, -c, abs(1-d)] # checked by index from using center (i -= 1)
-        neighbor_index.append([k, idx])
-
+    i = int(n_total//2)
     keys = {'unit_cell': unit_cell,
             'energy': energy,
             'coupling_j': coupling,
             'dipole': trans_dipole,
             'neighbor_index': neighbor_index,
+            'distances': distances[order[1:npairs+1]],
+            'center_coords': centers_all[i:i+2]
             }
     return keys
+
+
+def set_model(neighbor_index, distances, model='AB', n_cell=[10,1,1],
+              r_cutoff=10, debug=0):
+    r"""
+    Pick the model parameters based on the model type.
+
+    Parameters
+        neighbor_index : list of [int, list of int]
+            The neighbor index list for each dimer
+        distances : (ndimer,) array
+            The distances between dimers in Angstrom
+        model : str
+            The model type, e.g., 'AB', 'BC', 'BACA', 'any'
+        n_cell : list of int
+            The number of unit cells in each direction [nx, ny, nz]
+        r_cutoff : float
+            The cutoff distance in Angstrom (10, 17, 26)
+        debug : int
+            The debug level
+
+    Returns
+        cells : (ncell, 3) array
+            The cell indices based on the model
+        neighbor_index : list of [int, list of int]
+            Refined neighbobr index list based on the model.
+    """
+    if model not in {'AB', 'BC', 'ABAC', 'BACA', 'any'}:
+        model = 'any'
+        print('Unknown model type %s changed to any.' % model)
+    # interchangable model types
+    if model == 'BACA': model = 'ABAC'
+    print('Model type:', model)
+
+    # figure out dimensions
+    if isinstance(n_cell, int): n_cell = [n_cell]
+    for i in range(3-len(n_cell)):
+        n_cell.append(1)
+    #print('n_cell:', n_cell)
+    ndim = 3 - np.sum(np.array(n_cell) == 1) # need to change to np array
+    if ndim == 0:
+        raise ValueError('At least one dimension should be greater than 1.')
+    #print('ndim:', ndim)
+
+    # chain length, number of chains, number of layers
+    nx, ny, nz = np.sort(n_cell)[::-1]
+    #print('nx, ny, nz:', nx, ny, nz)
+
+    if ndim == 1: ny = 2 # quasi-1D system has two columns
+    if ndim >= 2 and ny == 2: ny += 1 # add more columns for 2D
+    if ndim >= 3 and nz == 1: nz += 1 # add more layers for 3D
+
+    # the first three neighboring dimers labeled as A, B, and C
+    vectors = [np.array(neighbor_index[i][1][:3], dtype=int) for i in range(3)]
+
+    # get the perpendicular vector for 3D expansion
+    if model == 'AB':
+        vector_perp = np.cross(vectors[0], vectors[1])
+    elif model == 'BC':
+        vector_perp = np.cross(vectors[1], vectors[2])
+    elif model in {'ABAC', 'any'}:
+        vector_perp = np.cross(vectors[1], vectors[2])
+        vector_perp = np.cross(vector_perp, vectors[0])
+    vector_perp = np.abs(vector_perp)
+    #print('vector_perp:', vector_perp)
+
+
+    # get effective 1D chain cells
+    if model in {'AB', 'ABAC', 'any'}: # A as the starting of second column
+        vec = vectors[0]
+    elif model == 'BC': # B as the starting of second column
+        vec = vectors[1]
+    cells = [[[0,0,0]], [vec]] # O as the starting of first column
+
+    c = 0 if model == 'AB' else 1
+    if model in {'AB', 'BC'}:
+        for i in range((nx-1)//2):
+            cells[1].append(cells[0][-1] + vectors[c+1])
+            cells[0].append(cells[1][-1] - vectors[c])
+    elif model in {'ABAC', 'any'}:
+        for i in range((nx-1)//4):
+            cells[1].append(cells[0][-1] + vectors[1])
+            cells[0].append(cells[1][-1] - vectors[0])
+            cells[1].append(cells[0][-1] + vectors[2])
+            cells[0].append(cells[1][-1] - vectors[0])
+    cells = np.array(cells)
+
+    # shift to positive indices
+    cells = cells.reshape(-1, 3).T
+    for i, _cells in enumerate(cells):
+        min_id = np.min(_cells)
+        if min_id < 0:
+            cells[i] -= min_id
+    cells = cells.T.reshape(2, -1, 3)
+
+
+    # expand to higher dimensions
+    if ndim >= 2:
+        cells_t = np.copy(cells[1])
+        for i in range(ny-2):
+            cells_t += vec[None, :]
+            cells = np.append(cells, [cells_t], axis=0)
+    if ndim >= 3:
+        cells_t = np.copy(cells)
+        for i in range(nz-1):
+            cells_t += vector_perp[None, None, :]
+            cells = np.append(cells, cells_t, axis=0)
+
+    cells = cells.reshape(-1, 3)
+    print('number of cells:', len(cells))
+    #print(np.array(cells))
+
+
+    # apply distance cutoff
+    neighbor_index = neighbor_index[:np.sum(distances <= r_cutoff)]
+    print('neighbor count after cutoff:', len(neighbor_index))
+    #print(neighbor_index)
+
+    return cells, neighbor_index
