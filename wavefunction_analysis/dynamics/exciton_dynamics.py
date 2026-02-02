@@ -6,6 +6,7 @@ from wavefunction_analysis.utils import (
         put_keys_kwargs_to_object, put_kwargs_to_keys)
 from wavefunction_analysis.dynamics.dimers_in_crystal import add_molecule
 from wavefunction_analysis.dynamics.process_exciton_parameters import process_parameters, set_model
+from wavefunction_analysis.utils.sec_mole import write_symbols_coords
 
 class Exciton():
     r"""
@@ -60,38 +61,56 @@ class Exciton():
 
     def process_parameters(self):
         r"""Process the input parameters and get real parameters."""
+        # number of molecules in an unit cell
+        self.n_mol = n_mol = self.unit_cell['n_mol']
+
         # build the list of unit cells
         nx, ny, nz = self.n_cell
         cells = itertools.product(range(nx), range(ny), range(nz))
         self.cells = getattr(self, 'cells', list(cells))
         print('number of cells:', len(self.cells))
-        if self.debug > 1:
-            print('cells:', self.cells)
+        if self.debug >= 0:
+            print('cells:\n', self.cells)
 
         cells = self.cells
         neighbor_index = self.neighbor_index
 
         # dictionary for cell index searching. O(1) loopup
         cell_dict = {tuple(row): idx for idx, row in enumerate(cells)}
+        cell_dict_r = {idx: tuple(row) for idx, row in enumerate(cells)}
 
         # premap the hamiltonian coupling index
+        sites = [] # left and right sites
         hamil_index = []
-        for icount, (i, j, k) in enumerate(cells):
+        for ic, (i, j, k) in enumerate(cells):
             for x, (l, (a, b, c, d)) in enumerate(neighbor_index):
                 # l and d are the molecule index in the unit cell
                 a, b, c = i+a, j+b, k+c
-                vec = np.array([a, b, c])
-                jc = cell_dict.get(tuple(vec), None)
+                jc = cell_dict.get(tuple([a,b,c]), None)
                 if jc:
-                    hamil_index.append([icount, l, jc, d, x])
-        self.hamil_index = hamil_index
-        if self.debug >= 2:
-            print('hamil_index:', self.hamil_index)
+                    # ic, jc are the indices of hamiltonian elements
+                    # l, d are the molecule indices in the unit cell
+                    # x is the index for coupling_j
+                    sites.append(ic*n_mol+l)
+                    sites.append(jc*n_mol+d)
+                    hamil_index.append([ic, l, jc, d, x])
 
-        # get total number of sites
-        self.n_mol = self.unit_cell['n_mol']
-        self.n_cell = icount + 1
-        self.n_site = self.n_cell * self.n_mol
+        self.hamil_index = hamil_index
+        self.sites = sites = list(set(sites))
+        print('%4d out of %4d molecules are included in the Hamiltonian.'
+              % (len(self.sites), int((ic+1)*n_mol)))
+        hamil_filter = (np.reshape(sites, (-1,1))*2 + np.arange(self.nstate)[None,:]).ravel()
+        self.hamil_filter = np.ix_(hamil_filter, hamil_filter) # remove isolated entries in hamiltonian
+        if self.debug >= 2:
+            print('sites:', self.sites)
+            print('hamil_index:\n', self.hamil_index)
+            isolated_sites = set(range((ic+1)*n_mol)) - set(sites)
+            for s in isolated_sites:
+                print('Isolated site:', s, cell_dict_r[s//n_mol], s%n_mol)
+
+
+        self.n_cell = ic + 1 # total number of unit cells
+        self.n_site = len(sites) # total number of sites included
 
         # add length for c2 calculation
         abc, angles, scales = self.unit_cell['abc'], self.unit_cell['angles'], self.unit_cell['scales']
@@ -101,9 +120,23 @@ class Exciton():
             for s in range(self.n_mol):
                 length[icount,s] = add_molecule(i,j,k,s+1,abc,angles,None,center)
 
-        length = length.reshape(self.n_site, 3)
+        length = length.reshape(-1, 3)[self.sites]
         self.length = length - np.mean(length, axis=0)
         #print_matrix('length (AA):', self.length)
+
+
+    def print_site_coords(self, xyzfile=None):
+        r"""Print site coordinates to xyz file for visualization."""
+        if xyzfile is None:
+            xyzfile = 'molecular_sites_'+str(self.model)+'_'+str(self.n_cell)
+            xyzfile = getattr(self, 'xyzfile', xyzfile)
+        if xyzfile[-4] != '.xyz':
+            xyzfile += '.xyz'
+        xyzfile = self.param_dir + '/' + xyzfile
+        symbols = ['Ag'] * self.n_site
+        coords = self.length * convert_units(1., 'bohr', 'aa')
+        write_symbols_coords(xyzfile, symbols, coords)
+        print('Molecular site coordinates written to', xyzfile)
 
 
     def convert_parameter_units(self, unit_dict={}):
@@ -153,7 +186,8 @@ class Exciton():
         for (left, l, right, d, x) in hamil_index:
             hamiltonian[left,l,:,right,d] = coupling_j[left, x]
 
-        hamiltonian = hamiltonian.reshape(self.n_site*ns, -1)
+        hamiltonian = hamiltonian.reshape(n_cell*nt*ns, -1)
+        hamiltonian = hamiltonian[self.hamil_filter]
         hamiltonian += hamiltonian.conj().T
         return hamiltonian
 
@@ -681,15 +715,17 @@ if __name__ == '__main__':
     obj = setup_exciton_dynamics(infile)
     #obj.kernel()
 
+    obj.edstep.print_site_coords()
+
     obj.edstep.get_hamiltonian()
     #print_matrix('Exciton Hamiltonian (au):', obj.edstep.hamiltonian)
     e, f = obj.edstep.cal_spectra()
-    e = convert_units(e, 'eh', 'nm')
+    e_shift = 0.47 # ev
+    e = convert_units(e-convert_units(e_shift, 'ev', 'eh'), 'eh', 'nm')
 
-    method = 'lorentzian'
     from wavefunction_analysis.plot import plt, broadening
     fig, ax = plt.subplots()
-    e, f = broadening(e, f, wid=3, method=method, d=20)
+    e, f = broadening(e, f, method='voigt', margin=20, width=15, gamma=10)
     ax.plot(e, f.real)
     ax.set_xlabel('Exciton wavelength (nm)')
     ax.set_ylabel('Oscillator strength (au)')

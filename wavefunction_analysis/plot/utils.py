@@ -106,18 +106,68 @@ def gradient_color_line(ax, x, y, weights, cmap, vmin=.0, vmax=1., label=''):
     return line_segments
 
 
-def broadening(centers, heighs, wid=0.0005, d=0.05, method='gaussian', xrange=None):
-    mi, ma = np.min(centers)-d, np.max(centers)+d
-    if xrange is not None:
+def broadening(centers, heighs, width=0.0005, margin=0.05, method='gaussian',
+               npoints=1001, xrange=None, **kwargs):
+    r"""
+    Generate broadened spectrum from stick spectrum.
+
+    Parameters
+        centers : array_like
+            Positions of the stick spectrum peaks.
+        heighs : array_like
+            Heights of the stick spectrum peaks.
+        width : float, optional
+            Broadening width parameter sigma. Default is 0.0005.
+        margin : float, list or tuple, optional
+            Extra margin added to the min and max of centers for x-axis range. Default is 0.05.
+        method : str, optional
+            Broadening method. Options are 'lorentzian', 'gaussian', and 'voigt'. Default is 'gaussian'.
+        npoints : int, optional
+            Number of points in the output spectrum. Default is 1001.
+        xrange : tuple, optional
+            Tuple specifying the x-axis range (min, max). If None, it is determined from centers and margin.
+        gamma : float, optional
+            Lorentzian width parameter. Only used if method is 'voigt'.
+        gamma_table : array_like, optional
+            Table of gamma values for each peak. Only used if method is 'voigt'.
+
+    Returns
+        x : ndarray
+            x-axis values of the broadened spectrum.
+        y : ndarray
+            y-axis values of the broadened spectrum.
+    """
+    if xrange:
         mi, ma = xrange
-    x = np.linspace(mi, ma, 10001)
+    else:
+        if not isinstance(margin, (list, tuple)):
+            margin = (margin, margin)
+        mi, ma = np.min(centers)-margin[0], np.max(centers)+margin[1]
+
+    x = np.linspace(mi, ma, npoints)
     y = 0.
+
     if method == 'lorentzian':
         for n in range(len(centers)):
-            y += heighs[n] * wid**2 / ((x-centers[n])**2 + wid**2)
+            y += heighs[n] * width**2 / ((x-centers[n])**2 + width**2)
     elif method == 'gaussian':
         for n in range(len(centers)):
-            y += np.sqrt(2*np.pi) * wid * heighs[n] * norm.pdf(x, centers[n], wid)
+            y += np.sqrt(2*np.pi) * width * heighs[n] * norm.pdf(x, centers[n], width)
+    elif method == 'voigt':
+        from scipy.special import wofz
+        gamma = kwargs.get('gamma', width)
+        gamma_table = kwargs.get('gamma_table',
+                                 [[820.310766e-9, 45.9188586e-9],
+                                  [853.274140e-9, 48.0870613e-9],
+                                  [889.567148e-9, 38.0147813e-9],
+                                  [914.206437e-9, 42.7828469e-9],
+                                  [945.514185e-9, 49.7859967e-9]])
+
+        for n in range(len(centers)):
+            gamma_pair = min(gamma_table, key=lambda g: abs(g[0]-centers[n]))
+            z = ((x - centers[n]) + 1j*gamma_pair[1]*gamma) / (width * np.sqrt(2))
+            y += (heighs[n] / (width * np.sqrt(2*np.pi))) * np.real(wofz(z))
+
     return x, y
 
 

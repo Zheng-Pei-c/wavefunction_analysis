@@ -176,11 +176,11 @@ def set_model(neighbor_index, distances, model='AB', n_cell=[10,1,1],
         neighbor_index : list of [int, list of int]
             Refined neighbobr index list based on the model.
     """
-    if model not in {'AB', 'BC', 'ABAC', 'BACA', 'any'}:
-        model = 'any'
-        print('Unknown model type %s changed to any.' % model)
-    # interchangable model types
-    if model == 'BACA': model = 'ABAC'
+    # apply distance cutoff
+    neighbor_index = neighbor_index[:np.sum(distances <= r_cutoff)]
+    #print('neighbor count after cutoff:', len(neighbor_index))
+    #print(neighbor_index)
+
 
     # figure out dimensions
     if isinstance(n_cell, int): n_cell = [n_cell]
@@ -199,6 +199,22 @@ def set_model(neighbor_index, distances, model='AB', n_cell=[10,1,1],
     if ndim == 1: ny = 2 # quasi-1D system has two columns
     if ndim >= 2 and ny == 2: ny += 1 # add more columns for 2D
     if ndim >= 3 and nz == 1: nz += 1 # add more layers for 3D
+
+
+    # now get sepecific cells for different models
+    if model == 'ABC':
+        # 1D ABC is already a plane whose dimension is given by nx and ny
+        # nz adds more layers
+        if ndim == 1: ny = nx # get a square by default
+        cells = list(itertools.product(range(nx), range(ny), range(nz+1)))
+        return np.array(cells), neighbor_index
+
+    if model not in {'AB', 'BC', 'ABAC', 'BACA', 'any'}:
+        model = 'any'
+        print('Unknown model type %s changed to any.' % model)
+    # interchangable model types
+    if model == 'BACA': model = 'ABAC'
+
 
     # the first three neighboring dimers labeled as A, B, and C
     vectors = [np.array(neighbor_index[i][1][:3], dtype=int) for i in range(3)]
@@ -223,12 +239,14 @@ def set_model(neighbor_index, distances, model='AB', n_cell=[10,1,1],
     cells = [[[0,0,0]], [vec]] # O as the starting of first column
 
     c = 0 if model == 'AB' else 1
+    nmax = nx - 1
+    if ndim == 1: nmax = nmax // 2
     if model in {'AB', 'BC'}:
-        for i in range((nx-1)//2):
+        for i in range(nmax):
             cells[1].append(cells[0][-1] + vectors[c+1])
             cells[0].append(cells[1][-1] - vectors[c])
     elif model in {'ABAC', 'any'}:
-        for i in range((nx-1)//4):
+        for i in range(nmax//2):
             cells[1].append(cells[0][-1] + vectors[1])
             cells[0].append(cells[1][-1] - vectors[0])
             cells[1].append(cells[0][-1] + vectors[2])
@@ -248,9 +266,7 @@ def set_model(neighbor_index, distances, model='AB', n_cell=[10,1,1],
         rx, ry, rz = range(ci[0], cj[0]+1), range(ci[1], cj[1]+1), range(ci[2], cj[2]+1)
         cells = list(itertools.product(rx, ry, rz))
 
-    cells = np.reshape(cells, (-1, 2, 3))
-    if model == 'any':
-        cells = cells[:nx//2] # get rid of extra cells
+    cells = np.reshape(cells, (2, -1, 3))
 
     # expand to higher dimensions
     if ndim >= 2:
@@ -265,14 +281,7 @@ def set_model(neighbor_index, distances, model='AB', n_cell=[10,1,1],
             cells = np.append(cells, cells_t, axis=0)
 
     cells = cells.reshape(-1, 3)
-
     #print('number of cells:', len(cells))
     #print(cells)
-
-
-    # apply distance cutoff
-    neighbor_index = neighbor_index[:np.sum(distances <= r_cutoff)]
-    #print('neighbor count after cutoff:', len(neighbor_index))
-    #print(neighbor_index)
 
     return cells, neighbor_index
