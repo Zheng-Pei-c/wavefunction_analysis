@@ -1,6 +1,8 @@
-# Wavefunction Analysis
+# LumeQ
 
-A Python package for analyzing quantum chemical wavefunctions, built on top of [PySCF](https://github.com/pyscf/pyscf) and model Hamiltonian methods. This package is currently **under active development** and provides advanced tools for investigating electronic structure and dynamics. Key features include:
+Illuminating quantum in chemistry and materials with advanced computational tools.
+
+LumeQ is a Python package for analyzing quantum chemical wavefunctions, built on top of [PySCF](https://github.com/pyscf/pyscf) and model Hamiltonian methods. This package is currently **under active development** and provides advanced tools for investigating electronic structure and dynamics. Key features include:
 
 *   **Electronic Structure**:
     *   **MRSF DFT**: Mixed-Reference Spin-Flip DFT for robust description of ground and excited states, including conical intersections.
@@ -94,7 +96,7 @@ print(f"0.1 Hartree = {e_ev} eV")
 
 ### 2. Wick's Theorem Analysis
 
-Wick's theorem is a powerful tool for analyzing quantum chemical wavefunctions. 
+Wick's theorem is a powerful tool for analyzing quantum chemical wavefunctions.
 The contraction of Wick's theorem for spin-quantized operators can be automated using the `sqo_evaluation` function in the `lumeq.utils.wick_contraction` module.
 Here is an example of how to perform automated Wick's theorem contractions (adapted from [`samples/wick_operators.py`](https://github.com/Zheng-Pei-c/lumeq/blob/main/samples/wick_operators.py)).
 
@@ -221,7 +223,7 @@ The package contains the following modules:
 
 This project utilizes AI-assisted coding tools, including [GitHub Copilot](https://github.com/github/copilot.vim) and [Google Gemini](https://gemini.google.com/), for code generation and documentation.
 
-The implementation details can be found in papers cited in the source files and my [personal notes](https://zhengpeic.github.io/notes/).  
+The implementation details can be found in papers cited in the source files and my [personal notes](https://zhengpeic.github.io/notes/).
 
 
 ## License
