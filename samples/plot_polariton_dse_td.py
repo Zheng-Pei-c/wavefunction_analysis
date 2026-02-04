@@ -1,10 +1,10 @@
 import os, sys
 import numpy as np
 
-from wavefunction_analysis.utils import print_matrix
-from wavefunction_analysis.utils.read_files import read_number
-from wavefunction_analysis.utils import convert_units
-from wavefunction_analysis.plot import plt, add_colorbar_map, gradient_color_line
+from lumeq.utils import print_matrix
+from lumeq.utils.read_files import read_number
+from lumeq.utils import convert_units
+from lumeq.plot import plt, add_colorbar_map, gradient_color_line
 
 if __name__ == '__main__':
     molecule = 'h2'

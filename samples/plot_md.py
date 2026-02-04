@@ -1,10 +1,10 @@
 import os, sys
 import numpy as np
 
-from wavefunction_analysis.plot import plt
-from wavefunction_analysis.dynamics.molecular_dynamics import *
-from wavefunction_analysis.utils import convert_units
-from wavefunction_analysis.utils.sec_mole import read_symbols_coords
+from lumeq.plot import plt
+from lumeq.dynamics.molecular_dynamics import *
+from lumeq.utils import convert_units
+from lumeq.utils.sec_mole import read_symbols_coords
 
 def plot_time_variables(md, ax, idx=0, idy=0):
     total_time = md.total_time

@@ -1,7 +1,7 @@
 import os, sys
 import numpy as np
 
-from wavefunction_analysis.utils.sec_mole import read_geometry, write_geometry, switch_atoms
+from lumeq.utils.sec_mole import read_geometry, write_geometry, switch_atoms
 
 
 if __name__ == '__main__':

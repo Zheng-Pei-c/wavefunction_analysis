@@ -1,14 +1,14 @@
 import sys
 import scipy
 
-from wavefunction_analysis import np, itertools
-from wavefunction_analysis.utils.wf_overlap import assemble_amplitudes, change_phase, cal_wf_overlap, sign_fixing
-from wavefunction_analysis.utils import print_matrix, swap_largest_to_diagonal, get_ortho_basis
+from lumeq import np, itertools
+from lumeq.utils.wf_overlap import assemble_amplitudes, change_phase, cal_wf_overlap, sign_fixing
+from lumeq.utils import print_matrix, swap_largest_to_diagonal, get_ortho_basis
 
 #from pymanopt.manifolds import Grassmann
-from wavefunction_analysis.manifold.riemannian import Grassmann
+from lumeq.manifold.riemannian import Grassmann
 
-from wavefunction_analysis.plot import plt
+from lumeq.plot import plt
 
 from pyscf import scf, tdscf, gto
 

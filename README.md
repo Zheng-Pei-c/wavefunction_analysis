@@ -11,7 +11,7 @@ A Python package for analyzing quantum chemical wavefunctions, built on top of [
 *   **Spin Models**: Studying strongly correlated spin systems (Ising, Heisenberg) using Matrix Product States (DMRG), Monte Carlo simulations, and Quantum Computing algorithms (QAOA).
 *   **utils**: Utility tools such as PySCF parser, unit conversion, Wick's theorem contractions.
 
-For more details and API references, please visit the [wavefunction_analysis](https://zheng-pei-c.github.io/wavefunction_analysis/) webpage.
+For more details and API references, please visit the [lumeq](https://zheng-pei-c.github.io/lumeq/) webpage.
 
 
 
@@ -20,8 +20,8 @@ For more details and API references, please visit the [wavefunction_analysis](ht
 You can install the package using `pip`.
 
 ```bash
-git clone https://github.com/Zheng-Pei-c/wavefunction_analysis.git
-cd wavefunction_analysis
+git clone https://github.com/Zheng-Pei-c/lumeq.git
+cd lumeq
 pip install .
 ```
 
@@ -45,8 +45,8 @@ pip install .[pyscf,gpu]
 Alternatively, you can add the package directory to your `PYTHONPATH`.
 
 ```bash
-git clone https://github.com/Zheng-Pei-c/wavefunction_analysis.git
-export PYTHONPATH=$PYTHONPATH:/path/to/wavefunction_analysis
+git clone https://github.com/Zheng-Pei-c/lumeq.git
+export PYTHONPATH=$PYTHONPATH:/path/to/lumeq
 ```
 
 **Note:** If you choose this method, you must manually install the required dependencies listed in [`pyproject.toml`](pyproject.toml) or refer to the [Dependencies](#dependencies) section below.
@@ -76,10 +76,10 @@ export PYTHONPATH=$PYTHONPATH:/path/to/wavefunction_analysis
 
 ### 1. Unit Conversion
 
-The package provides a utility to convert between various physical units (time, length, energy, frequency, temperature, mass). See [`wavefunction_analysis/utils/unit_conversion.py`](https://github.com/Zheng-Pei-c/wavefunction_analysis/blob/main/wavefunction_analysis/utils/unit_conversion.py).
+The package provides a utility to convert between various physical units (time, length, energy, frequency, temperature, mass). See [`lumeq/utils/unit_conversion.py`](https://github.com/Zheng-Pei-c/lumeq/blob/main/lumeq/utils/unit_conversion.py).
 
 ```python
-from wavefunction_analysis.utils import convert_units
+from lumeq.utils import convert_units
 
 # Convert 100 fs to atomic units
 t_au = convert_units(100, 'fs', 'au')
@@ -95,11 +95,11 @@ print(f"0.1 Hartree = {e_ev} eV")
 ### 2. Wick's Theorem Analysis
 
 Wick's theorem is a powerful tool for analyzing quantum chemical wavefunctions. 
-The contraction of Wick's theorem for spin-quantized operators can be automated using the `sqo_evaluation` function in the `wavefunction_analysis.utils.wick_contraction` module.
-Here is an example of how to perform automated Wick's theorem contractions (adapted from [`samples/wick_operators.py`](https://github.com/Zheng-Pei-c/wavefunction_analysis/blob/main/samples/wick_operators.py)).
+The contraction of Wick's theorem for spin-quantized operators can be automated using the `sqo_evaluation` function in the `lumeq.utils.wick_contraction` module.
+Here is an example of how to perform automated Wick's theorem contractions (adapted from [`samples/wick_operators.py`](https://github.com/Zheng-Pei-c/lumeq/blob/main/samples/wick_operators.py)).
 
 ```python
-from wavefunction_analysis.utils.wick_contraction import sqo_evaluation
+from lumeq.utils.wick_contraction import sqo_evaluation
 
 # 1e Hamiltonian term
 h1 = 'p_sigma^dagger q_tau'
@@ -117,11 +117,11 @@ sqo_evaluation(Tsa, h1, Tbt, exceptions=exceptions, title='Open-shell excited-st
 
 ### 3. DMET Analysis
 
-Here is an example of how to perform Density Matrix Embedding Theory (DMET) analysis on a water cluster (adapted from [`wavefunction_analysis/embedding/fragment_entangle.py`](https://github.com/Zheng-Pei-c/wavefunction_analysis/blob/main/wavefunction_analysis/embedding/fragment_entangle.py)).
+Here is an example of how to perform Density Matrix Embedding Theory (DMET) analysis on a water cluster (adapted from [`lumeq/embedding/fragment_entangle.py`](https://github.com/Zheng-Pei-c/lumeq/blob/main/lumeq/embedding/fragment_entangle.py)).
 
 ```python
 from pyscf import gto, scf
-from wavefunction_analysis.embedding.fragment_entangle import get_embedding_system
+from lumeq.embedding.fragment_entangle import get_embedding_system
 
 # Define molecule (Water trimer example)
 mol = gto.Mole()
@@ -157,10 +157,10 @@ get_embedding_system(mf, frgm_idx)
 
 ### 4. Molecular Dynamics
 
-You can run molecular dynamics simulations using the `dynamics` module. See [`wavefunction_analysis/dynamics/molecular_dynamics.py`](https://github.com/Zheng-Pei-c/wavefunction_analysis/blob/main/wavefunction_analysis/dynamics/molecular_dynamics.py) for more details.
+You can run molecular dynamics simulations using the `dynamics` module. See [`lumeq/dynamics/molecular_dynamics.py`](https://github.com/Zheng-Pei-c/lumeq/blob/main/lumeq/dynamics/molecular_dynamics.py) for more details.
 
 ```python
-from wavefunction_analysis.dynamics.molecular_dynamics import MolecularDynamics
+from lumeq.dynamics.molecular_dynamics import MolecularDynamics
 
 # Setup MD parameters
 key = {
